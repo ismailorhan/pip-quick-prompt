@@ -361,13 +361,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <linearGradient id="qpGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
       </defs>
       <circle cx="12" cy="12" r="11.2" fill="url(#qpDisc)" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
+      <g class="links" stroke="url(#qpMini)" stroke-linecap="round" fill="none"></g>
       <g class="rays" stroke="url(#qpMini)" stroke-width="1.15" stroke-linecap="round">
         <g class="piece" data-cx="16.8" data-cy="7.2"><path d="M16.1 7.9L17.5 6.5"/></g>
         <g class="piece" data-cx="16.8" data-cy="16.8"><path d="M16.1 16.1L17.5 17.5"/></g>
         <g class="piece" data-cx="7.2" data-cy="16.8"><path d="M7.9 16.1L6.5 17.5"/></g>
         <g class="piece" data-cx="7.2" data-cy="7.2"><path d="M7.9 7.9L6.5 6.5"/></g>
       </g>
-      <g class="piece core" data-cx="12" data-cy="12"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
+      <g class="signals"></g>
+      <g class="core"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
       <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
     </svg></button>
     <div class="minibar glass" id="minibar">
@@ -935,71 +937,151 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   /// While collapsed: pulse while answering, then show a bubble with the start of the answer.
-  // ---------- the icon's "snow globe": asleep, its pieces drift around inside the disc; on hover (or
-  // while working) they gather quickly into the logo and shiver for a moment: "I'm awake, ready". ----------
+  // ---------- the floating icon: loose thoughts that become one idea ----------
+  // Asleep, each ray drifts in its own quarter between the star's arms, faint links form between rays that
+  // come close and small signals run along them (the ray they reach swells for a moment); the star stays
+  // in the middle, a little smaller, breathing. On hover (or while answering) the rays settle into the
+  // logo and the star flashes once; while the mouse stays, the rays bounce like springs every 1-2 s.
   const globe = (() => {
     const button = $("miniOpen");
+    const NS = "http://www.w3.org/2000/svg";
     const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const pieces = [...button.querySelectorAll(".piece")].map(el => ({
-      el, cx: +el.dataset.cx, cy: +el.dataset.cy, core: el.classList.contains("core"),
-      x: 0, y: 0, r: 0, s: 1, vx: 0, vy: 0, vr: 0,
+    const tune = { gather: 0.9, drift: 2, link: 0.45, star: 0.86, signals: 1, spring: 0.35 };
+    const rays = [...button.querySelectorAll(".piece")].map(el => ({
+      el, path: el.querySelector("path"), cx: +el.dataset.cx, cy: +el.dataset.cy,
+      x: 0, y: 0, r: 0, vx: 0, vy: 0, vr: 0, glow: 0, ex: 0, ey: 0,
     }));
-    let awake = false, hover = false, busy = false, shiverUntil = 0, sleepTimer = 0, running = false, last = 0;
-
-    function scatter() {
-      for (const p of pieces) {
-        const a = Math.random() * Math.PI * 2, d = p.core ? 1.5 : 2.5 + Math.random() * 2.5;
-        p.vx = Math.cos(a) * 0.9; p.vy = Math.sin(a) * 0.9;
-        p.vr = (Math.random() - 0.5) * (p.core ? 30 : 90);
-        if (!p.x && !p.y) { p.x = Math.cos(a) * d * 0.3; p.y = Math.sin(a) * d * 0.3; }
-      }
+    const core = button.querySelector(".core");
+    const linkGroup = button.querySelector(".links"), signalGroup = button.querySelector(".signals");
+    const pairs = [];
+    for (let i = 0; i < rays.length; i++) {
+      for (let j = i + 1; j < rays.length; j++) pairs.push([rays[i], rays[j]]);
+      pairs.push([rays[i], null]);   // to the star
     }
+    const lines = pairs.map(() => { const l = document.createElementNS(NS, "line"); l.setAttribute("stroke-width", ".16"); linkGroup.appendChild(l); return l; });
+    const signals = [];
+    let hover = false, busy = false, awake = false, wake = 0, starScale = tune.star;
+    let springT = -1, sprung = false, springWait = 0, flashT = -1, flashed = false, nextSignal = 0.4;
+    let running = false, last = 0, t = 0, sleepTimer = 0;
+
+    for (const p of rays) {
+      const a = Math.random() * Math.PI * 2;
+      p.x = Math.cos(a) * 1.2; p.y = Math.sin(a) * 1.2; p.r = (Math.random() - .5) * 120;
+      p.vx = (Math.random() - .5) * 1.4; p.vy = (Math.random() - .5) * 1.4; p.vr = (Math.random() - .5) * 40;
+    }
+
+    function spawnSignal(strength) {
+      const candidates = pairs.filter((_, i) => strength[i] > 0.25);
+      if (!candidates.length) return;
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const forward = Math.random() < 0.5 || !pick[1];
+      const halo = document.createElementNS(NS, "circle"), dot = document.createElementNS(NS, "circle");
+      halo.setAttribute("r", ".8"); halo.setAttribute("fill", "#dfe7ff");
+      dot.setAttribute("r", ".32"); dot.setAttribute("fill", "#f2f5ff");
+      signalGroup.append(halo, dot);
+      signals.push({ from: forward ? pick[0] : pick[1], to: forward ? pick[1] : pick[0], t: 0, dur: 0.45 + Math.random() * 0.35, dot, halo });
+    }
+
+    // In its quarter (u, v = distances from the two axes) a ray stays outside the star's edge, which runs
+    // from an arm tip (0, 7.4) to the inner corner (1.85, 1.85): u >= (7.4 - v) / 3 and v >= (7.4 - u) / 3.
+    function keepInQuarter(p) {
+      const sx = Math.sign(p.cx - 12), sy = Math.sign(p.cy - 12), m = 1.05;
+      let u = (p.cx + p.x - 12) * sx, v = (p.cy + p.y - 12) * sy, vu = p.vx * sx, vv = p.vy * sy;
+      const tip = 7.4 * starScale;
+      const minU = Math.max(m, (tip - v) / 3 + m), minV = Math.max(m, (tip - u) / 3 + m);
+      if (u < minU) { u = minU; if (vu < 0) vu = -vu; }
+      if (v < minV) { v = minV; if (vv < 0) vv = -vv; }
+      const room = 8.6, d = Math.hypot(u, v);
+      if (d > room) { u *= room / d; v *= room / d; const dot = (vu * u + vv * v) / room; if (dot > 0) { vu -= 2 * dot * u / room; vv -= 2 * dot * v / room; } }
+      p.x = u * sx + 12 - p.cx; p.y = v * sy + 12 - p.cy; p.vx = vu * sx; p.vy = vv * sy;
+    }
+
     function setAwake(value) {
       if (value === awake) return;
       awake = value;
-      if (awake) shiverUntil = performance.now() + 900; else scatter();
+      if (!awake) for (const p of rays) { const a = Math.random() * Math.PI * 2; p.vx = Math.cos(a) * .9; p.vy = Math.sin(a) * .9; p.vr = (Math.random() - .5) * 40; }
       start();
     }
     function update() {
       clearTimeout(sleepTimer);
       if (hover || busy) setAwake(true);
-      else sleepTimer = setTimeout(() => setAwake(false), 1600);
+      else sleepTimer = setTimeout(() => setAwake(false), 500);
     }
+
     function frame(now) {
       if (!collapsed || document.hidden) { running = false; return; }
-      const dt = Math.min(0.05, (now - (last || now)) / 1000);
-      last = now;
-      const shiver = awake && now < shiverUntil ? (shiverUntil - now) / 900 : 0;
-      for (const p of pieces) {
-        if (awake || reduce) {
-          // Snap home quickly (critically damped), then a small fading tremble.
-          const k = Math.min(1, dt * 14);
-          p.x += (0 - p.x) * k; p.y += (0 - p.y) * k; p.r += (0 - p.r) * k; p.s += (1 - p.s) * k;
-        } else {
-          // Drift like flakes in a snow globe: slow, a little random, bouncing off the glass.
-          p.vx += (Math.random() - 0.5) * dt * 2.2; p.vy += (Math.random() - 0.5) * dt * 2.2 + dt * 0.25;
-          const speed = Math.hypot(p.vx, p.vy), max = p.core ? 0.6 : 1.4;
-          if (speed > max) { p.vx *= max / speed; p.vy *= max / speed; }
-          p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
-          const limit = p.core ? 1.6 : 6.2 - Math.hypot(p.cx - 12, p.cy - 12) * 0.25;
-          const dx = p.cx - 12 + p.x, dy = p.cy - 12 + p.y, dist = Math.hypot(dx, dy);
-          const room = p.core ? limit : 8.4;
-          if ((p.core && Math.hypot(p.x, p.y) > limit) || (!p.core && dist > room)) {
-            const nx = p.core ? p.x / Math.hypot(p.x, p.y) : dx / dist, ny = p.core ? p.y / Math.hypot(p.x, p.y) : dy / dist;
-            const dot = p.vx * nx + p.vy * ny;
-            if (dot > 0) { p.vx -= 2 * dot * nx; p.vy -= 2 * dot * ny; }
-            p.x -= nx * 0.05; p.y -= ny * 0.05;
-          }
-          const targetScale = p.core ? 0.62 : 0.85;
-          p.s += (targetScale - p.s) * Math.min(1, dt * 3);
-        }
-        const jx = shiver ? (Math.random() - 0.5) * 0.5 * shiver : 0, jy = shiver ? (Math.random() - 0.5) * 0.5 * shiver : 0;
-        p.el.setAttribute("transform",
-          `translate(${(p.x + jx).toFixed(3)} ${(p.y + jy).toFixed(3)}) translate(${p.cx} ${p.cy}) rotate(${p.r.toFixed(2)}) scale(${p.s.toFixed(3)}) translate(${-p.cx} ${-p.cy})`);
-      }
-      const settled = (awake || reduce) && !shiver && pieces.every(p => Math.abs(p.x) + Math.abs(p.y) + Math.abs(p.r) < 0.01);
-      if (settled) { running = false; return; }
       requestAnimationFrame(frame);
+      if (last && now - last < 30) return;          // ~30 fps is plenty for this and saves energy
+      const dt = Math.min(0.06, (now - (last || now)) / 1000);
+      last = now; t += dt;
+      const settled = awake || reduce;
+      wake += ((settled ? 1 : 0) - wake) * Math.min(1, dt * (3.2 / tune.gather));
+      const k = Math.min(1, dt * (3.6 / tune.gather));
+      for (const p of rays) {
+        if (settled) { p.x -= p.x * k; p.y -= p.y * k; p.r -= p.r * k; continue; }
+        const s = tune.drift;
+        p.vx += (Math.random() - .5) * dt * 1.6 * s; p.vy += (Math.random() - .5) * dt * 1.6 * s;
+        const speed = Math.hypot(p.vx, p.vy), max = 1.1 * s;
+        if (speed > max) { p.vx *= max / speed; p.vy *= max / speed; }
+        p.x += p.vx * dt * s; p.y += p.vy * dt * s; p.r += p.vr * dt * s;
+        keepInQuarter(p);
+      }
+
+      // The spring bounce: first when the rays arrive, then every 1-2 s while the mouse stays on it.
+      if (!awake || !hover || reduce) { springT = -1; sprung = false; }
+      else if (springT < 0 && !sprung && wake > 0.9) { springT = 0; sprung = true; }
+      if (springT >= 0) { springT += dt; if (springT > 1.1) { springT = -1; springWait = 1 + Math.random(); } }
+      else if (sprung) { springWait -= dt; if (springWait <= 0) springT = 0; }
+
+      rays.forEach((p, i) => {
+        let jx = 0, jy = 0, jr = 0;
+        if (springT >= 0) {
+          const tt = Math.max(0, springT - i * 0.05);
+          const a = tune.spring * Math.exp(-tt * 3.2) * Math.sin(tt * Math.PI * 2 * 5.5);
+          jx = Math.sign(p.cx - 12) / Math.SQRT2 * a; jy = Math.sign(p.cy - 12) / Math.SQRT2 * a; jr = a * 10;
+        }
+        p.ex = p.cx + p.x + jx; p.ey = p.cy + p.y + jy;
+        p.el.setAttribute("transform", `translate(${(p.x + jx).toFixed(3)} ${(p.y + jy).toFixed(3)}) rotate(${(p.r + jr).toFixed(2)} ${p.cx} ${p.cy})`);
+        p.glow = Math.max(0, p.glow - dt * 2.2);
+        p.path.setAttribute("stroke-width", (1.15 + p.glow * 0.45).toFixed(3));
+      });
+
+      // The star never turns or moves: a little smaller and breathing while asleep, one flash on waking.
+      if (!awake) flashed = false;
+      if (awake && !flashed && wake > 0.85) { flashed = true; flashT = 0; }
+      let bump = 0;
+      if (flashT >= 0) { flashT += dt * 2.5; bump = flashT < 1 ? Math.sin(flashT * Math.PI) * 0.08 : 0; if (flashT >= 1) flashT = -1; }
+      const sleepScale = tune.star + Math.sin(t * 1.6) * 0.015;
+      starScale = sleepScale + (1 - sleepScale) * wake + bump;
+      core.setAttribute("transform", `translate(12 12) scale(${starScale.toFixed(4)}) translate(-12 -12)`);
+
+      // Links: faint, only between rays that are close, gone once the logo is together.
+      const fade = tune.link * (1 - wake), strength = [];
+      pairs.forEach(([a, b], i) => {
+        const x2 = b ? b.ex : 12, y2 = b ? b.ey : 12;
+        const near = Math.max(0, Math.min(1, 1.6 - Math.hypot(a.ex - x2, a.ey - y2) / 7));
+        strength[i] = near;
+        const lit = signals.some(sg => (sg.from === a && sg.to === b) || (sg.from === b && sg.to === a)) ? 1.8 : 1;
+        const l = lines[i];
+        l.setAttribute("x1", a.ex.toFixed(2)); l.setAttribute("y1", a.ey.toFixed(2));
+        l.setAttribute("x2", x2.toFixed(2)); l.setAttribute("y2", y2.toFixed(2));
+        l.setAttribute("stroke-opacity", Math.min(1, fade * near * (b ? 1 : .6) * lit).toFixed(3));
+      });
+
+      // Signals run along the links while asleep; the ray they reach swells for a moment.
+      if (!awake && !reduce) {
+        nextSignal -= dt * tune.signals;
+        if (nextSignal <= 0) { spawnSignal(strength); nextSignal = 0.35 + Math.random() * 0.7; }
+      }
+      for (let i = signals.length - 1; i >= 0; i--) {
+        const sg = signals[i];
+        sg.t += dt / sg.dur;
+        const fx = sg.from ? sg.from.ex : 12, fy = sg.from ? sg.from.ey : 12, tx = sg.to ? sg.to.ex : 12, ty = sg.to ? sg.to.ey : 12;
+        const q = Math.min(1, sg.t), e = q * q * (3 - 2 * q), o = (1 - wake) * Math.sin(q * Math.PI);
+        for (const c of [sg.dot, sg.halo]) { c.setAttribute("cx", (fx + (tx - fx) * e).toFixed(2)); c.setAttribute("cy", (fy + (ty - fy) * e).toFixed(2)); }
+        sg.dot.setAttribute("opacity", o.toFixed(3)); sg.halo.setAttribute("opacity", (o * .25).toFixed(3));
+        if (sg.t >= 1) { if (sg.to) sg.to.glow = 1; sg.dot.remove(); sg.halo.remove(); signals.splice(i, 1); }
+      }
     }
     function start() {
       if (running || !collapsed) return;
@@ -1011,8 +1093,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     button.addEventListener("focus", () => { hover = true; update(); });
     button.addEventListener("blur", () => { hover = false; update(); });
     document.addEventListener("visibilitychange", start);
-    pieces.forEach(p => { p.x = (Math.random() - 0.5) * 4; p.y = (Math.random() - 0.5) * 4; p.r = Math.random() * 180; p.s = 0.8; });
-    scatter();
     return {
       setBusy(value) { busy = value; update(); },
       setHover(value) { hover = value; update(); },
