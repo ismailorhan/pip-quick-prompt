@@ -85,6 +85,10 @@ and tick what may be used:
 
 Answers get slower when the setup is on (servers start and tools run). API connections never use it.
 
+Each predefined action can override this under **Plugins, MCP servers and skills**: *As in Settings*
+(default), *None* (plain answer, fastest) or *Choose* (its own ticks, e.g. only the CRM server for a
+"CRM lookup" action).
+
 ## Predefined actions
 
 Your own prompts, kept on this computer. Manage them from **Settings → Predefined actions → Manage…**, the

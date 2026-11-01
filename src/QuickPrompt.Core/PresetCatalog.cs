@@ -32,6 +32,42 @@ namespace QuickPrompt.Core
 
         /// <summary>Made or edited in the Predefined actions editor (not remembered from the ring).</summary>
         public Boolean Custom { get; set; }
+
+        /// <summary>CLI setup for this action: SetupModes (default = as in Settings).</summary>
+        public String Setup { get; set; } = SetupModes.Default;
+
+        /// <summary>The action's own plugins / MCP servers / skills, when Setup is "custom".</summary>
+        public CliSetupChoice SetupChoice { get; set; }
+
+        /// <summary>The setup a run of this action uses; null = as in Settings.</summary>
+        public CliSetupChoice SetupFor() => SetupModes.Normalize(this.Setup) switch
+        {
+            SetupModes.Off => new CliSetupChoice { Enabled = false },
+            SetupModes.Custom => Clone(this.SetupChoice ?? new CliSetupChoice(), enabled: true),
+            _ => null,
+        };
+
+        private static CliSetupChoice Clone(CliSetupChoice c, Boolean enabled) => new CliSetupChoice
+        {
+            Enabled = enabled,
+            Skills = c.Skills,
+            Web = c.Web,
+            DisabledPlugins = new List<String>(c.DisabledPlugins ?? new List<String>()),
+            DisabledServers = new List<String>(c.DisabledServers ?? new List<String>()),
+            DisabledSkills = new List<String>(c.DisabledSkills ?? new List<String>()),
+        };
+    }
+
+    /// <summary>How an action picks its CLI setup.</summary>
+    public static class SetupModes
+    {
+        public const String Default = "default";
+
+        public const String Off = "off";
+
+        public const String Custom = "custom";
+
+        public static String Normalize(String value) => value == Off || value == Custom ? value : Default;
     }
 
     /// <summary>
@@ -108,6 +144,8 @@ namespace QuickPrompt.Core
                     Connection = ConnectionModes.Normalize(action.Connection, ConnectionModes.Default),
                     Model = (action.Model ?? "").Trim(),
                     Input = InputModes.Normalize(action.Input),
+                    Setup = SetupModes.Normalize(action.Setup),
+                    SetupChoice = action.SetupChoice,
                     Custom = true,
                     LastUsedUtc = DateTime.UtcNow,
                 };

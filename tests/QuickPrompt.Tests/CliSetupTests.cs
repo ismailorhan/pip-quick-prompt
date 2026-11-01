@@ -68,6 +68,34 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task An_action_can_use_its_own_setup_or_none()
+        {
+            var dir = TempDir.Create();
+            var catalog = new PresetCatalog(Path.Combine(dir, "presets.json"));
+            var custom = catalog.Save(new SavedPreset
+            {
+                Title = "CRM lookup", Instruction = "Find {text}", Setup = SetupModes.Custom,
+                SetupChoice = new CliSetupChoice { Web = false, DisabledServers = { "mail" } },
+            });
+            var plain = catalog.Save(new SavedPreset { Title = "Translate", Instruction = "Translate {text}", Setup = SetupModes.Off });
+            var global = catalog.Save(new SavedPreset { Title = "Other", Instruction = "x {text}" });
+
+            var reread = new PresetCatalog(Path.Combine(dir, "presets.json"));
+            var c = reread.Find(custom.Id).SetupFor();
+            Assert.True(c.Enabled);
+            Assert.False(c.Web);
+            Assert.Equal(new[] { "mail" }, c.DisabledServers);
+            Assert.False(reread.Find(plain.Id).SetupFor().Enabled);
+            Assert.Null(reread.Find(global.Id).SetupFor());
+
+            // The request carries it to the CLI: its own servers, not the ones in Settings.
+            var args = CliSetup.ClaudeArguments(c, Inventory());
+            Assert.Contains("mcp__crm", args);
+            Assert.DoesNotContain("mcp__mail", args);
+            await Task.CompletedTask;
+        }
+
+        [Fact]
         public void SkillsOffDisablesSlashCommands()
         {
             var args = CliSetup.ClaudeArguments(new CliSetupChoice { Enabled = true, Skills = false }, new CliSetupInventory());

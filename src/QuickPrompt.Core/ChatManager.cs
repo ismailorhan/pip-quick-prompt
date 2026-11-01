@@ -81,6 +81,7 @@ namespace QuickPrompt.Core
                 Instruction = saved.Instruction,
                 Connection = saved.Connection,
                 Model = saved.Model,
+                Setup = saved.SetupFor(),
                 Input = InputModes.Normalize(saved.Input),
                 Flow = FlowModes.Send,
             }).ConfigureAwait(false);
@@ -254,6 +255,15 @@ namespace QuickPrompt.Core
                 model = p.Model,
                 builtIn = p.BuiltIn,
                 fields = PromptBuilder.GetParameters(p.Instruction).Count,
+                setup = SetupModes.Normalize(p.Setup),
+                setupChoice = p.SetupChoice == null ? null : new
+                {
+                    skills = p.SetupChoice.Skills,
+                    web = p.SetupChoice.Web,
+                    disabledPlugins = p.SetupChoice.DisabledPlugins,
+                    disabledServers = p.SetupChoice.DisabledServers,
+                    disabledSkills = p.SetupChoice.DisabledSkills,
+                },
             }).ToArray());
 
         public String SaveAction(IReadOnlyDictionary<String, String> body)
@@ -268,6 +278,8 @@ namespace QuickPrompt.Core
                 Connection = Get("connection"),
                 Input = Get("input"),
                 Model = Get("model"),
+                Setup = SetupModes.Normalize(Get("setup")),
+                SetupChoice = ParseSetupChoice(Get("setupChoice"), new CliSetupChoice { Enabled = true }),
             });
             return this.GetActionsJson();
         }
@@ -296,7 +308,13 @@ namespace QuickPrompt.Core
             }
 
             var connection = this.ResolveConnection(preset.ProviderId, preset.Connection);
-            return session.ApplyPreset(this.GetProvider(preset.ProviderId, connection), connection, preset.Title, preset.Model, preset.Instruction);
+            if (!session.ApplyPreset(this.GetProvider(preset.ProviderId, connection), connection, preset.Title, preset.Model, preset.Instruction))
+            {
+                return false;
+            }
+
+            session.Setup = preset.SetupFor();
+            return true;
         }
 
         /// <summary>Loads a saved conversation into the popup so it can be continued.</summary>
@@ -493,6 +511,13 @@ namespace QuickPrompt.Core
             }
         }
 
+        private ChatSession CreateSession(Preset preset)
+        {
+            var session = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+            session.Setup = preset.Setup;
+            return session;
+        }
+
         private async Task ExecutePresetCoreAsync(Preset preset)
         {
             this._presets.Remember(preset);
@@ -503,7 +528,7 @@ namespace QuickPrompt.Core
             // "Paste in popup": nothing to read; open an empty popup that applies the preset prompt on Enter.
             if (preset.Input == InputModes.Popup)
             {
-                var pasteSession = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+                var pasteSession = this.CreateSession(preset);
                 if (instruction.Trim().Length > 0)
                 {
                     pasteSession.PresetInstruction = instruction;
@@ -519,7 +544,7 @@ namespace QuickPrompt.Core
             // A prompt with fields ({name} or {name:a|b}): ask for them in the popup, with the captured text ready.
             if (PromptBuilder.GetParameters(instruction).Count > 0)
             {
-                var form = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+                var form = this.CreateSession(preset);
                 form.PresetInstruction = instruction;
                 form.DraftContext = context;
                 if (preset.Input == InputModes.Selection && !capture.Captured)
@@ -539,7 +564,7 @@ namespace QuickPrompt.Core
 
             if (flow == FlowModes.Edit || nothingToSend || selectionMissing)
             {
-                var draft = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+                var draft = this.CreateSession(preset);
                 draft.DraftInstruction = instruction;
                 draft.DraftContext = context;
                 if (selectionMissing && flow != FlowModes.Edit)
@@ -553,14 +578,14 @@ namespace QuickPrompt.Core
 
             if (flow == FlowModes.Send)
             {
-                var session = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+                var session = this.CreateSession(preset);
                 session.StartTurn(instruction, context);
                 this.OpenWindow(session);
                 return;
             }
 
             // Background flows: no window unless something goes wrong.
-            var background = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+            var background = this.CreateSession(preset);
             var providerName = background.Provider.DisplayName;
             this._host.Notify(providerName, $"{(String.IsNullOrWhiteSpace(preset.Title) ? "Request" : preset.Title)} sent…", false);
             background.StartTurn(instruction, context);

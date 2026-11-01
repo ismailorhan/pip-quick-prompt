@@ -77,6 +77,9 @@ namespace QuickPrompt.Core
         /// <summary>Open the popup on the History view.</summary>
         public Boolean ShowHistory { get; set; }
 
+        /// <summary>The CLI setup this conversation uses (from its action); null = as in Settings.</summary>
+        public CliSetupChoice Setup { get; set; }
+
         /// <summary>Open on the Predefined actions editor.</summary>
         public Boolean ShowActions { get; set; }
 
@@ -314,6 +317,7 @@ namespace QuickPrompt.Core
                 Message = message,
                 Model = this.Model,
                 SystemPrompt = this._settings().SystemPrompt,
+                Setup = this.Setup,
             };
 
             var turn = Task.Run(() => this.RunTurnAsync(request, answer, cts.Token));

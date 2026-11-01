@@ -70,6 +70,9 @@ namespace QuickPrompt.Core
         public String Model { get; set; } = "";
 
         public String Connection { get; set; } = ConnectionModes.Default;
+
+        /// <summary>The action's own CLI setup (plugins, MCP servers, skills); null = as in Settings.</summary>
+        public CliSetupChoice Setup { get; set; }
     }
 
     /// <summary>OS-specific operations the plugin host provides (clipboard, keystrokes, notifications).</summary>

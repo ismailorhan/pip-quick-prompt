@@ -37,7 +37,7 @@ namespace QuickPrompt.Core
         {
             var lastFile = Path.Combine(this.WorkingDirectory, $".codex-last-{Environment.ProcessId}-{Interlocked.Increment(ref _counter)}.txt");
             return new CliInvocation(
-                BuildArguments(request, this.WorkingDirectory, lastFile, CliSetup.CodexArguments(this.Settings.CodexSetup, CliSetup.DiscoverCodex())),
+                BuildArguments(request, this.WorkingDirectory, lastFile, CliSetup.CodexArguments(request.Setup ?? this.Settings.CodexSetup, CliSetup.DiscoverCodex())),
                 BuildStdin(request),
                 new CodexStreamParser(() => ReadAndDelete(lastFile)));
         }

@@ -346,6 +346,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <label class="sfield">Connection<select id="afConnection"><option value="default">As in Settings</option><option value="cli">CLI</option><option value="api">API</option></select></label>
       </div>
       <label class="sfield">Model (optional)<input type="text" id="afModel" spellcheck="false" placeholder="Default"></label>
+      <div class="srow sub"><span class="sname">Plugins, MCP servers and skills</span>
+        <div class="seg" data-name="afSetup"><button type="button" data-v="default">As in Settings</button><button type="button" data-v="off">None</button><button type="button" data-v="custom">Choose</button></div></div>
+      <div class="shint" id="afSetupHint"></div>
+      <div class="setup" id="afSetupBox" data-setup="claude" hidden></div>
       <div class="actions"><button type="button" class="primary" id="afSave">Save</button><button type="button" id="afCancel">Cancel</button><span style="flex:1"></span><button type="button" id="afDelete">Delete</button></div>
     </div>
   </div>
@@ -613,6 +617,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (cli) cli.hidden = value !== "cli";
     const setup = document.querySelector('.setup[data-for="' + name + '"]');
     if (setup) { setup.hidden = value !== "on"; if (value === "on") loadSetup(); }
+    if (name === "afSetup" || name === "afProvider") refreshActionSetup();
     queueLayout();
   }
   document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => setSeg(b.parentElement.dataset.name, b.dataset.v)));
@@ -690,9 +695,22 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     return '<label class="chk' + (disabled ? ' off' : '') + '"><input type="checkbox" data-kind="' + kind + '" data-id="' + esc(id) + '"'
       + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span>' + esc(label) + '</span>' + (note ? '<em>' + esc(note) + '</em>' : '') + '</label>';
   }
+  // An action's own choice (el.choice) overrides what Settings has ticked.
+  function withChoice(d, c) {
+    if (!d || !c) return d;
+    const list = (a, b) => a || b || [];
+    const offPlugins = list(c.disabledPlugins, c.DisabledPlugins), offServers = list(c.disabledServers, c.DisabledServers), offSkills = list(c.disabledSkills, c.DisabledSkills);
+    const flag = (a, b, fallback) => typeof a === "boolean" ? a : typeof b === "boolean" ? b : fallback;
+    return Object.assign({}, d, {
+      skills: flag(c.skills, c.Skills, true), web: flag(c.web, c.Web, true),
+      plugins: (d.plugins || []).map(p => Object.assign({}, p, { on: p.cliEnabled && !offPlugins.includes(p.id) })),
+      servers: (d.servers || []).map(x => Object.assign({}, x, { on: !offServers.includes(x.name) })),
+      skillList: (d.skillList || []).map(k => Object.assign({}, k, { on: !offSkills.includes(k.name) })),
+    });
+  }
   function renderSetup() {
     document.querySelectorAll(".setup").forEach(el => {
-      const d = setupData && setupData[el.dataset.setup];
+      const d = withChoice(setupData && setupData[el.dataset.setup], el.choice);
       if (!d) { el.innerHTML = '<div class="shint">Could not read your setup.</div>'; return; }
       if (!d.installed) { el.innerHTML = '<div class="shint">The CLI was not found on this computer.</div>'; return; }
       let html = "";
@@ -739,9 +757,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (a) { e.preventDefault(); loadSetup(true); }
   });
   function setupChoice(name) {
-    const el = document.querySelector('.setup[data-setup="' + name + '"]');
-    const on = segValues[name + "SetupOn"] === "on";
-    if (!setupData || !setupData[name] || !setupData[name].installed) return JSON.stringify({ enabled: on });
+    return choiceFrom(document.querySelector('.setup[data-for][data-setup="' + name + '"]'), segValues[name + "SetupOn"] === "on");
+  }
+  // Reads the ticks of one setup box (settings or an action) as a choice.
+  function choiceFrom(el, on) {
+    const name = el.dataset.setup;
+    if (!setupData || !setupData[name] || !setupData[name].installed || !el.querySelector("input")) return JSON.stringify(Object.assign({}, el.choice || {}, { enabled: on }));
     const box = (kind, id) => el.querySelector('input[data-kind="' + kind + '"][data-id="' + CSS.escape(id) + '"]');
     const d = setupData[name];
     const off = (kind, ids) => ids.filter(id => { const b = box(kind, id); return b && !b.disabled && !b.checked; });
@@ -1089,7 +1110,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       + '<span class="dot"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
       + '<div class="ha">' + esc(a.instruction.replace(/\s+/g, " ")) + '</div>'
       + '<div class="hmeta">' + (a.provider === "codex" ? "ChatGPT" : "Claude") + ' · ' + INPUT_NAMES[a.input]
-      + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '') + (a.builtIn ? ' · built-in' : '') + '</div></div>'
+      + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '')
+      + (a.setup === "custom" ? ' · own plugins/MCP/skills' : a.setup === "off" ? ' · no plugins/MCP/skills' : '')
+      + (a.builtIn ? ' · built-in' : '') + '</div></div>'
       + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button></div>').join("")
       : '<div class="hempty">No actions yet.</div>';
     queueLayout();
@@ -1128,11 +1151,26 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     $("afInput").value = a ? a.input : "selection";
     $("afConnection").value = a ? a.connection : "default";
     $("afModel").value = a ? a.model : "";
+    $("afSetupBox").choice = a && a.setupChoice ? a.setupChoice : null;
+    setSeg("afSetup", a ? a.setup || "default" : "default");
     $("afDelete").hidden = !a || a.builtIn;
     act.list.hidden = true; act.buttons.hidden = true; act.form.hidden = false;
     queueLayout();
     setTimeout(() => (a ? $("afPrompt") : $("afTitle")).focus(), 0);
   }
+  // The action's own setup: only for CLI connections; the list follows the action's AI.
+  function refreshActionSetup() {
+    const box = $("afSetupBox"), mode = segValues.afSetup || "default", provider = segValues.afProvider || "claude";
+    if (!box) return;
+    if (box.dataset.setup !== provider && box.querySelector("input")) box.choice = null;   // another CLI: start from Settings
+    box.dataset.setup = provider;
+    box.hidden = mode !== "custom";
+    $("afSetupHint").textContent = mode === "default" ? "Uses what Settings → Use my setup has ticked."
+      : mode === "off" ? "Plain answer: no plugins, MCP servers or skills (fastest)."
+      : "Only for this action. Used when it runs through the CLI.";
+    if (mode === "custom") loadSetup(); else queueLayout();
+  }
+
   async function runAction(id) {
     const res = await post("usepreset", { id });
     if (!res.ok) { toast("Still answering"); return; }
@@ -1159,6 +1197,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
       provider: segValues.afProvider || "claude", input: $("afInput").value,
       connection: $("afConnection").value, model: $("afModel").value.trim(),
+      setup: segValues.afSetup || "default",
+      setupChoice: segValues.afSetup === "custom" ? choiceFrom($("afSetupBox"), true) : "",
     };
     if (!body.title) { $("afTitle").focus(); toast("Give it a title"); return; }
     if (!body.instruction.trim()) { $("afPrompt").focus(); toast("Write the prompt"); return; }

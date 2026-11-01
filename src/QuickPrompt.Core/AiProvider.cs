@@ -63,6 +63,9 @@ namespace QuickPrompt.Core
         public String Model { get; set; } = "";
 
         public String SystemPrompt { get; set; } = "";
+
+        /// <summary>CLI setup for this request (an action's own choice); null = the one in Settings.</summary>
+        public CliSetupChoice Setup { get; set; }
     }
 
     public interface IAiProvider

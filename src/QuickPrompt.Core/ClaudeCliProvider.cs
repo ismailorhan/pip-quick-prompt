@@ -31,7 +31,7 @@ namespace QuickPrompt.Core
 
         protected override CliInvocation CreateInvocation(AiRequest request)
         {
-            var choice = this.Settings.ClaudeSetup;
+            var choice = request.Setup ?? this.Settings.ClaudeSetup;
             var setup = choice != null && choice.Enabled
                 ? CliSetup.ClaudeArguments(choice, CliSetup.DiscoverClaude(this.LocateExecutable()))
                 : null;

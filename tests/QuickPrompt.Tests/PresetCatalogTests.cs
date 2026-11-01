@@ -29,6 +29,27 @@ namespace QuickPrompt.Tests
         private List<JsonElement> Presets() => JsonDocument.Parse(this._manager.GetPresetsJson()).RootElement.EnumerateArray().ToList();
 
         [Fact]
+        public async Task An_actions_own_setup_reaches_the_provider()
+        {
+            var json = this._manager.SaveAction(new Dictionary<string, string>
+            {
+                ["title"] = "Lookup", ["instruction"] = "Look up {text}", ["input"] = "none",
+                ["setup"] = "custom", ["setupChoice"] = "{\"enabled\":true,\"web\":false,\"disabledServers\":[\"mail\"]}",
+            });
+            var id = JsonDocument.Parse(json).RootElement.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Lookup").GetProperty("id").GetString();
+
+            var session = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            Assert.True(this._manager.UsePreset(session, id));
+            Assert.True(session.StartTurnFromPopup("Acme Ltd", ""));
+            await session.CurrentTurn;
+
+            var setup = this._claude.Requests.Single().Setup;
+            Assert.True(setup.Enabled);
+            Assert.False(setup.Web);
+            Assert.Equal(new[] { "mail" }, setup.DisabledServers);
+        }
+
+        [Fact]
         public void Built_ins_are_offered_before_anything_is_used()
         {
             var titles = Presets().Select(p => p.GetProperty("title").GetString()).ToList();
