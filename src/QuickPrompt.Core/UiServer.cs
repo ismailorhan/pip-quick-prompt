@@ -112,6 +112,20 @@ namespace QuickPrompt.Core
                 return new HttpResponse { Status = 204 };
             }
 
+            // Control API for the desktop app; only with the app's token.
+            if (request.Path.StartsWith("/api/", StringComparison.Ordinal))
+            {
+                var control = this._manager.Control;
+                if (control == null || control.Token.Length == 0 || request.Header("x-quickprompt-control") != control.Token)
+                {
+                    return HttpResponse.Text(403, "Forbidden");
+                }
+
+                var (status, json) = await control.HandleAsync(
+                    request.Method, request.Path.Substring(5).Trim('/'), request.Query("since"), ParseJson(request.Body), this._cts.Token).ConfigureAwait(false);
+                return HttpResponse.Json(json, status);
+            }
+
             // /s/{token}/{action}
             var parts = request.Path.Trim('/').Split('/');
             if (parts.Length < 2 || parts[0] != "s" || !this._manager.TryGetSession(parts[1], out var session))
@@ -347,6 +361,7 @@ namespace QuickPrompt.Core
                 200 => "OK",
                 204 => "No Content",
                 400 => "Bad Request",
+                503 => "Service Unavailable",
                 403 => "Forbidden",
                 404 => "Not Found",
                 409 => "Conflict",

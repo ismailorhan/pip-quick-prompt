@@ -62,6 +62,31 @@ namespace QuickPrompt.Core
 
         public String SettingsPath => this._settingsPath;
 
+        /// <summary>Set by the desktop app's engine (QuickPrompt.Agent) to enable the /api control endpoints.</summary>
+        public AppControl Control { get; set; }
+
+        /// <summary>Runs a saved preset ("Predefined actions") on the current selection.</summary>
+        public async Task<Boolean> RunSavedPresetAsync(String presetId)
+        {
+            var saved = this._presets.Find(presetId);
+            if (saved == null)
+            {
+                return false;
+            }
+
+            await this.ExecutePresetAsync(new Preset
+            {
+                ProviderId = saved.ProviderId,
+                Title = saved.Title,
+                Instruction = saved.Instruction,
+                Connection = saved.Connection,
+                Model = saved.Model,
+                Input = InputModes.Selection,
+                Flow = FlowModes.Send,
+            }).ConfigureAwait(false);
+            return true;
+        }
+
         /// <summary>Product version ("0.3.42"), from the assembly's informational version.</summary>
         public static String AppVersion
         {

@@ -1,12 +1,11 @@
-// QuickPromptPopup: a small floating panel at the mouse cursor that shows the Quick Prompt page.
+// Shared by the Quick Prompt app and the standalone QuickPromptPopup helper (used by the Logi plugin):
+// a small floating panel at the mouse cursor that shows a Quick Prompt page.
 //
-// The plugin starts it with the page URL (http://127.0.0.1:<port>/s/<token>/).
 // The panel is transparent and non-activating: the app you were working in stays frontmost,
-// so "Paste" pastes straight back into it. The page reports its height and the rectangles
-// of its ".glass" shapes; behind each one we place a native Liquid Glass view
-// (NSGlassEffectView, macOS 26+) or a vibrancy view on older systems.
-//
-// Build: ./build.sh  (needs Xcode Command Line Tools: xcode-select --install)
+// so "Paste" pastes straight back into it. The page reports its size and the rectangles of its
+// ".glass" shapes; behind each one we place a native Liquid Glass view (NSGlassEffectView,
+// macOS 26+) or a vibrancy view on older systems. It also asks us to drag, pin, switch between
+// the full popup and the floating icon, and show a context menu.
 
 import AppKit
 import QuartzCore
@@ -15,7 +14,6 @@ import WebKit
 let defaultPopupWidth: CGFloat = 520
 // Looked up at runtime so the code also builds with older SDKs.
 let glassViewClass: NSView.Type? = NSClassFromString("NSGlassEffectView") as? NSView.Type
-let newPopupNotification = Notification.Name("app.quickprompt.popup.opened")
 
 final class PopupPanel: NSPanel {
     var onClose: (() -> Void)?
@@ -54,8 +52,10 @@ final class PopupPanel: NSPanel {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-    private let url: URL
+final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    let url: URL
+    /// Called once the popup has closed (the app forgets it; the helper quits).
+    var onClosed: ((PopupController) -> Void)?
     private var panel: PopupPanel!
     private var webView: WKWebView!
     private var container: NSView!
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     private var closing = false
     private var popupWidth: CGFloat = defaultPopupWidth
     /// Pinned popups survive new popups (and collapse to an icon instead of closing; the page handles that).
-    private var pinned = false
+    private(set) var pinned = false
     private var dragTimer: Timer?
     private var dragStart = NSPoint.zero
     private var dragOrigin = NSPoint.zero
@@ -80,20 +80,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         super.init()
     }
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // One popup at a time: tell older ones to close.
-        let me = String(ProcessInfo.processInfo.processIdentifier)
-        DistributedNotificationCenter.default().addObserver(forName: newPopupNotification, object: nil, queue: .main) { [weak self] note in
-            if let sender = note.object as? String, sender != me, self?.pinned == false {
-                self?.close()
-            }
-        }
-        DistributedNotificationCenter.default().postNotificationName(newPopupNotification, object: me, userInfo: nil, deliverImmediately: true)
-
+    /// Creates the panel near the mouse cursor and loads the page.
+    func open() {
         // Place the panel just below and to the right of the cursor, inside the visible screen area.
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
-        visibleArea = AppDelegate.usableFrame(of: screen)
+        visibleArea = PopupController.usableFrame(of: screen)
         let initialHeight: CGFloat = 76
         let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
@@ -147,11 +139,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         panel.makeFirstResponder(webView)
     }
 
-    private func close() {
+    func close() {
         guard !closing else { return }
         closing = true
+        dragTimer?.invalidate()
         panel?.orderOut(nil)
-        NSApp.terminate(nil)
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "quickPrompt")
+        webView?.stopLoading()
+        onClosed?(self)
     }
 
     /// Resizes the panel keeping its top-left corner (the page reports its own size), inside the screen.
@@ -221,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     private func finishDrag(_ samples: [(time: TimeInterval, point: NSPoint)]) {
-        let screen = AppDelegate.usableFrame(of: panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
+        let screen = PopupController.usableFrame(of: panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
         visibleArea = screen
         let frame = panel.frame
         let margin: CGFloat = 0
@@ -328,7 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         if view.responds(to: NSSelectorFromString("setCornerRadius:")) {
             view.setValue(radius, forKey: "cornerRadius")
         } else if let effect = view as? NSVisualEffectView {
-            effect.maskImage = AppDelegate.roundedMask(radius: radius)
+            effect.maskImage = PopupController.roundedMask(radius: radius)
         } else {
             view.wantsLayer = true
             view.layer?.cornerRadius = radius
@@ -395,7 +390,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        let html = "<body style='font:13px -apple-system;margin:16px;color:#c00;background:transparent'>Could not connect to the Quick Prompt plugin: \(error.localizedDescription)<br>Press Esc to close.</body>"
+        let html = "<body style='font:13px -apple-system;margin:16px;color:#c00;background:transparent'>Could not connect to Quick Prompt: \(error.localizedDescription)<br>Press Esc to close.</body>"
         webView.loadHTMLString(html, baseURL: nil)
         show()
     }
@@ -427,24 +422,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             miniTopLeft = topLeft
         }
         if let screen = panel.screen {
-            visibleArea = AppDelegate.usableFrame(of: screen)
+            visibleArea = PopupController.usableFrame(of: screen)
         }
     }
 }
-
-// MARK: entry point
-
-let arguments = CommandLine.arguments
-guard arguments.count > 1,
-      let url = URL(string: arguments[1]),
-      url.scheme == "http",
-      url.host == "127.0.0.1" || url.host == "localhost" else {
-    FileHandle.standardError.write("Usage: QuickPromptPopup http://127.0.0.1:<port>/s/<token>/\n".data(using: .utf8)!)
-    exit(2)
-}
-
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-let delegate = AppDelegate(url: url)
-app.delegate = delegate
-app.run()

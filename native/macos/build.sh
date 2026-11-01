@@ -16,9 +16,9 @@ for arch in ${ARCHS:-arm64 x86_64}; do
   echo "Compiling for $arch"
   swiftc -O -swift-version 5 \
     -target "$arch-apple-macos12.0" \
-    -o "build/QuickPromptPopup-$arch" main.swift \
+    -o "build/QuickPromptPopup-$arch" Popup/main.swift Shared/PopupController.swift \
     -framework AppKit -framework WebKit \
-    -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
+    -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Popup/Info.plist
   outputs+=("build/QuickPromptPopup-$arch")
 done
 

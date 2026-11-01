@@ -13,6 +13,11 @@
 
 ## Next
 
+- [x] **Mac app:** menu bar app with ⌥⇧Space, background engine, popups in-process, Open at Login.
+- [ ] Mac app: Developer ID signing and notarization; a choice of shortcut in Settings.
+- [ ] Logi plugin: hand requests to the Mac app when it is running (one engine, one history).
+- [ ] **Windows app:** tray app with the same engine (WebView2 + Mica).
+
 - [ ] **Windows popup:** a native, borderless, topmost window at the cursor (WebView2 + Mica/Acrylic), matching the macOS behavior: no focus stealing, paste back into the previous app.
 - [ ] Verify the Windows plugin on a real device: clipboard, Ctrl+C/V, CLI discovery (`claude.exe`, `codex.cmd`).
 - [ ] Popup polish: dragging, keeping the position, light/dark accent per provider.

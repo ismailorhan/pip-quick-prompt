@@ -44,7 +44,7 @@ jobs:
       - run: dotnet test tests/QuickPrompt.Tests -c Release --no-build
 
   package:
-    name: Package (macOS popup + plugin)
+    name: Package (macOS app + plugin)
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: macos-latest
@@ -58,10 +58,16 @@ jobs:
         env:
           QP_VERSION: 0.3.${{ github.run_number }}
         run: bash scripts/package.sh
+      - name: Build the menu bar app
+        env:
+          QP_VERSION: 0.3.${{ github.run_number }}
+        run: bash native/macos/build-app.sh
       - uses: actions/upload-artifact@v4
         with:
           name: QuickPrompt
-          path: dist/QuickPrompt.lplug4
+          path: |
+            dist/QuickPrompt.lplug4
+            dist/QuickPrompt-mac.zip
           if-no-files-found: error
 
   publish:
@@ -89,9 +95,9 @@ jobs:
           else
             gh release create latest --prerelease --title "Latest build" --notes "$notes"
           fi
-          gh release upload latest dist/QuickPrompt.lplug4 --clobber
+          gh release upload latest dist/QuickPrompt.lplug4 dist/QuickPrompt-mac.zip --clobber
       - name: Versioned release (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/QuickPrompt.lplug4 --title "Quick Prompt $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/QuickPrompt.lplug4 dist/QuickPrompt-mac.zip --title "Quick Prompt $GITHUB_REF_NAME" --generate-notes

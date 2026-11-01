@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The engine of the desktop app: runs the providers, sessions, history and the local popup server,
+       and takes orders from the app (menu bar app on macOS) over the token-protected /api endpoints.
+       Published self-contained into the app bundle by native/macos/build-app.sh. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>QuickPrompt.Agent</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../QuickPrompt.Core/QuickPrompt.Core.csproj" />
+  </ItemGroup>
+
+</Project>

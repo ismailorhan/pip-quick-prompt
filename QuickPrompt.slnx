@@ -3,6 +3,7 @@
     <Project Path="src/QuickPrompt.Core/QuickPrompt.Core.csproj" />
     <Project Path="src/QuickPrompt.Plugin/QuickPrompt.Plugin.csproj" />
     <Project Path="src/QuickPrompt.DevHost/QuickPrompt.DevHost.csproj" />
+    <Project Path="src/QuickPrompt.Agent/QuickPrompt.Agent.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/QuickPrompt.Tests/QuickPrompt.Tests.csproj" />

@@ -19,6 +19,18 @@ Press a ring button and the selection, together with that button's prompt, is se
 
 ## Install
 
+### Mac app (menu bar)
+
+1. Download `QuickPrompt-mac.zip` from the rolling **Latest build** pre-release, unzip it and move **Quick Prompt.app** to Applications.
+2. The first time, right-click the app → **Open** (the app is not notarized yet).
+3. A ✨ icon appears in the menu bar. Quick Prompt keeps running in the background: closing a popup or the floating icon does not quit it. Use **Quit Quick Prompt** in that menu to quit.
+4. **⌥⇧Space** asks about the selected text in any app. The menu also has New Chat, Recent Chats, Settings… and Open at Login.
+5. To read the selection and paste answers, macOS asks once for *Accessibility* permission for Quick Prompt.
+
+API keys entered in the app are stored in the macOS Keychain.
+
+### Logi Actions Ring plugin
+
 1. Download `QuickPrompt.lplug4` from the [latest release](../../releases/latest) (or the rolling **Latest build** pre-release).
 2. Double-click it. Logi Options+ installs the plugin.
 3. Choose how each provider connects. Open the Settings popup with ⚙ in any Quick Prompt popup, or with the **Quick Prompt Settings** ring action. (Options+ "Plugin settings" cannot host plugin settings: it only shows the description and language.)

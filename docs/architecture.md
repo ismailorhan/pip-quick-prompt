@@ -25,7 +25,10 @@ Actions Ring button (Options+ action editor preset)
 | `src/QuickPrompt.Core` | Everything that does not need the Logitech SDK. Unit-tested. |
 | `src/QuickPrompt.Plugin` | The Logi plugin: `QuickPromptPlugin`, the two action-editor commands, `HostBridge`, package files. |
 | `src/QuickPrompt.DevHost` | Console app that runs Core and the popup without Options+. |
-| `native/macos` | Swift popup helper (`QuickPromptPopup`), built into the package. |
+| `src/QuickPrompt.Agent` | The engine of the Mac app: Core plus a host (Keychain secrets, pbcopy/pbpaste), driven over `/api/*`. |
+| `native/macos/Shared` | `PopupController`: the glass popup panel, shared by the app and the helper. |
+| `native/macos/Popup` | Swift popup helper (`QuickPromptPopup`) used by the Logi plugin, one process per popup. |
+| `native/macos/App` | `Quick Prompt.app`: menu bar item, ⌥⇧Space, starts the engine, hosts popups, presses ⌘C/⌘V. |
 | `tests/QuickPrompt.Tests` | xUnit tests for Core. |
 
 ## Reading the selection
@@ -71,3 +74,20 @@ Calls are stateless for both CLI and API: a follow-up carries the earlier turns 
 - The page long-polls `/s/<token>/state?v=N`. Endpoints: `send`, `cancel`, `copy`, `paste`, `closed`.
 - **macOS:** `QuickPromptPopup` is a borderless, *non-activating* `NSPanel` at the mouse cursor, so the user's app stays frontmost and **Paste** goes straight into it. The page is transparent. It reports its height and the rectangles of its `.glass` elements through `window.webkit.messageHandlers.quickPrompt`, and the panel puts an `NSGlassEffectView` behind each one (looked up at runtime; `NSVisualEffectView` before macOS 26). One popup at a time: a new one tells older ones to close through a distributed notification, except pinned ones. The page also reports its width (Settings → Popup size), asks the panel to follow the mouse (`drag`, a 120 Hz loop until the button is released, so it works while the web view tracks the mouse), and tells it whether it is pinned (`pin`). A pinned popup collapses to a 56 px icon on Esc / ✕ instead of closing; the page keeps the conversation and restores it on click.
 - **Other platforms:** the same page in an Edge/Chrome `--app` window with a separate profile, where CSS imitates the glass. The default browser is the last resort.
+
+## Mac app
+
+`Quick Prompt.app` is a menu bar app (`LSUIElement`). At start it launches the bundled, self-contained
+`QuickPrompt.Agent` (arm64 or x64) with a random `QP_CONTROL_TOKEN`, reads `READY <port>` from its stdout
+and keeps its stdin open; the engine exits on EOF, so it never outlives the app. The app restarts it if it
+crashes (at most 5 times a minute).
+
+The app talks to the engine over the same local server the popup page uses, under `/api/*` with the
+`X-QuickPrompt-Control` header:
+
+- `POST /api/hotkey | new | history | settings | run` — menu items and the global shortcut.
+- `GET /api/events?since=N` — long-poll for what the engine needs from the app:
+  `open` (show a popup for a URL), `keys` (press ⌘C or ⌘V in the front app), `notify`.
+
+Popups are `PopupController` instances inside the app. A new popup closes the non-pinned ones; closing a
+popup only forgets it. Only Quit ends the app (and with it the engine).
