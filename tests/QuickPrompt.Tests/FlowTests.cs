@@ -291,7 +291,13 @@ namespace QuickPrompt.Tests
             using var http = new HttpClient();
             var res = await this.PostAsync(http, this._manager.GetSessionUrl(session, true) + "paste", "{\"text\":\"paste me\"}");
             Assert.Equal(HttpStatusCode.OK, res.StatusCode);
-            await Task.Delay(800);
+            // The paste waits ~0.5 s for focus to return; allow slow CI machines plenty of time.
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (this._host.Pasted.Count == 0 && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(50);
+            }
+
             Assert.Equal(new[] { "paste me" }, this._host.Pasted);
         }
 
