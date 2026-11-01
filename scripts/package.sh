@@ -11,9 +11,20 @@ if [[ "$(uname)" == "Darwin" ]]; then
   bash native/macos/build.sh
 fi
 
+# QP_VERSION (set by CI, e.g. 0.3.42) stamps the assemblies and the package manifest,
+# so every build shows its own version in Options+.
+version_args=()
+if [[ -n "${QP_VERSION:-}" ]]; then
+  version_args=("-p:Version=$QP_VERSION")
+fi
+
 echo "== Plugin =="
 dotnet tool restore >/dev/null
-dotnet build src/QuickPrompt.Plugin -c Release -p:SkipPluginLink=true -nologo -v q
+dotnet build src/QuickPrompt.Plugin -c Release -p:SkipPluginLink=true -nologo -v q "${version_args[@]}"
+if [[ -n "${QP_VERSION:-}" ]]; then
+  perl -pi -e "s/^version: .*/version: $QP_VERSION/" bin/plugin/Release/metadata/LoupedeckPackage.yaml
+  echo "Version: $QP_VERSION"
+fi
 
 echo "== Package =="
 mkdir -p dist

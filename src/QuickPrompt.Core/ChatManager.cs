@@ -58,6 +58,20 @@ namespace QuickPrompt.Core
 
         public String SettingsPath => this._settingsPath;
 
+        /// <summary>Product version ("0.3.42"), from the assembly's informational version.</summary>
+        public static String AppVersion
+        {
+            get
+            {
+                var info = typeof(ChatManager).Assembly
+                    .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                    .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+                    .FirstOrDefault()?.InformationalVersion ?? "";
+                var plus = info.IndexOf('+');
+                return plus > 0 ? info.Substring(0, plus) : info;
+            }
+        }
+
         /// <summary>Raised after an API key was added, replaced or removed (e.g. to refresh Options+ "Plugin settings").</summary>
         public event Action SecretsChanged;
 
@@ -158,6 +172,7 @@ namespace QuickPrompt.Core
             var s = this.Settings;
             return System.Text.Json.JsonSerializer.Serialize(new
             {
+                version = AppVersion,
                 claude = new
                 {
                     connection = s.ClaudeConnection,

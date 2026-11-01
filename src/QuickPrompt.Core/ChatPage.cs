@@ -146,6 +146,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       <span class="dot"></span>
       <span class="title">Settings</span>
       <span class="status" id="setStatus"></span>
+      <span class="status" id="setVersion"></span>
       <button type="button" class="x" id="setClose" title="Close">✕</button>
     </div>
     <div class="sgroup">
@@ -398,6 +399,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     set.status.textContent = "";
     try {
       const s = await (await fetch(base + "settings", { cache: "no-store" })).json();
+      $("setVersion").textContent = s.version ? "v" + s.version : "";
       setSeg("claudeConnection", s.claude.connection);
       setSeg("chatgptConnection", s.chatgpt.connection);
       showKeyHint(set.claudeKey, s.claude.keyHint);

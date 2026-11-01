@@ -9,7 +9,7 @@ displayName: Quick Prompt
 description: Ask Claude or ChatGPT about the selected text from your Actions Ring. The answer streams into a small popup next to the cursor; nothing else comes to the front. Each ring button is its own preset with a prompt, icon and behavior.
 
 pluginFileName: QuickPromptPlugin.dll
-version: 0.2.0
+version: 0.3.0
 author: İsmail Orhan
 copyright: Copyright © 2026 İsmail Orhan
 
