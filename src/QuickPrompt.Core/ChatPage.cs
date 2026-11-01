@@ -147,7 +147,36 @@ textarea::placeholder { color: var(--muted); }
 .round[hidden] + textarea { padding-left: 12px; }
 
 /* Settings view (long: scrolls inside a screen-high limit, set from the screen size at start) */
-.settings { border-radius: 22px; padding: 10px 16px 14px; max-height: var(--view-max, 760px); overflow-y: auto; scrollbar-width: thin; }
+/* Settings: a sidebar of sections (like a desktop app's settings) and the chosen section on the right. */
+.settings { border-radius: 22px; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.shead { display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--faint); }
+.shead .title { font-weight: 600; font-size: 14px; }
+.shead .status { flex: 1; font-size: 11.5px; color: var(--muted); }
+.sbody { display: grid; grid-template-columns: 186px 1fr; height: min(500px, calc(var(--view-max, 760px) - 120px)); min-height: 320px; }
+.snav { padding: 10px 8px; border-right: 1px solid var(--faint); overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.snav-g { font-size: 11px; color: var(--muted); padding: 10px 10px 4px; }
+.snav-g:first-child { padding-top: 2px; }
+.snav button { display: flex; align-items: center; gap: 9px; background: transparent; border-radius: 9px; padding: 6px 10px; font-size: 13px; text-align: left; color: var(--text); }
+.snav button svg { color: var(--muted); flex: none; }
+.snav button:hover { background: var(--faint); }
+.snav button.on { background: var(--chip); font-weight: 600; }
+.snav button.on svg { color: var(--text); }
+.pdot { width: 9px; height: 9px; border-radius: 50%; margin: 0 3px; flex: none; }
+.spanes { overflow-y: auto; scrollbar-width: thin; padding: 6px 22px 18px; }
+.spane h2 { font-size: 15px; margin: 10px 0 4px; }
+.sline { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--faint); }
+.sline > div:first-child { min-width: 0; }
+.sl-t { font-size: 13.5px; font-weight: 500; }
+.sl-d { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.sl-d a { color: var(--link); }
+.spane .api-only, .spane .cli-only { padding: 4px 0 8px; border-bottom: 1px solid var(--faint); }
+.spane .cli-only .srow.sub { margin-top: 10px; }
+.stemplates { margin-top: 8px; }
+.stemplates .hlist { max-height: none; }
+.stemplates #actBack { display: none; }
+.sfoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px 12px 18px; border-top: 1px solid var(--faint); }
+.sfoot .status { font-size: 11.5px; color: var(--muted); }
+.sfoot-hint { flex: 1; font-size: 11.5px; color: var(--muted); text-align: right; padding-right: 4px; }
 #actionsView { max-height: var(--view-max, 760px); overflow-y: auto; scrollbar-width: thin; }
 .sgroup { padding: 10px 0 4px; border-top: 1px solid var(--faint); margin-top: 8px; }
 .meta + .sgroup { border-top: 0; margin-top: 2px; }
@@ -310,17 +339,56 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
   </div>
   <div class="settings glass" id="settings" hidden>
-    <div class="meta" data-drag>
-      <span class="dot"></span>
+    <div class="shead" data-drag>
       <span class="title">Settings</span>
       <span class="status" id="setStatus"></span>
-      <span class="status" id="setVersion"></span>
       <button type="button" class="x" id="setClose" title="Close">✕</button>
     </div>
-    <div class="sgroup">
-      <div class="srow"><span class="sname">Claude</span>
-        <div class="seg" data-name="claudeConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div></div>
-      <div class="shint">CLI uses your Claude plan through Claude Code. API is faster and billed per use to your API account.</div>
+    <div class="sbody">
+      <nav class="snav" aria-label="Settings sections">
+        <div class="snav-g">Preferences</div>
+        <button type="button" data-pane="general"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg>General</button>
+        <button type="button" data-pane="appearance"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.4-9-7.4z M7.5 12h0 M10 7.5h0 M14.5 7.5h0"/></svg>Appearance</button>
+        <div class="snav-g">AI</div>
+        <button type="button" data-pane="claude"><span class="pdot" style="background:#d97757"></span>Claude</button>
+        <button type="button" data-pane="chatgpt"><span class="pdot" style="background:#10a37f"></span>ChatGPT</button>
+        <div class="snav-g">Customize</div>
+        <button type="button" data-pane="templates"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg>Prompt templates</button>
+        <div class="snav-g">Quick Prompt</div>
+        <button type="button" data-pane="about"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h0"/></svg>About</button>
+      </nav>
+      <div class="spanes">
+        <section class="spane" data-pane="general">
+          <h2>General</h2>
+          <div class="sline">
+            <div><div class="sl-t">Conversation history</div><div class="sl-d">Keeps your last 50 conversations on this computer so you can reopen and continue them (Recent Chats). Turning it off deletes them.</div></div>
+            <div class="seg" data-name="saveHistory"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div>
+          </div>
+          <div class="sline">
+            <div><div class="sl-t">Ask about the selection</div><div class="sl-d">⌥⇧Space in any app opens Quick Prompt with the selected text. The menu bar icon (✨) has New Chat, Recent Chats, Prompt Templates and Settings.</div></div>
+          </div>
+        </section>
+        <section class="spane" data-pane="appearance">
+          <h2>Appearance</h2>
+          <div class="sline">
+            <div><div class="sl-t">Chat size</div><div class="sl-d">The width and height of the conversation.</div></div>
+            <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat size"><span class="sz big">A</span></div>
+          </div>
+          <div class="sline">
+            <div><div class="sl-t">Icon size</div><div class="sl-d">The floating icon and its toolbar.</div></div>
+            <div class="slider"><span class="sz small">A</span><input type="range" id="iconSlider" min="0" max="100" step="1" aria-label="Icon size"><span class="sz big">A</span></div>
+          </div>
+          <div class="sline">
+            <div><div class="sl-t">Glass</div><div class="sl-d">From clear to dense, for easier reading. You see it as you move the slider.</div></div>
+            <div class="slider"><span class="sz small" title="Clear">◌</span><input type="range" id="glassSlider" min="0" max="100" step="1" aria-label="Glass density"><span class="sz big" title="Dense">●</span></div>
+          </div>
+        </section>
+        <section class="spane" data-pane="claude">
+          <h2>Claude</h2>
+          <div class="sline">
+            <div><div class="sl-t">Connection</div><div class="sl-d">CLI uses your Claude plan through Claude Code. API is faster and billed per use to your API account.</div></div>
+            <div class="seg" data-name="claudeConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div>
+          </div>
       <div class="api-only" data-for="claudeConnection">
       <div class="skey"><label class="sfield">Anthropic API key<input type="password" id="claudeKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label><button type="button" data-clear="claudeKey" hidden>Remove</button></div>
       <label class="sfield">API model<select id="claudeModel">
@@ -335,11 +403,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <div class="shint">Off: plain answers, fastest. On: the plugins, skills and MCP servers you tick can be used (slower). It can look things up and use the servers' tools, but cannot run commands or change files.</div>
         <div class="setup" data-setup="claude" data-for="claudeSetupOn" hidden></div>
       </div>
-    </div>
-    <div class="sgroup">
-      <div class="srow"><span class="sname">ChatGPT</span>
-        <div class="seg" data-name="chatgptConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div></div>
-      <div class="shint">CLI uses your ChatGPT plan through the Codex CLI. API is faster and billed per use to your OpenAI account.</div>
+        </section>
+        <section class="spane" data-pane="chatgpt">
+          <h2>ChatGPT</h2>
+          <div class="sline">
+            <div><div class="sl-t">Connection</div><div class="sl-d">CLI uses your ChatGPT plan through the Codex CLI. API is faster and billed per use to your OpenAI account.</div></div>
+            <div class="seg" data-name="chatgptConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div>
+          </div>
       <div class="api-only" data-for="chatgptConnection">
       <div class="skey"><label class="sfield">OpenAI API key<input type="password" id="chatgptKey" autocomplete="off" spellcheck="false" placeholder="sk-…"></label><button type="button" data-clear="chatgptKey" hidden>Remove</button></div>
       <label class="sfield">API model<input type="text" id="chatgptModel" spellcheck="false" placeholder="gpt-5-mini"></label>
@@ -350,27 +420,26 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <div class="shint">Off: none of your Codex MCP servers start (faster). On: the ones you tick are available. Codex stays read-only.</div>
         <div class="setup" data-setup="chatgpt" data-for="chatgptSetupOn" hidden></div>
       </div>
+        </section>
+        <section class="spane" data-pane="templates">
+          <h2>Prompt templates</h2>
+          <div class="sl-d">Your own prompts, with fields to fill in. Run them from the floating icon or the menu bar. Each one can choose its own plugins, MCP servers and skills.</div>
+          <div class="stemplates" id="setTemplates"></div>
+        </section>
+        <section class="spane" data-pane="about">
+          <h2>About</h2>
+          <div class="sline"><div><div class="sl-t">Quick Prompt</div><div class="sl-d" id="aboutVersion"></div></div></div>
+          <div class="sline"><div><div class="sl-t">Your keys</div><div class="sl-d">API keys are stored encrypted on this computer and are only sent to Anthropic or OpenAI. A prompt template can override CLI or API for itself.</div></div></div>
+          <div class="sline"><div><div class="sl-t">Source and updates</div><div class="sl-d"><a href="https://github.com/ismailorhan/quick-prompt-for-logi-action-rings/releases/tag/latest">Latest build on GitHub</a></div></div></div>
+        </section>
+      </div>
     </div>
-    <div class="sgroup">
-      <div class="srow"><span class="sname">Chat size</span>
-        <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat size"><span class="sz big">A</span></div></div>
-      <div class="srow" style="margin-top:10px"><span class="sname">Icon size</span>
-        <div class="slider"><span class="sz small">A</span><input type="range" id="iconSlider" min="0" max="100" step="1" aria-label="Icon size"><span class="sz big">A</span></div></div>
-      <div class="srow" style="margin-top:10px"><span class="sname">Glass</span>
-        <div class="slider"><span class="sz small" title="Clear">◌</span><input type="range" id="glassSlider" min="0" max="100" step="1" aria-label="Glass density"><span class="sz big" title="Solid">●</span></div></div>
-      <div class="shint">Chat size: the popup with the conversation. Icon size: the floating icon and its toolbar when pinned. Glass: from clear to dense, for easier reading (you see it as you move it). Applied when you save.</div>
+    <div class="sfoot">
+      <span class="status" id="setVersion"></span>
+      <span class="sfoot-hint">Changes apply to the next request.</span>
+      <button type="button" id="setBack">Cancel</button>
+      <button type="button" class="primary" id="setSave">Save</button>
     </div>
-    <div class="sgroup">
-      <div class="srow"><span class="sname">Prompt templates</span><button type="button" id="setActions">Manage…</button></div>
-      <div class="shint">Your own prompts, with fields to fill in. Run them from the floating icon or the menu bar.</div>
-    </div>
-    <div class="sgroup">
-      <div class="srow"><span class="sname">History</span>
-        <div class="seg" data-name="saveHistory"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
-      <div class="shint">Keeps your last 50 conversations on this computer so you can reopen and continue them (clock button). Turning it off deletes them.</div>
-    </div>
-    <div class="shint">Keys are stored encrypted on this computer. A preset can override CLI/API in its Connection field. Changes apply to the next request.</div>
-    <div class="actions"><button type="button" class="primary" id="setSave">Save</button><button type="button" id="setBack">Cancel</button></div>
   </div>
   <div class="history glass" id="historyView" hidden>
     <div class="meta" data-drag>
@@ -536,7 +605,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const side = mini.hidden ? 0 : Math.ceil(mini.getBoundingClientRect().width) + 10;
-      const width = collapsed ? Math.ceil(box.width) : (settingsOpen || actionsOpen ? 520 : size.w) + side;
+      const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? 760 : actionsOpen ? 520 : size.w) + side;
       // Where the icon's middle will be in a panel of this width, so the panel can keep the icon still
       // on screen while things around it change (toolbar opening, conversation opening on either side).
       const icon = mini.hidden ? null : $("miniOpen").getBoundingClientRect();
@@ -708,15 +777,35 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   glassSlider.addEventListener("input", () => applyGlass(glassSlider.value));   // live preview
   [sizeSlider, iconSlider, glassSlider].forEach(sl => sl.addEventListener("input", () => sl.style.setProperty("--fill", sl.value + "%")));
 
-  async function openSettings(only) {
+  // Sections: the sidebar picks one; the last one used is remembered on this computer.
+  let currentPane = "general";
+  try { currentPane = localStorage.getItem("qp.settingsPane") || "general"; } catch (e) {}
+  function showPane(name) {
+    if (!set.view.querySelector('.spane[data-pane="' + name + '"]')) name = "general";
+    currentPane = name;
+    try { localStorage.setItem("qp.settingsPane", name); } catch (e) {}
+    set.view.querySelectorAll(".spane").forEach(p => { p.hidden = p.dataset.pane !== name; });
+    set.view.querySelectorAll(".snav button").forEach(b => b.classList.toggle("on", b.dataset.pane === name));
+    if (name === "templates") { mountActions($("setTemplates")); showActionList(); loadActions(); }
+    const panes = set.view.querySelector(".spanes");
+    if (panes) panes.scrollTop = 0;
+    queueLayout();
+  }
+  set.view.querySelectorAll(".snav button").forEach(b => b.addEventListener("click", () => showPane(b.dataset.pane)));
+
+  async function openSettings(only, pane) {
     settingsOnly = !!only;
     settingsOpen = true;
     els.card.hidden = true; els.bar.hidden = true; els.ctxWrap.hidden = true;
+    $("fieldsBox").hidden = true; hist.view.hidden = true; act.view.hidden = true;
+    historyOpen = false; actionsOpen = false;
     set.view.hidden = false;
     set.status.textContent = "";
+    showPane(pane || currentPane);
     try {
       const s = await (await fetch(base + "settings", { cache: "no-store" })).json();
       $("setVersion").textContent = s.version ? "v" + s.version : "";
+      $("aboutVersion").textContent = s.version ? "Version " + s.version : "";
       setSeg("claudeConnection", s.claude.connection);
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
@@ -868,7 +957,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   $("gear").addEventListener("click", () => openSettings(false));
   $("barGear").addEventListener("click", () => openSettings(false));
-  $("errSettings").addEventListener("click", () => openSettings(false));
+  $("errSettings").addEventListener("click", () => openSettings(false, state && state.provider === "codex" ? "chatgpt" : "claude"));
   $("setSave").addEventListener("click", saveSettings);
   $("setBack").addEventListener("click", closeSettings);
   $("setClose").addEventListener("click", () => settingsOnly ? closeWindow() : dismiss());
@@ -1320,7 +1409,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.card.hidden = true; els.bar.hidden = true; els.ctxWrap.hidden = true; $("fieldsBox").hidden = true;
     set.view.hidden = true; hist.view.hidden = true; settingsOpen = false; historyOpen = false;
     act.view.hidden = false;
+    mountActions(act.view);
     showActionList();
+    await loadActions();
+  }
+  // The list and editor live in the Prompt templates view or inside Settings → Prompt templates.
+  function mountActions(target) {
+    if (act.list.parentElement !== target) target.append(act.list, act.buttons, act.form);
+  }
+  async function loadActions() {
     act.list.innerHTML = '<div class="hempty">Loading…</div>';
     try { act.items = await (await fetch(base + "actions", { cache: "no-store" })).json(); } catch (e) { act.items = []; }
     renderActions();
@@ -1371,6 +1468,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   async function runAction(id) {
     const res = await post("usepreset", { id });
     if (!res.ok) { toast("Still answering"); return; }
+    if (settingsOpen) { settingsOnly = false; closeSettings(); return; }
     actionsOnly = false;
     closeActions();
   }
@@ -1411,7 +1509,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const res = await post("deleteaction", { id: act.editing.id });
     if (res.ok) { act.items = await res.json(); renderActions(); showActionList(); toast("Deleted"); }
   });
-  $("setActions").addEventListener("click", () => { const only = settingsOnly; settingsOpen = false; openActions(only); });
+
 
   function closeHistory() {
     if (historyOnly) { closeWindow(); return; }
@@ -1661,7 +1759,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       return;
     }
     if (historyOpen || actionsOpen) return;
-    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveSettings(); } return; }
+    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT" && !e.target.closest("#setTemplates")) { e.preventDefault(); saveSettings(); } return; }
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
