@@ -263,6 +263,7 @@ namespace QuickPrompt.Core
                 version = AppVersion,
                 saveHistory = s.SaveHistory,
                 popupScale = s.PopupScale ?? QuickPromptSettings.DefaultPopupScale,
+                iconScale = s.IconScale,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -307,6 +308,11 @@ namespace QuickPrompt.Core
             if (Int32.TryParse(Get("popupScale"), out var scale))
             {
                 s.PopupScale = Math.Clamp(scale, 0, 100);
+            }
+
+            if (Int32.TryParse(Get("iconScale"), out var iconScale))
+            {
+                s.IconScale = Math.Clamp(iconScale, 0, 100);
             }
 
             if (Get("saveHistory") is "true" or "false")

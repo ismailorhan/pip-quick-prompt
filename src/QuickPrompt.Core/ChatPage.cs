@@ -141,7 +141,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
 /* Collapsed (pinned): a free-floating mark, a small glass toolbar, and a notification bubble. No window. */
 #root.is-mini { padding: 8px; display: inline-flex; flex-direction: row; align-items: flex-start; gap: 10px; }
-.mini { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.mini { zoom: var(--mini-zoom, 1); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .mascot { width: 64px; height: 64px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.4)) !important; padding: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; cursor: grab; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
 .mascot:hover { background: transparent; transform: translateY(-1px); }
 .mascot svg { overflow: visible; }
@@ -245,8 +245,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       </div>
     </div>
     <div class="sgroup">
-      <div class="srow"><span class="sname">Popup size</span>
-        <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Popup size"><span class="sz big">A</span></div></div>
+      <div class="srow"><span class="sname">Chat size</span>
+        <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat size"><span class="sz big">A</span></div></div>
+      <div class="srow" style="margin-top:10px"><span class="sname">Icon size</span>
+        <div class="slider"><span class="sz small">A</span><input type="range" id="iconSlider" min="0" max="100" step="1" aria-label="Icon size"><span class="sz big">A</span></div></div>
+      <div class="shint">Chat size: the popup with the conversation. Icon size: the floating icon and its toolbar when pinned. Applied when you save.</div>
     </div>
     <div class="sgroup">
       <div class="srow"><span class="sname">History</span>
@@ -361,6 +364,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   // ---------- native layout: panel height + glass shapes ----------
   // Popup size (Settings slider, 0 = smallest … 100 = largest): panel width and answer height.
+  let lastStateScale = null, lastStateIcon = null;
   let scale = -1, size = { w: 520, h: 380 }, sizeKnown = false, collapsed = false, pinned = false;
   function applySize(value) {
     const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 30));
@@ -368,6 +372,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     size = { w: Math.round(400 + v * 4.2), h: Math.round(220 + v * 4) };
     sizeKnown = true;
     document.documentElement.style.setProperty("--thread-max", size.h + "px");
+    queueLayout();
+  }
+
+  // Icon size (Settings): zoom of the floating icon and its toolbar, 0.7× … 1.5×.
+  function applyIconScale(value) {
+    const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 38));
+    document.documentElement.style.setProperty("--mini-zoom", (0.7 + v * 0.008).toFixed(3));
     queueLayout();
   }
 
@@ -385,7 +396,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         });
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
-      const width = collapsed ? Math.ceil(box.width) : size.w;
+      const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? 520 : size.w);
       const key = JSON.stringify([width, height, rects]);
       if (key === lastLayout) return;
       lastLayout = key;
@@ -524,15 +535,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // The slider resizes the popup live; Cancel goes back to the saved size.
   const sizeSlider = $("sizeSlider");
   let savedScale = 30;
+  const iconSlider = $("iconSlider");
   function setSlider(value) {
     savedScale = Number.isFinite(+value) ? +value : 30;
     sizeSlider.value = savedScale;
     sizeSlider.style.setProperty("--fill", savedScale + "%");
   }
-  sizeSlider.addEventListener("input", () => {
-    sizeSlider.style.setProperty("--fill", sizeSlider.value + "%");
-    applySize(sizeSlider.value);
-  });
+  function setIconSlider(value) {
+    iconSlider.value = Number.isFinite(+value) ? +value : 38;
+    iconSlider.style.setProperty("--fill", iconSlider.value + "%");
+  }
+  [sizeSlider, iconSlider].forEach(sl => sl.addEventListener("input", () => sl.style.setProperty("--fill", sl.value + "%")));
 
   async function openSettings(only) {
     settingsOnly = !!only;
@@ -547,6 +560,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
       setSlider(s.popupScale);
+      setIconSlider(s.iconScale);
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
       if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
@@ -579,10 +593,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
       popupScale: String(sizeSlider.value),
+      iconScale: String(iconSlider.value),
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
-    try { savedScale = (await res.json()).popupScale; applySize(savedScale); } catch (e) {}
+    try { const saved = await res.json(); savedScale = saved.popupScale; applySize(savedScale); applyIconScale(saved.iconScale); } catch (e) {}
     toast("Saved");
     closeSettings();
   }
@@ -826,7 +841,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const s = state;
     document.documentElement.dataset.provider = s.provider;
     els.who.textContent = s.providerName + (s.connection === "api" ? " · API" : "") + (s.model ? " · " + s.model : "");
-    if (!sizeKnown || (s.popupScale !== scale && !settingsOpen)) applySize(s.popupScale);
+    // Apply sizes from the server only when they change there (Save applies its own values right away).
+    if (!sizeKnown || (s.popupScale !== lastStateScale && !settingsOpen)) applySize(s.popupScale);
+    if (s.iconScale !== lastStateIcon) applyIconScale(s.iconScale);
+    lastStateScale = s.popupScale; lastStateIcon = s.iconScale;
     if (collapsed) { updateMini(s); return; }
     lastBusy = !!s.busy;
     if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }

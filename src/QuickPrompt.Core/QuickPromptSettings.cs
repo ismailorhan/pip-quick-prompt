@@ -69,6 +69,11 @@ namespace QuickPrompt.Core
 
         public const Int32 DefaultPopupScale = 30;
 
+        /// <summary>Size of the floating icon and its toolbar, 0 (smallest) … 100 (largest).</summary>
+        public Int32 IconScale { get; set; } = DefaultIconScale;
+
+        public const Int32 DefaultIconScale = 38;
+
         /// <summary>Keep the last conversations on this computer so they can be reopened and continued.</summary>
         public Boolean SaveHistory { get; set; } = true;
 
@@ -131,6 +136,7 @@ namespace QuickPrompt.Core
             };
             this.PopupScale = Math.Clamp(this.PopupScale.Value, 0, 100);
             this.PopupSize = "";
+            this.IconScale = Math.Clamp(this.IconScale, 0, 100);
             this.SystemPrompt ??= "";
             this.ClaudeConnection = ConnectionModes.Normalize(this.ClaudeConnection, ConnectionModes.Cli);
             this.ChatGptConnection = ConnectionModes.Normalize(this.ChatGptConnection, ConnectionModes.Cli);
