@@ -94,6 +94,8 @@ button.x:hover { color: var(--text); }
 .round { flex: none; width: 40px; height: 40px; border-radius: 50%; padding: 0; display: grid; place-items: center; font-size: 22px; font-weight: 300; line-height: 1; }
 .send { flex: none; width: 40px; height: 40px; border-radius: 50%; padding: 0; display: grid; place-items: center; background: var(--accent); color: var(--accent-text); transition: opacity .15s; }
 .send svg { width: 18px; height: 18px; }
+.round.gear { background: transparent; color: var(--muted); font-size: 17px; }
+.round.gear:hover { color: var(--text); background: var(--faint); }
 .send.idle { opacity: .45; }
 textarea { flex: 1; width: 100%; resize: none; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; padding: 9px 2px; max-height: 140px; min-height: 40px; }
 textarea::placeholder { color: var(--muted); }
@@ -178,6 +180,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   <div class="bar glass" id="bar">
     <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
+    <button type="button" class="round gear" id="barGear" title="Settings">⚙</button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
   </div>
 </div>
@@ -439,6 +442,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   }
 
   $("gear").addEventListener("click", () => openSettings(false));
+  $("barGear").addEventListener("click", () => openSettings(false));
   $("errSettings").addEventListener("click", () => openSettings(false));
   $("setSave").addEventListener("click", saveSettings);
   $("setBack").addEventListener("click", closeSettings);
@@ -459,6 +463,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     els.notice.hidden = !s.notice;
     els.notice.textContent = s.notice || "";
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
+    $("barGear").hidden = !els.card.hidden;
     const last = s.messages[s.messages.length - 1];
     els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 
