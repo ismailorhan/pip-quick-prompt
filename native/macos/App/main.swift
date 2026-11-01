@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var hotKeyRef: EventHotKeyRef?
     private var loginItem: NSMenuItem?
+    private let actionsMenu = NSMenu()
+    private var actions: [[String: Any]] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
@@ -63,6 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(ask)
         menu.addItem(NSMenuItem(title: "New Chat", action: #selector(newChat), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Recent Chats", action: #selector(recentChats), keyEquivalent: ""))
+        let actionsItem = NSMenuItem(title: "Predefined Actions", action: nil, keyEquivalent: "")
+        actionsItem.submenu = actionsMenu
+        menu.addItem(actionsItem)
+        rebuildActionsMenu()
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
         if #available(macOS 13.0, *) {
@@ -78,7 +84,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
     }
 
+    /// The actions list: from the engine (refreshed each time the menu opens, so it is current next time).
+    private func rebuildActionsMenu() {
+        actionsMenu.removeAllItems()
+        for (index, action) in actions.enumerated() {
+            let title = action["title"] as? String ?? "Action"
+            let provider = (action["provider"] as? String) == "codex" ? "ChatGPT" : "Claude"
+            let item = NSMenuItem(title: title, action: #selector(runAction(_:)), keyEquivalent: "")
+            item.toolTip = provider
+            item.tag = index
+            item.target = self
+            actionsMenu.addItem(item)
+        }
+        if !actions.isEmpty {
+            actionsMenu.addItem(.separator())
+        }
+        let edit = NSMenuItem(title: "Edit Actions…", action: #selector(editActions), keyEquivalent: "")
+        edit.target = self
+        actionsMenu.addItem(edit)
+    }
+
+    private func refreshActions() {
+        guard let request = request("presets", method: "GET") else { return }
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            guard let data = data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+            DispatchQueue.main.async {
+                self?.actions = list
+                self?.rebuildActionsMenu()
+            }
+        }.resume()
+    }
+
+    @objc private func runAction(_ sender: NSMenuItem) {
+        guard actions.indices.contains(sender.tag), let id = actions[sender.tag]["id"] as? String else { return }
+        // Let the previous app get its focus back first: the action may read its selection.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.send("run", ["presetId": id]) }
+    }
+
+    @objc private func editActions() { send("actions") }
+
     func menuWillOpen(_ menu: NSMenu) {
+        refreshActions()
         if #available(macOS 13.0, *) {
             loginItem?.state = SMAppService.mainApp.status == .enabled ? .on : .off
         }
@@ -206,6 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 port = value
                 lastEventId = 0
                 pollEvents(port: value)
+                refreshActions()
                 let queued = pendingActions
                 pendingActions.removeAll()
                 for (action, body) in queued {

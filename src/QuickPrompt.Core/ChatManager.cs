@@ -81,7 +81,7 @@ namespace QuickPrompt.Core
                 Instruction = saved.Instruction,
                 Connection = saved.Connection,
                 Model = saved.Model,
-                Input = InputModes.Selection,
+                Input = InputModes.Normalize(saved.Input),
                 Flow = FlowModes.Send,
             }).ConfigureAwait(false);
             return true;
@@ -240,6 +240,51 @@ namespace QuickPrompt.Core
                 connection = this.ResolveConnection(p.ProviderId, p.Connection),
                 builtIn = p.BuiltIn,
             }).ToArray());
+
+        /// <summary>The Predefined actions editor: your actions and the built-ins.</summary>
+        public String GetActionsJson() =>
+            System.Text.Json.JsonSerializer.Serialize(this._presets.ListEditable().Select(p => new
+            {
+                id = p.Id,
+                title = p.Title,
+                instruction = p.Instruction,
+                provider = p.ProviderId,
+                connection = p.Connection,
+                input = InputModes.Normalize(p.Input),
+                model = p.Model,
+                builtIn = p.BuiltIn,
+                fields = PromptBuilder.GetParameters(p.Instruction).Count,
+            }).ToArray());
+
+        public String SaveAction(IReadOnlyDictionary<String, String> body)
+        {
+            String Get(String key) => body.TryGetValue(key, out var v) ? v ?? "" : "";
+            this._presets.Save(new SavedPreset
+            {
+                Id = Get("id"),
+                Title = Get("title"),
+                Instruction = Get("instruction"),
+                ProviderId = Get("provider"),
+                Connection = Get("connection"),
+                Input = Get("input"),
+                Model = Get("model"),
+            });
+            return this.GetActionsJson();
+        }
+
+        public String DeleteAction(String id)
+        {
+            this._presets.Delete(id);
+            return this.GetActionsJson();
+        }
+
+        /// <summary>Opens the popup on the Predefined actions editor.</summary>
+        public void OpenActions()
+        {
+            var session = this.CreateSession(ProviderIds.Claude, "", "");
+            session.ShowActions = true;
+            this.OpenWindow(session);
+        }
 
         /// <summary>Turns the popup into the chosen preset, waiting for pasted text.</summary>
         public Boolean UsePreset(ChatSession session, String presetId)
@@ -403,6 +448,22 @@ namespace QuickPrompt.Core
 
             var capture = await this.CaptureInputAsync(preset.Input).ConfigureAwait(false);
             var context = capture.Text;
+
+            // A prompt with fields ({name} or {name:a|b}): ask for them in the popup, with the captured text ready.
+            if (PromptBuilder.GetParameters(instruction).Count > 0)
+            {
+                var form = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
+                form.PresetInstruction = instruction;
+                form.DraftContext = context;
+                if (preset.Input == InputModes.Selection && !capture.Captured)
+                {
+                    form.Notice = "Could not read the selected text. Paste it below if the action needs it.";
+                }
+
+                this.OpenWindow(form);
+                return;
+            }
+
             var nothingToSend = instruction.Trim().Length == 0 && context.Trim().Length == 0;
 
             // The preset needs the selection but none could be read: never send the stale clipboard.

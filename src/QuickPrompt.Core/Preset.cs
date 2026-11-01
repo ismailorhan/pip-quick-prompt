@@ -13,6 +13,9 @@ namespace QuickPrompt.Core
 
         /// <summary>Open the popup with an empty box; the user pastes or types the text, Enter sends it with the preset prompt.</summary>
         public const String Popup = "popup";
+
+        public static String Normalize(String value) =>
+            value == Clipboard || value == None || value == Popup ? value : Selection;
     }
 
     public static class FlowModes

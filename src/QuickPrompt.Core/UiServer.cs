@@ -152,6 +152,11 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(this._manager.GetPresetsJson());
             }
 
+            if (request.Method == "GET" && action == "actions")
+            {
+                return HttpResponse.Json(this._manager.GetActionsJson());
+            }
+
             if (request.Method == "GET" && action == "history")
             {
                 return HttpResponse.Json(this._manager.GetHistoryJson());
@@ -199,8 +204,21 @@ namespace QuickPrompt.Core
                     this._manager.SaveSettings(body);
                     return HttpResponse.Json(this._manager.GetSettingsJson());
 
+                case "saveaction":
+                    try
+                    {
+                        return HttpResponse.Json(this._manager.SaveAction(body));
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        return HttpResponse.Json(JsonSerializer.Serialize(new { error = ex.Message }), 400);
+                    }
+
+                case "deleteaction":
+                    return HttpResponse.Json(this._manager.DeleteAction(GetString(body, "id")));
+
                 case "send":
-                    var started = session.StartTurnFromPopup(GetString(body, "instruction"), GetString(body, "context"));
+                    var started = session.StartTurnFromPopup(GetString(body, "instruction"), GetString(body, "context"), ParseFields(GetString(body, "fields")));
                     return started ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
 
                 case "cancel":
@@ -223,6 +241,10 @@ namespace QuickPrompt.Core
 
         private Boolean IsAllowedHost(String host) =>
             host == $"127.0.0.1:{this.Port}" || host == $"localhost:{this.Port}";
+
+        /// <summary>The filled-in prompt fields, sent as a JSON object string.</summary>
+        private static Dictionary<String, String> ParseFields(String json) =>
+            String.IsNullOrEmpty(json) ? null : ParseJson(System.Text.Encoding.UTF8.GetBytes(json));
 
         private static Dictionary<String, String> ParseJson(Byte[] body)
         {

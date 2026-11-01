@@ -70,6 +70,21 @@ Example presets:
 | Translate | ChatGPT | `Translate to English (or to Turkish if it is English). Reply with the translation only:\n\n{text}` | Replace selection |
 | Translate… | Claude | same prompt, Input: *Paste in popup* | Send now |
 
+## Predefined actions
+
+Your own prompts, kept on this computer. Manage them from **Settings → Predefined actions → Manage…**, the
+floating icon's actions list (**Edit actions…**), or the menu bar (**Predefined Actions → Edit Actions…**).
+Run them from the floating icon or the menu bar.
+
+- `{text}` is where the selected text (or clipboard, or pasted text) goes.
+- `{name}` adds a field you fill in each time, e.g. `{language}`.
+- `{name:a|b|c}` adds a list to pick from, e.g. `{tone:friendly|formal|short}` (the first is the default).
+
+Example: `Write a {tone:friendly|formal|short} reply in {language} to this email:\n\n{text}` asks for the
+tone and the language, with the selected email already in place, then sends.
+
+Editing a built-in action (Summarize, Translate, …) saves your own copy in its place.
+
 ## Settings
 
 `settings.json` is created in the plugin's data folder on first run; the plugin log prints its path. Changes apply without a restart.

@@ -23,9 +23,15 @@ namespace QuickPrompt.Core
 
         public String Model { get; set; } = "";
 
+        /// <summary>Where the text comes from when run from the menu bar (InputModes).</summary>
+        public String Input { get; set; } = InputModes.Selection;
+
         public DateTime LastUsedUtc { get; set; }
 
         public Boolean BuiltIn { get; set; }
+
+        /// <summary>Made or edited in the Predefined actions editor (not remembered from the ring).</summary>
+        public Boolean Custom { get; set; }
     }
 
     /// <summary>
@@ -47,21 +53,88 @@ namespace QuickPrompt.Core
         };
 
         private readonly String _path;
+        private readonly String _customPath;
         private readonly Object _lock = new Object();
 
         public PresetCatalog(String path)
         {
             this._path = path;
+            this._customPath = Path.Combine(Path.GetDirectoryName(path) ?? "", "actions.json");
         }
 
-        /// <summary>Remembered presets (most recently used first), then the built-ins not already covered.</summary>
+        /// <summary>Your actions, then presets used from the ring (most recent first), then the built-ins not already covered.</summary>
         public IReadOnlyList<SavedPreset> List()
         {
             lock (this._lock)
             {
-                var remembered = this.ReadLocked();
-                var titles = new HashSet<String>(remembered.Select(p => p.Title), StringComparer.OrdinalIgnoreCase);
-                return remembered.Concat(BuiltIns.Where(b => !titles.Contains(b.Title))).ToList();
+                var custom = this.ReadLocked(this._customPath);
+                var titles = new HashSet<String>(custom.Select(p => p.Title), StringComparer.OrdinalIgnoreCase);
+                var remembered = this.ReadLocked(this._path).Where(p => !titles.Contains(p.Title)).ToList();
+                titles.UnionWith(remembered.Select(p => p.Title));
+                return custom.Concat(remembered).Concat(BuiltIns.Where(b => !titles.Contains(b.Title))).ToList();
+            }
+        }
+
+        /// <summary>What the editor shows: your actions, then the built-ins you have not replaced.</summary>
+        public IReadOnlyList<SavedPreset> ListEditable()
+        {
+            lock (this._lock)
+            {
+                var custom = this.ReadLocked(this._customPath);
+                var titles = new HashSet<String>(custom.Select(p => p.Title), StringComparer.OrdinalIgnoreCase);
+                return custom.Concat(BuiltIns.Where(b => !titles.Contains(b.Title))).ToList();
+            }
+        }
+
+        /// <summary>Adds or updates an action. Editing a built-in saves your own copy in its place.</summary>
+        public SavedPreset Save(SavedPreset action)
+        {
+            if (action == null || String.IsNullOrWhiteSpace(action.Title) || String.IsNullOrWhiteSpace(action.Instruction))
+            {
+                throw new ArgumentException("An action needs a title and a prompt.");
+            }
+
+            lock (this._lock)
+            {
+                var list = this.ReadLocked(this._customPath);
+                var saved = new SavedPreset
+                {
+                    Id = String.IsNullOrEmpty(action.Id) || action.Id.StartsWith("builtin-", StringComparison.Ordinal)
+                        ? "a" + Guid.NewGuid().ToString("N").Substring(0, 12)
+                        : action.Id,
+                    Title = action.Title.Trim(),
+                    Instruction = action.Instruction,
+                    ProviderId = action.ProviderId == ProviderIds.Codex ? ProviderIds.Codex : ProviderIds.Claude,
+                    Connection = ConnectionModes.Normalize(action.Connection, ConnectionModes.Default),
+                    Model = (action.Model ?? "").Trim(),
+                    Input = InputModes.Normalize(action.Input),
+                    Custom = true,
+                    LastUsedUtc = DateTime.UtcNow,
+                };
+                var index = list.FindIndex(p => p.Id == saved.Id);
+                if (index >= 0)
+                {
+                    list[index] = saved;
+                }
+                else
+                {
+                    list.Add(saved);
+                }
+
+                this.WriteLocked(this._customPath, list);
+                return saved;
+            }
+        }
+
+        public void Delete(String id)
+        {
+            lock (this._lock)
+            {
+                var list = this.ReadLocked(this._customPath);
+                if (list.RemoveAll(p => p.Id == id) > 0)
+                {
+                    this.WriteLocked(this._customPath, list);
+                }
             }
         }
 
@@ -93,19 +166,19 @@ namespace QuickPrompt.Core
 
             lock (this._lock)
             {
-                var list = this.ReadLocked().Where(p => p.Id != saved.Id).ToList();
+                var list = this.ReadLocked(this._path).Where(p => p.Id != saved.Id).ToList();
                 list.Insert(0, saved);
-                this.WriteLocked(list.Take(MaxRemembered).ToList());
+                this.WriteLocked(this._path, list.Take(MaxRemembered).ToList());
             }
         }
 
-        private List<SavedPreset> ReadLocked()
+        private List<SavedPreset> ReadLocked(String path)
         {
             try
             {
-                if (File.Exists(this._path))
+                if (File.Exists(path))
                 {
-                    return JsonSerializer.Deserialize<List<SavedPreset>>(File.ReadAllText(this._path), JsonOptions) ?? new List<SavedPreset>();
+                    return JsonSerializer.Deserialize<List<SavedPreset>>(File.ReadAllText(path), JsonOptions) ?? new List<SavedPreset>();
                 }
             }
             catch (Exception)
@@ -116,12 +189,12 @@ namespace QuickPrompt.Core
             return new List<SavedPreset>();
         }
 
-        private void WriteLocked(List<SavedPreset> list)
+        private void WriteLocked(String path, List<SavedPreset> list)
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(this._path));
-                File.WriteAllText(this._path, JsonSerializer.Serialize(list, JsonOptions));
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllText(path, JsonSerializer.Serialize(list, JsonOptions));
             }
             catch (Exception)
             {

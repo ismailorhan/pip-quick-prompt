@@ -77,6 +77,9 @@ namespace QuickPrompt.Core
         /// <summary>Open the popup on the History view.</summary>
         public Boolean ShowHistory { get; set; }
 
+        /// <summary>Open on the Predefined actions editor.</summary>
+        public Boolean ShowActions { get; set; }
+
         /// <summary>Snapshot of the finished messages, for the history.</summary>
         public ConversationRecord ToRecord()
         {
@@ -172,6 +175,7 @@ namespace QuickPrompt.Core
                 this.Notice = "";
                 this.ShowSettings = false;
                 this.ShowHistory = false;
+                this.ShowActions = false;
                 this._messages.Clear();
                 this._messages.AddRange(record.Messages.Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State }));
                 this.TouchLocked();
@@ -222,7 +226,7 @@ namespace QuickPrompt.Core
         /// A message sent from the popup. When a preset prompt is pending ("Paste in popup"), the typed
         /// text and any added text become the input of that prompt.
         /// </summary>
-        public Boolean StartTurnFromPopup(String typed, String context)
+        public Boolean StartTurnFromPopup(String typed, String context, IReadOnlyDictionary<String, String> fields = null)
         {
             String preset;
             lock (this._lock)
@@ -235,13 +239,18 @@ namespace QuickPrompt.Core
                 return this.StartTurn(typed, context);
             }
 
+            var hasFields = PromptBuilder.GetParameters(preset).Count > 0;
+            var instruction = hasFields ? PromptBuilder.FillParameters(preset, fields) : preset;
             var text = String.Join("\n\n", new[] { context ?? "", typed ?? "" }.Where(t => t.Trim().Length > 0));
-            if (text.Trim().Length == 0)
+
+            // Without fields the preset is applied to pasted text, so there must be some. With fields, the
+            // filled-in prompt can stand on its own unless it has a {text} spot to fill.
+            if (text.Trim().Length == 0 && (!hasFields || PromptBuilder.HasToken(instruction)))
             {
                 return false;
             }
 
-            var started = this.StartTurn(preset, text);
+            var started = this.StartTurn(instruction, text);
             if (started)
             {
                 lock (this._lock)
@@ -366,6 +375,9 @@ namespace QuickPrompt.Core
                     connection = this.Connection,
                     showSettings = this.ShowSettings,
                     showHistory = this.ShowHistory,
+                    showActions = this.ShowActions,
+                    fields = PromptBuilder.GetParameters(this.PresetInstruction).Select(p => new { name = p.Name, options = p.Options }).ToArray(),
+                    presetPrompt = this.PresetInstruction,
                     popupScale = this._settings().PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                     iconScale = this._settings().IconScale,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),

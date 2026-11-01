@@ -150,6 +150,20 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px va
 .skey button { margin-bottom: 1px; }
 button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 
+/* Fields of a predefined action */
+.fields { border-radius: 20px; padding: 9px 14px 12px; }
+.ftitle { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+.flist { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 10px; }
+.flist .sfield { margin-top: 6px; }
+.flist .sfield.missing input { box-shadow: inset 0 0 0 1.5px var(--error); }
+.aform { padding: 0 6px; }
+.aform textarea { display: block; width: 100%; margin-top: 3px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); background: var(--faint); border: 0; border-radius: 9px; padding: 7px 10px; outline: none; resize: vertical; min-height: 96px; max-height: 260px; }
+.aform textarea:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.frow { display: flex; gap: 10px; } .frow .sfield { flex: 1; }
+.aitem .hq { font-weight: 600; }
+.aitem .run { flex: none; align-self: center; font-size: 11.5px; padding: 3px 10px; }
+.pedit .pname { color: var(--muted); font-size: 12px; }
+
 /* History view */
 .history { border-radius: 22px; padding: 10px 10px 12px; }
 
@@ -270,6 +284,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <div class="shint">Chat size: the popup with the conversation. Icon size: the floating icon and its toolbar when pinned. Applied when you save.</div>
     </div>
     <div class="sgroup">
+      <div class="srow"><span class="sname">Predefined actions</span><button type="button" id="setActions">Manage…</button></div>
+      <div class="shint">Your own prompts, with fields to fill in. Run them from the floating icon or the menu bar.</div>
+    </div>
+    <div class="sgroup">
       <div class="srow"><span class="sname">History</span>
         <div class="seg" data-name="saveHistory"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
       <div class="shint">Keeps your last 50 conversations on this computer so you can reopen and continue them (clock button). Turning it off deletes them.</div>
@@ -286,6 +304,28 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
     <div class="hlist" id="hlist"></div>
     <div class="actions"><button type="button" id="histBack">Back</button><button type="button" id="histClear">Clear history</button></div>
+  </div>
+  <div class="history glass" id="actionsView" hidden>
+    <div class="meta" data-drag>
+      <span class="title" id="actTitle">Predefined actions</span>
+      <span class="status"></span>
+      <button type="button" class="x" id="actClose" title="Close">✕</button>
+    </div>
+    <div class="hlist" id="actList"></div>
+    <div class="actions" id="actButtons"><button type="button" class="primary" id="actNew">New action</button><button type="button" id="actBack">Back</button></div>
+    <div class="aform" id="actForm" hidden>
+      <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
+      <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{text}"></textarea></label>
+      <div class="shint"><b>{text}</b> is the selected text. Add a field to fill in with <b>{name}</b>, or a list with <b>{tone:friendly|formal|short}</b>. Fields are asked each time the action runs.</div>
+      <div class="srow" style="margin-top:10px"><span class="sname">AI</span>
+        <div class="seg" data-name="afProvider"><button type="button" data-v="claude">Claude</button><button type="button" data-v="codex">ChatGPT</button></div></div>
+      <div class="frow">
+        <label class="sfield">Text from<select id="afInput"><option value="selection">Selected text</option><option value="clipboard">Clipboard</option><option value="popup">Paste in popup</option><option value="none">Nothing</option></select></label>
+        <label class="sfield">Connection<select id="afConnection"><option value="default">As in Settings</option><option value="cli">CLI</option><option value="api">API</option></select></label>
+      </div>
+      <label class="sfield">Model (optional)<input type="text" id="afModel" spellcheck="false" placeholder="Default"></label>
+      <div class="actions"><button type="button" class="primary" id="afSave">Save</button><button type="button" id="afCancel">Cancel</button><span style="flex:1"></span><button type="button" id="afDelete">Delete</button></div>
+    </div>
   </div>
   <div class="mini" id="mini" hidden>
     <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="56" height="56">
@@ -312,8 +352,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" id="miniActions" title="Predefined actions"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg></button>
     </div>
   </div>
-  <div class="plist glass" id="presetList" hidden><div class="ptitle">Predefined actions</div><div id="plistItems"></div></div>
+  <div class="plist glass" id="presetList" hidden><div class="ptitle">Predefined actions</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit actions…</span></button></div>
   <div class="bubble glass" id="bubble" hidden><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
+  <div class="fields glass" id="fieldsBox" hidden><div class="ftitle" id="fieldsTitle"></div><div class="flist" id="fieldList"></div></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
@@ -424,7 +465,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         .filter(r => r.h > 1);
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
-      const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? 520 : size.w);
+      const width = collapsed ? Math.ceil(box.width) : (settingsOpen || actionsOpen ? 520 : size.w);
       const key = JSON.stringify([width, height, rects]);
       if (key === lastLayout) return;
       lastLayout = key;
@@ -537,6 +578,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const segValues = {};
   const keyRemoval = {};
   let settingsOpen = false, settingsOnly = false;
+  let actionsOpen = false, actionsOnly = false;
 
   function setSeg(name, value) {
     segValues[name] = value;
@@ -722,12 +764,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       '<button type="button" class="pitem" data-id="' + esc(p.id) + '" data-provider="' + esc(p.provider) + '">'
       + '<span class="dot"></span><span class="pname">' + esc(p.title) + '</span>'
       + '<span class="pmeta">' + esc(p.providerName) + (p.connection === "api" ? " · API" : "") + '</span></button>').join("")
-      : '<div class="hempty">Presets you use from the ring show up here.</div>';
+      : '<div class="hempty">No actions yet.</div>';
     presetList.hidden = false;
     clearTimeout(tuckTimer);
     queueLayout();
   }
   $("miniActions").addEventListener("click", togglePresets);
+  $("plistEdit").addEventListener("click", () => { presetList.hidden = true; expand(); openActions(false); });
   $("plistItems").addEventListener("click", async e => {
     const item = e.target.closest(".pitem");
     if (!item) return;
@@ -741,6 +784,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     e.preventDefault();
     bridge.postMessage({ type: "menu", items: [
       { id: "open", title: "Open" },
+      { id: "actions", title: "Predefined Actions…" },
       { id: "settings", title: "Settings…" },
       { separator: true },
       { id: "close", title: "Close" },
@@ -749,6 +793,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   window.__quickPromptMenu = id => {
     if (id === "open") expand();
     else if (id === "settings") { expand(); openSettings(false); }
+    else if (id === "actions") { expand(); openActions(false); }
     else if (id === "close") closeWindow();
   };
   $("miniNew").addEventListener("click", async () => {
@@ -923,6 +968,102 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     queueLayout();
   }
 
+  // ---------- Predefined actions editor ----------
+  const act = { view: $("actionsView"), list: $("actList"), form: $("actForm"), buttons: $("actButtons"), items: [], editing: null };
+  const INPUT_NAMES = { selection: "Selected text", clipboard: "Clipboard", popup: "Paste in popup", none: "No text" };
+  function renderActions() {
+    act.list.innerHTML = act.items.length ? act.items.map(a =>
+      '<div class="hitem aitem" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
+      + '<span class="dot"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
+      + '<div class="ha">' + esc(a.instruction.replace(/\s+/g, " ")) + '</div>'
+      + '<div class="hmeta">' + (a.provider === "codex" ? "ChatGPT" : "Claude") + ' · ' + INPUT_NAMES[a.input]
+      + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '') + (a.builtIn ? ' · built-in' : '') + '</div></div>'
+      + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button></div>').join("")
+      : '<div class="hempty">No actions yet.</div>';
+    queueLayout();
+  }
+  async function openActions(only) {
+    actionsOnly = !!only;
+    actionsOpen = true;
+    els.card.hidden = true; els.bar.hidden = true; els.ctxWrap.hidden = true; $("fieldsBox").hidden = true;
+    set.view.hidden = true; hist.view.hidden = true; settingsOpen = false; historyOpen = false;
+    act.view.hidden = false;
+    showActionList();
+    act.list.innerHTML = '<div class="hempty">Loading…</div>';
+    try { act.items = await (await fetch(base + "actions", { cache: "no-store" })).json(); } catch (e) { act.items = []; }
+    renderActions();
+  }
+  function closeActions() {
+    if (actionsOnly) { closeWindow(); return; }
+    actionsOpen = false;
+    act.view.hidden = true; els.bar.hidden = false;
+    lastKey = ""; fieldsKey = "";
+    if (state) render();
+    queueLayout();
+    els.prompt.focus();
+  }
+  function showActionList() {
+    act.form.hidden = true; act.list.hidden = false; act.buttons.hidden = false;
+    $("actTitle").textContent = "Predefined actions";
+    queueLayout();
+  }
+  function editAction(a) {
+    act.editing = a || null;
+    $("actTitle").textContent = a ? (a.builtIn ? "Edit " + a.title + " (saved as your copy)" : "Edit action") : "New action";
+    $("afTitle").value = a ? a.title : "";
+    $("afPrompt").value = a ? a.instruction : "";
+    setSeg("afProvider", a ? a.provider : "claude");
+    $("afInput").value = a ? a.input : "selection";
+    $("afConnection").value = a ? a.connection : "default";
+    $("afModel").value = a ? a.model : "";
+    $("afDelete").hidden = !a || a.builtIn;
+    act.list.hidden = true; act.buttons.hidden = true; act.form.hidden = false;
+    queueLayout();
+    setTimeout(() => (a ? $("afPrompt") : $("afTitle")).focus(), 0);
+  }
+  async function runAction(id) {
+    const res = await post("usepreset", { id });
+    if (!res.ok) { toast("Still answering"); return; }
+    actionsOnly = false;
+    closeActions();
+  }
+  act.list.addEventListener("click", e => {
+    const run = e.target.closest("[data-run]");
+    if (run) { runAction(run.dataset.run); return; }
+    const item = e.target.closest(".aitem");
+    if (item) editAction(act.items.find(a => a.id === item.dataset.id));
+  });
+  act.list.addEventListener("keydown", e => {
+    const item = e.target.closest(".aitem");
+    if (item && e.key === "Enter" && e.target === item) editAction(act.items.find(a => a.id === item.dataset.id));
+  });
+  $("actNew").addEventListener("click", () => editAction(null));
+  $("actBack").addEventListener("click", closeActions);
+  $("actClose").addEventListener("click", () => actionsOnly ? closeWindow() : dismiss());
+  $("afCancel").addEventListener("click", showActionList);
+  $("afSave").addEventListener("click", async () => {
+    const body = {
+      id: act.editing ? act.editing.id : "",
+      title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
+      provider: segValues.afProvider || "claude", input: $("afInput").value,
+      connection: $("afConnection").value, model: $("afModel").value.trim(),
+    };
+    if (!body.title) { $("afTitle").focus(); toast("Give it a title"); return; }
+    if (!body.instruction.trim()) { $("afPrompt").focus(); toast("Write the prompt"); return; }
+    const res = await post("saveaction", body);
+    if (!res.ok) { toast("Could not save"); return; }
+    act.items = await res.json();
+    renderActions();
+    showActionList();
+    toast("Saved");
+  });
+  $("afDelete").addEventListener("click", async () => {
+    if (!act.editing) return;
+    const res = await post("deleteaction", { id: act.editing.id });
+    if (res.ok) { act.items = await res.json(); renderActions(); showActionList(); toast("Deleted"); }
+  });
+  $("setActions").addEventListener("click", () => { const only = settingsOnly; settingsOpen = false; openActions(only); });
+
   function closeHistory() {
     if (historyOnly) { closeWindow(); return; }
     historyOpen = false;
@@ -964,7 +1105,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     lastBusy = !!s.busy;
     if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
     if (s.showHistory && !historyOpen && !draftApplied) { draftApplied = true; openHistory(true); return; }
-    if (settingsOpen || historyOpen) return;
+    if (s.showActions && !actionsOpen && !draftApplied) { draftApplied = true; openActions(true); return; }
+    if (settingsOpen || historyOpen || actionsOpen) return;
     els.title.textContent = s.title || "";
     document.title = (s.title ? s.title + " — " : "") + s.providerName;
     els.status.textContent = "";
@@ -993,11 +1135,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       }, 0);
     }
 
+    buildFields(s);
     const hasAnswer = lastAnswer() != null && !s.busy;
     els.actions.hidden = !hasAnswer;
     $("paste").hidden = !s.appWindow;
-    els.prompt.placeholder = s.messages.length
+    els.prompt.placeholder = s.messages.length && !fieldsActive()
       ? "Follow up…"
+      : fieldsActive()
+        ? (/\{(text|selection|input)\}/i.test(s.presetPrompt || "") && !(s.draft && s.draft.context) ? "Paste the text — Enter runs" : "Add a note (optional) — Enter runs")
       : s.pasteMode
         ? "Paste text" + (s.title ? " · " + s.title : "") + " — Enter sends"
         : ("Ask " + s.providerName + (s.title ? " · " + s.title : "") + "…");
@@ -1040,7 +1185,52 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     queueLayout();
   }
 
+  // ---------- fields of a predefined action ({name} / {name:a|b}) ----------
+  let fieldsKey = "";
+  const fieldList = $("fieldList");
+  function fieldsActive() { return !$("fieldsBox").hidden; }
+  function label(name) { return name.charAt(0).toUpperCase() + name.slice(1).replace(/[_-]+/g, " "); }
+  function buildFields(s) {
+    const fields = s.fields || [];
+    const key = JSON.stringify(fields) + "|" + (s.presetPrompt || "");
+    if (key === fieldsKey) return;
+    fieldsKey = key;
+    $("fieldsBox").hidden = !fields.length;
+    $("fieldsTitle").textContent = (s.title || "Action") + " · fill in";
+    fieldList.innerHTML = fields.map(f => {
+      const control = f.options && f.options.length
+        ? '<select data-field="' + esc(f.name) + '">' + f.options.map(o => '<option>' + esc(o) + '</option>').join("") + '</select>'
+        : '<input type="text" data-field="' + esc(f.name) + '" spellcheck="false" autocomplete="off">';
+      return '<label class="sfield">' + esc(label(f.name)) + control + '</label>';
+    }).join("");
+    if (fields.length) setTimeout(() => { const first = fieldList.querySelector("[data-field]"); if (first) first.focus(); }, 30);
+    updateSendState();
+    queueLayout();
+  }
+  function collectFields() {
+    const values = {}; let missing = null;
+    fieldList.querySelectorAll("[data-field]").forEach(el => {
+      values[el.dataset.field] = el.value;
+      const empty = el.tagName === "INPUT" && !el.value.trim();
+      el.parentElement.classList.toggle("missing", false);
+      if (empty && !missing) missing = el;
+    });
+    return { values, missing };
+  }
+  fieldList.addEventListener("input", e => { e.target.parentElement.classList.remove("missing"); updateSendState(); });
+  fieldList.addEventListener("keydown", e => {
+    if (e.key !== "Enter" || e.isComposing || e.shiftKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const all = [...fieldList.querySelectorAll("[data-field]")];
+    const next = all[all.indexOf(e.target) + 1];
+    if (next && !(e.metaKey || e.ctrlKey)) next.focus(); else send();
+  });
+
   function updateSendState() {
+    if (fieldsActive()) {
+      els.send.classList.toggle("idle", !!state && !state.busy && !!collectFields().missing);
+      return;
+    }
     const empty = !els.prompt.value.trim() && (els.ctxWrap.hidden || !els.ctx.value.trim());
     els.send.classList.toggle("idle", !!state && !state.busy && empty);
   }
@@ -1074,14 +1264,21 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (state.busy) { post("cancel"); return; }
     const instruction = els.prompt.value.trim();
     const context = els.ctxWrap.hidden ? "" : els.ctx.value;
-    if (!instruction && !context.trim()) { els.prompt.focus(); return; }
+    const fields = fieldsActive() ? collectFields() : null;
+    if (fields && fields.missing) {
+      fields.missing.parentElement.classList.add("missing");
+      fields.missing.focus();
+      return;
+    }
+    if (!instruction && !context.trim() && !fields) { els.prompt.focus(); return; }
     els.send.disabled = true;
-    const res = await post("send", { instruction, context });
+    const res = await post("send", { instruction, context, fields: fields ? JSON.stringify(fields.values) : "" });
     els.send.disabled = false;
     if (res.ok) {
       els.prompt.value = ""; els.ctx.value = ""; showCtx(false); autoGrow(); stick = true;
     } else {
-      toast("Could not send");
+      toast(fields ? "Paste the text first" : "Could not send");
+      if (fields) els.prompt.focus();
     }
   }
 
@@ -1101,13 +1298,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (e.key === "Escape") {
       e.preventDefault();
       if (collapsed) return;
-      if (settingsOpen && !settingsOnly) closeSettings();
+      if (actionsOpen) { if (!$("actForm").hidden) showActionList(); else if (actionsOnly) closeWindow(); else closeActions(); }
+      else if (settingsOpen && !settingsOnly) closeSettings();
       else if (historyOpen && !historyOnly) closeHistory();
       else if (settingsOnly || historyOnly) closeWindow();
       else dismiss();
       return;
     }
-    if (historyOpen) return;
+    if (historyOpen || actionsOpen) return;
     if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveSettings(); } return; }
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.metaKey || e.ctrlKey) {

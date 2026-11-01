@@ -156,6 +156,45 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task Preset_with_fields_asks_for_them_then_sends_the_filled_prompt()
+        {
+            this._host.Selection = "Hi, can we meet tomorrow?";
+            await this._manager.ExecutePresetAsync(new Preset { Instruction = "Reply in a {tone:friendly|formal} way, in {language}:\n\n{text}", Flow = FlowModes.Send });
+            var session = this.SingleSession();
+            Assert.Empty(this._claude.Requests);
+            Assert.Equal("Hi, can we meet tomorrow?", session.DraftContext);
+            using (var doc = JsonDocument.Parse(session.ToJson(true)))
+            {
+                var fields = doc.RootElement.GetProperty("fields");
+                Assert.Equal(2, fields.GetArrayLength());
+                Assert.Equal("tone", fields[0].GetProperty("name").GetString());
+                Assert.Equal(2, fields[0].GetProperty("options").GetArrayLength());
+            }
+
+            using var http = new HttpClient();
+            var body = "{\"instruction\":\"\",\"context\":\"Hi, can we meet tomorrow?\",\"fields\":\"{\\\"tone\\\":\\\"formal\\\",\\\"language\\\":\\\"German\\\"}\"}";
+            var res = await this.PostAsync(http, this._manager.GetSessionUrl(session, true) + "send", body);
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            await session.CurrentTurn;
+            Assert.Equal("Reply in a formal way, in German:\n\nHi, can we meet tomorrow?", this._claude.Requests.Single().Prompt);
+        }
+
+        [Fact]
+        public async Task Fields_without_a_text_spot_can_send_without_text()
+        {
+            var session = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            session.PresetInstruction = "Write a haiku about {topic}";
+            Assert.True(session.StartTurnFromPopup("", "", new Dictionary<string, string> { ["topic"] = "autumn" }));
+            await session.CurrentTurn;
+            Assert.Equal("Write a haiku about autumn", this._claude.Requests.Single().Prompt);
+
+            // With a {text} spot, text is required.
+            var other = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            other.PresetInstruction = "Translate to {language}: {text}";
+            Assert.False(other.StartTurnFromPopup("", "", new Dictionary<string, string> { ["language"] = "French" }));
+        }
+
+        [Fact]
         public async Task Edit_flow_only_prefills()
         {
             this._host.Selection = "some text";
