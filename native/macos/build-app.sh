@@ -114,28 +114,25 @@ if [[ -n "$identity" && -n "${ASC_KEY_P8:-}" && -n "${ASC_KEY_ID:-}" && -n "${AS
   spctl --assess --type execute --verbose=2 "$app" || true
 fi
 
-# The disk image for first installs: Quick Prompt.app next to a shortcut to Applications, to drag across.
+# The disk image for first installs: a small window with Quick Prompt on the left, an arrow, and the
+# Applications folder on the right, to drag across (laid out with dmgbuild; plain image if that fails).
 echo "Making the disk image"
-staging="build/dmg"
-rm -rf "$staging" && mkdir -p "$staging"
-ditto "$app" "$staging/Quick Prompt.app"
-ln -s /Applications "$staging/Applications"
 dmg="$root/dist/QuickPrompt.dmg"
 rm -f "$dmg"
-# The mounted disk shows the Quick Prompt icon too (a read-write image first, to set the volume icon).
-cp "$app/Contents/Resources/AppIcon.icns" "$staging/.VolumeIcon.icns"
-rw="build/QuickPrompt-rw.dmg"
-rm -f "$rw"
-hdiutil create -volname "Quick Prompt" -srcfolder "$staging" -fs HFS+ -format UDRW -ov "$rw" >/dev/null
-mount="$(hdiutil attach "$rw" -nobrowse -noautoopen | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
-if [[ -n "$mount" ]]; then
-  SetFile -a C "$mount" 2>/dev/null || xattr -wx com.apple.FinderInfo "0000000000000000040000000000000000000000000000000000000000000000" "$mount" || true
-  sync
-  hdiutil detach "$mount" -quiet || hdiutil detach "$mount" -force -quiet
+if python3 -m venv build/dmgvenv >/dev/null 2>&1 \
+  && build/dmgvenv/bin/pip install --quiet "dmgbuild>=1.6,<2" \
+  && build/dmgvenv/bin/python -m dmgbuild -s dmg-settings.py \
+       -D app="$app" -D icon="$app/Contents/Resources/AppIcon.icns" "Quick Prompt" "$dmg"; then
+  echo "Disk image laid out"
+else
+  echo "dmgbuild did not work; making a plain disk image" >&2
+  staging="build/dmg"
+  rm -rf "$staging" && mkdir -p "$staging"
+  ditto "$app" "$staging/Quick Prompt.app"
+  ln -s /Applications "$staging/Applications"
+  hdiutil create -volname "Quick Prompt" -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$dmg" >/dev/null
+  rm -rf "$staging"
 fi
-hdiutil convert "$rw" -format UDZO -o "$dmg" >/dev/null
-rm -f "$rw"
-rm -rf "$staging"
 if [[ -n "$identity" ]]; then
   codesign --force --timestamp --sign "$identity" "$dmg"
   if [[ -n "${key:-}" && -f "${key:-}" ]]; then
