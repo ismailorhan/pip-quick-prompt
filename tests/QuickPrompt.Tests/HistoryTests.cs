@@ -75,6 +75,12 @@ namespace QuickPrompt.Tests
             Assert.Contains("API: what is ERP?", prompt);
             Assert.EndsWith("and SAP Business One?", prompt);
 
+            // APIs also get the conversation as separate messages.
+            var request = this._claudeApi.Requests.Last();
+            Assert.Equal(new[] { "user", "assistant" }, request.History.Select(t => t.Key));
+            Assert.Equal("what is ERP?", request.History[0].Value);
+            Assert.Equal("and SAP Business One?", request.Message);
+
             // Still one conversation in the history, now with two questions.
             var items = History().GetProperty("items").EnumerateArray().ToList();
             Assert.Single(items);

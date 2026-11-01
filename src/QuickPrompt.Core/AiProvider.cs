@@ -45,7 +45,20 @@ namespace QuickPrompt.Core
 
     public sealed class AiRequest
     {
+        /// <summary>
+        /// Everything in one text: earlier turns written out, then the new message. Used by the CLIs,
+        /// which take a single prompt per call.
+        /// </summary>
         public String Prompt { get; set; } = "";
+
+        /// <summary>
+        /// Earlier turns as (role, text) pairs, oldest first, alternating "user" / "assistant". Used by
+        /// the APIs, which take the conversation as separate messages. Empty for the first message.
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<String, String>> History { get; set; } = Array.Empty<KeyValuePair<String, String>>();
+
+        /// <summary>The new user message on its own (preset prompt and text combined). Empty = use Prompt.</summary>
+        public String Message { get; set; } = "";
 
         public String Model { get; set; } = "";
 

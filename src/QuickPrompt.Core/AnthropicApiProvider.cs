@@ -49,6 +49,30 @@ namespace QuickPrompt.Core
             };
         }
 
+        /// <summary>
+        /// The conversation as separate messages. Assistant turns carry only their text (thinking is never
+        /// stored), so there are no thinking blocks to replay and the history is append-only.
+        /// </summary>
+        public static List<BetaMessageParam> BuildMessages(AiRequest request)
+        {
+            var messages = new List<BetaMessageParam>();
+            if (String.IsNullOrEmpty(request.Message))
+            {
+                messages.Add(new BetaUserMessageParam { Content = request.Prompt ?? "" });
+                return messages;
+            }
+
+            foreach (var turn in request.History ?? Array.Empty<KeyValuePair<String, String>>())
+            {
+                messages.Add(turn.Key == "assistant"
+                    ? new BetaAssistantMessageParam { Content = turn.Value ?? "" }
+                    : new BetaUserMessageParam { Content = turn.Value ?? "" });
+            }
+
+            messages.Add(new BetaUserMessageParam { Content = request.Message });
+            return messages;
+        }
+
         public async IAsyncEnumerable<AiEvent> RunAsync(AiRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var key = this._apiKey();
@@ -88,7 +112,12 @@ namespace QuickPrompt.Core
                     Betas = ["server-side-fallback-2026-07-01"],
                     Fallbacks = new Default(),
                     OutputConfig = new BetaOutputConfig { Effort = effort },
-                    Messages = [new BetaUserMessageParam { Content = request.Prompt ?? "" }],
+
+                    // Automatic prompt caching: the history only grows at the end, so earlier turns are
+                    // read from the cache on follow-ups (short conversations are below the minimum and
+                    // simply aren't cached).
+                    CacheControl = new BetaCacheControlEphemeral(),
+                    Messages = BuildMessages(request),
                 };
                 if (!String.IsNullOrWhiteSpace(request.SystemPrompt))
                 {

@@ -214,6 +214,8 @@ namespace QuickPrompt.Core
 
             ChatMessage answer;
             String prompt;
+            List<KeyValuePair<String, String>> history;
+            var message = PromptBuilder.Build(instruction, context);
             CancellationTokenSource cts;
             lock (this._lock)
             {
@@ -222,7 +224,7 @@ namespace QuickPrompt.Core
                     return false;
                 }
 
-                var history = this._messages
+                history = this._messages
                     .Where(m => m.State == "done" || m.Role == "user")
                     .Select(m => new KeyValuePair<String, String>(m.Role, m.Role == "user" ? PromptBuilder.Build(m.Text, m.Context) : m.Text))
                     .ToList();
@@ -230,7 +232,7 @@ namespace QuickPrompt.Core
                 // Drop user turns whose answer failed, so the history stays question/answer pairs.
                 history = PairUp(history);
 
-                prompt = PromptBuilder.BuildWithHistory(history, PromptBuilder.Build(instruction, context));
+                prompt = PromptBuilder.BuildWithHistory(history, message);
                 this._messages.Add(new ChatMessage { Role = "user", Text = instruction, Context = context.Trim() });
                 answer = new ChatMessage { Role = "assistant", State = "streaming" };
                 this._messages.Add(answer);
@@ -248,6 +250,8 @@ namespace QuickPrompt.Core
             var request = new AiRequest
             {
                 Prompt = prompt,
+                History = history,
+                Message = message,
                 Model = this.Model,
                 SystemPrompt = this._settings().SystemPrompt,
             };

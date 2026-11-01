@@ -49,8 +49,13 @@ The plugin presses ⌘C/Ctrl+C and watches the clipboard:
 
 `ChatManager.GetProvider(id, connection)` picks the provider: the preset's **Connection** (`cli` / `api`), or for `default` the provider's connection in Settings (`ClaudeConnection`, `ChatGptConnection`). API keys go through `IHostBridge.GetSecret/SetSecret`. The plugin stores them in Logi Plugin Service's encrypted plugin settings (local only), never in `settings.json`. The popup's Settings view reads `GET /s/<token>/settings`, which returns only a masked key hint, and writes `POST /s/<token>/settings`.
 
-- **Anthropic:** official C# SDK (`Anthropic` NuGet), beta Messages endpoint with `fallbacks: "default"` (`server-side-fallback-2026-07-01`), `output_config.effort` (default `low` for quick answers), streamed. `haiku`/`sonnet`/`opus` map to the current model ids.
+- **Anthropic:** official C# SDK (`Anthropic` NuGet), beta Messages endpoint with `fallbacks: "default"` (`server-side-fallback-2026-07-01`), `output_config.effort` (default `low` for quick answers), automatic prompt caching (top-level `cache_control`), streamed. `haiku`/`sonnet`/`opus` map to the current model ids.
 - **OpenAI:** `POST /v1/chat/completions` with `stream: true`, parsed by `OpenAiStreamParser`.
+
+How a follow-up is sent differs by connection (`AiRequest`):
+
+- **CLI:** one prompt (`AiRequest.Prompt`) with the earlier turns written out, because each call is a fresh process.
+- **API:** the conversation as separate messages (`AiRequest.History` + `AiRequest.Message`): user / assistant / … / user. Assistant turns carry only their text; thinking is never stored, so no thinking blocks are replayed and the history is append-only. That suits preserved thinking and keeps the prompt cache valid across follow-ups.
 
 ## History
 

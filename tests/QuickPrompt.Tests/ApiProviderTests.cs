@@ -131,6 +131,63 @@ namespace QuickPrompt.Tests
             Assert.Equal("low", json.RootElement.GetProperty("output_config").GetProperty("effort").GetString());
             Assert.Equal("be brief", json.RootElement.GetProperty("system").GetString());
             Assert.True(json.RootElement.GetProperty("stream").GetBoolean());
+            Assert.Equal("ephemeral", json.RootElement.GetProperty("cache_control").GetProperty("type").GetString());
+        }
+
+        private static AiRequest FollowUp() => new AiRequest
+        {
+            Prompt = "(stitched prompt for the CLI)",
+            History = new List<KeyValuePair<string, string>>
+            {
+                new("user", "Translate: merhaba"),
+                new("assistant", "hello"),
+            },
+            Message = "and more formal?",
+            SystemPrompt = "be brief",
+        };
+
+        private static async Task<List<AiEvent>> RunAsync(IAiProvider provider, AiRequest request)
+        {
+            var events = new List<AiEvent>();
+            await foreach (var ev in provider.RunAsync(request, CancellationToken.None))
+            {
+                events.Add(ev);
+            }
+
+            return events;
+        }
+
+        [Fact]
+        public async Task Anthropic_follow_up_sends_the_conversation_as_messages()
+        {
+            var sse = Sse(
+                ("message_start", new { type = "message_start", message = new { id = "m", type = "message", role = "assistant", model = "x", content = Array.Empty<object>(), stop_reason = (string)null, stop_sequence = (string)null, usage = new { input_tokens = 1, output_tokens = 0 } } }),
+                ("content_block_delta", new { type = "content_block_delta", index = 0, delta = new { type = "text_delta", text = "Good day" } }),
+                ("message_delta", new { type = "message_delta", delta = new { stop_reason = "end_turn", stop_sequence = (string)null }, usage = new { output_tokens = 2 } }),
+                ("message_stop", new { type = "message_stop" }));
+            using var server = new FakeHttpServer(200, "text/event-stream", sse);
+            var events = await RunAsync(new AnthropicApiProvider(Settings, () => "k", server.BaseUrl), FollowUp());
+            Assert.Equal("Good day", events.Last().Text);
+
+            var (_, body) = await server.Request.Task;
+            var messages = JsonDocument.Parse(body).RootElement.GetProperty("messages").EnumerateArray().ToList();
+            Assert.Equal(new[] { "user", "assistant", "user" }, messages.Select(m => m.GetProperty("role").GetString()));
+            Assert.Equal("Translate: merhaba", messages[0].GetProperty("content").GetString());
+            Assert.Equal("hello", messages[1].GetProperty("content").GetString());
+            Assert.Equal("and more formal?", messages[2].GetProperty("content").GetString());
+            Assert.DoesNotContain("stitched", body);
+        }
+
+        [Fact]
+        public async Task OpenAi_follow_up_sends_the_conversation_as_messages()
+        {
+            using var server = new FakeHttpServer(200, "text/event-stream", "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n");
+            await RunAsync(new OpenAiApiProvider(Settings, () => "k", server.BaseUrl), FollowUp());
+
+            var (_, body) = await server.Request.Task;
+            var messages = JsonDocument.Parse(body).RootElement.GetProperty("messages").EnumerateArray().ToList();
+            Assert.Equal(new[] { "system", "user", "assistant", "user" }, messages.Select(m => m.GetProperty("role").GetString()));
+            Assert.Equal("and more formal?", messages[3].GetProperty("content").GetString());
         }
 
         [Fact]

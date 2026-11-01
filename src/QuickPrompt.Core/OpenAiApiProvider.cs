@@ -50,7 +50,19 @@ namespace QuickPrompt.Core
                 messages.Add(new { role = "system", content = request.SystemPrompt });
             }
 
-            messages.Add(new { role = "user", content = request.Prompt ?? "" });
+            if (String.IsNullOrEmpty(request.Message))
+            {
+                messages.Add(new { role = "user", content = request.Prompt ?? "" });
+            }
+            else
+            {
+                foreach (var turn in request.History ?? Array.Empty<KeyValuePair<String, String>>())
+                {
+                    messages.Add(new { role = turn.Key == "assistant" ? "assistant" : "user", content = turn.Value ?? "" });
+                }
+
+                messages.Add(new { role = "user", content = request.Message });
+            }
             var body = JsonSerializer.Serialize(new { model, stream = true, messages });
 
             var http = new HttpRequestMessage(HttpMethod.Post, this._baseUrl + "/v1/chat/completions")
