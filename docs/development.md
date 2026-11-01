@@ -35,12 +35,14 @@ On macOS, DevHost uses `native/macos/build/QuickPromptPopup` if it has been buil
 
 `.github/workflows/build.yml`:
 
-| Job | Runner | |
-|---|---|---|
-| test | Ubuntu | unit tests |
-| windows | Windows | builds everything and runs the tests |
-| package | macOS | builds the Swift popup (universal binary, ad-hoc signed) and the plugin, packs and verifies `QuickPrompt.lplug4`, uploads it as an artifact |
-| publish | Ubuntu | on every push to `main`: updates the **Latest build** pre-release (tag `latest`). On `v*` tags: creates a versioned release. |
+| Job | Runner | When | |
+|---|---|---|---|
+| test | Ubuntu | every push and PR | unit tests |
+| package | macOS | pushes to `main` that change code, `v*` tags, manual runs | builds the Swift popup (universal binary, ad-hoc signed) and the plugin, packs and verifies `QuickPrompt.lplug4`, uploads it as an artifact |
+| windows | Windows | `v*` tags, manual runs | builds everything and runs the tests |
+| publish | Ubuntu | after package, on pushes | `main`: updates the **Latest build** pre-release (tag `latest`). `v*` tags: creates a versioned release. |
+
+GitHub counts macOS minutes ×10 and Windows ×2 on private repositories, so the expensive jobs only run when they produce something to install. Documentation-only pushes run nothing, and a newer push cancels a build still in progress.
 
 Nobody has to run anything locally to try a change: push to `main`, then download `QuickPrompt.lplug4` from the *Latest build* release.
 
