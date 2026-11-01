@@ -48,7 +48,7 @@ jobs:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -58,9 +58,15 @@ jobs:
         env:
           QP_VERSION: 0.3.${{ github.run_number }}
         run: bash scripts/package.sh
-      - name: Build the menu bar app
+      - name: Build the menu bar app (signed and notarized when the Apple secrets are set)
         env:
           QP_VERSION: 0.3.${{ github.run_number }}
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: bash native/macos/build-app.sh
       - uses: actions/upload-artifact@v4
         with:

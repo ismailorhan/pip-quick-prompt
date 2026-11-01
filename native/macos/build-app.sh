@@ -43,11 +43,74 @@ for rid in osx-arm64 osx-x64; do
     -p:PublishSingleFile=false -p:Version="$version" -o "$app/Contents/Resources/agent/${rid#osx-}" --nologo -v quiet
 done
 
-echo "Signing (ad hoc)"
-find "$app/Contents/Resources/agent" -type f \( -name "*.dylib" -o -name "QuickPrompt.Agent" -o -name "createdump" \) -exec codesign --force --sign - {} \;
-codesign --force --sign - "$app"
+# Signing: with the Developer ID certificate when the CI secrets are there (then notarized by Apple, so
+# macOS opens it without warnings and keeps its permissions across updates), otherwise ad hoc.
+identity=""
+if [[ -n "${MACOS_CERT_P12:-}" && -n "${MACOS_CERT_PASSWORD:-}" ]]; then
+  echo "Importing the Developer ID certificate"
+  tmp="${RUNNER_TEMP:-$(mktemp -d)}"
+  keychain="$tmp/quickprompt.keychain-db"
+  keychain_password="$(uuidgen)"
+  security create-keychain -p "$keychain_password" "$keychain"
+  security set-keychain-settings -lut 21600 "$keychain"
+  security unlock-keychain -p "$keychain_password" "$keychain"
+  printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$tmp/cert.p12"
+  security import "$tmp/cert.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign >/dev/null
+  rm -f "$tmp/cert.p12"
+  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+  security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+  identity="$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ { print $2; exit }')"
+  if [[ -z "$identity" ]]; then
+    echo "No Developer ID Application identity in the certificate; check MACOS_CERT_P12 / MACOS_CERT_PASSWORD" >&2
+    exit 1
+  fi
+fi
+
+sign() {   # sign <path> [entitlements]
+  if [[ -n "$identity" ]]; then
+    codesign --force --timestamp --options runtime ${2:+--entitlements "$2"} --sign "$identity" "$1"
+  else
+    codesign --force --sign - "$1"
+  fi
+}
+
+echo "Signing ${identity:+(Developer ID)}${identity:-(ad hoc)}"
+# Every Mach-O file of the engine (libraries first), then the app itself.
+while IFS= read -r -d '' file; do
+  if file -b "$file" | grep -q "Mach-O"; then
+    case "$(basename "$file")" in
+      QuickPrompt.Agent|createdump) sign "$file" App/Agent.entitlements ;;
+      *) sign "$file" ;;
+    esac
+  fi
+done < <(find "$app/Contents/Resources/agent" -type f -print0)
+sign "$app"
+codesign --verify --strict --verbose=2 "$app"
 
 mkdir -p "$root/dist"
-rm -f "$root/dist/QuickPrompt-mac.zip"
-ditto -c -k --keepParent "$app" "$root/dist/QuickPrompt-mac.zip"
+zip="$root/dist/QuickPrompt-mac.zip"
+rm -f "$zip"
+ditto -c -k --keepParent "$app" "$zip"
+
+if [[ -n "$identity" && -n "${ASC_KEY_P8:-}" && -n "${ASC_KEY_ID:-}" && -n "${ASC_ISSUER_ID:-}" ]]; then
+  echo "Notarizing (Apple checks the app; this takes a few minutes)"
+  key="${RUNNER_TEMP:-/tmp}/AuthKey.p8"
+  printf '%s\n' "$ASC_KEY_P8" > "$key"
+  xcrun notarytool submit "$zip" --key "$key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait --timeout 30m \
+    --output-format json | tee "${RUNNER_TEMP:-/tmp}/notary.json"
+  status="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status",""))' "${RUNNER_TEMP:-/tmp}/notary.json")"
+  if [[ "$status" != "Accepted" ]]; then
+    id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("id",""))' "${RUNNER_TEMP:-/tmp}/notary.json")"
+    [[ -n "$id" ]] && xcrun notarytool log "$id" --key "$key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" || true
+    rm -f "$key"
+    echo "Notarization failed: $status" >&2
+    exit 1
+  fi
+  rm -f "$key"
+  # Staple the ticket so the app opens without a network check, then zip it again.
+  xcrun stapler staple "$app"
+  rm -f "$zip"
+  ditto -c -k --keepParent "$app" "$zip"
+  spctl --assess --type execute --verbose=2 "$app" || true
+fi
 echo "Done: native/macos/$app and dist/QuickPrompt-mac.zip ($version)"
