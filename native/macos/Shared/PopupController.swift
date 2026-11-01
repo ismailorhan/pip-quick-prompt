@@ -77,6 +77,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// The page shows either the full popup or the floating icon ("mini"); the icon keeps its own place.
     private var isMini = false
     private var miniTopLeft: NSPoint?
+    /// While the floating icon shows: is the mouse over it? Checked here because a panel of a background
+    /// app gets no hover events from WebKit while another app is in front.
+    private var hoverTimer: Timer?
+    private var mouseInside = false
 
     init(url: URL) {
         self.url = url
@@ -148,10 +152,30 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         guard !closing else { return }
         closing = true
         dragTimer?.invalidate()
+        hoverTimer?.invalidate()
         panel?.orderOut(nil)
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "quickPrompt")
         webView?.stopLoading()
         onClosed?(self)
+    }
+
+    private func watchHover(_ on: Bool) {
+        hoverTimer?.invalidate()
+        hoverTimer = nil
+        mouseInside = false
+        guard on else { return }
+        let timer = Timer(timeInterval: 0.08, target: self, selector: #selector(hoverTick(_:)), userInfo: nil, repeats: true)
+        RunLoop.main.add(timer, forMode: .common)
+        hoverTimer = timer
+    }
+
+    @objc private func hoverTick(_ timer: Timer) {
+        guard let panel = panel, panel.isVisible, dragTimer == nil else { return }
+        let inside = NSMouseInRect(NSEvent.mouseLocation, panel.frame, false)
+        if inside != mouseInside {
+            mouseInside = inside
+            webView?.evaluateJavaScript("window.__quickPromptHover && window.__quickPromptHover(\(inside))", completionHandler: nil)
+        }
     }
 
     /// Resizes the panel keeping its top-left corner (the page reports its own size), inside the screen.
@@ -468,6 +492,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                 miniTopLeft = topLeft
             }
             isMini = mini
+            watchHover(mini)
         case "menu":
             if let items = body["items"] as? [[String: Any]] {
                 showMenu(items)

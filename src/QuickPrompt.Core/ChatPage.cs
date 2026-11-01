@@ -1015,9 +1015,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     scatter();
     return {
       setBusy(value) { busy = value; update(); },
+      setHover(value) { hover = value; update(); },
       start,
     };
   })();
+
+  // The native panel reports hover itself (works while another app is in front).
+  window.__quickPromptHover = inside => {
+    if (!collapsed) return;
+    globe.setHover(inside);
+    if (inside) untuck(); else scheduleTuck();
+  };
 
   function updateMini(s) {
     globe.setBusy(!!s.busy);
