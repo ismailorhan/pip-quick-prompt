@@ -384,6 +384,7 @@ namespace QuickPrompt.Core
                     presetPrompt = this.PresetInstruction,
                     popupScale = this._settings().PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                     iconScale = this._settings().IconScale,
+                    glassTint = this._settings().GlassTint,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);

@@ -22,12 +22,14 @@ namespace QuickPrompt.Core
   --glass: rgba(255,255,255,.5); --edge: rgba(255,255,255,.65); --hi: rgba(255,255,255,.7);
   --error: #c62828; --accent: #d97757; --accent-text: #fff; --link: #1d5fd6;
   --page: linear-gradient(140deg, #cdbfcc 0%, #b3b8cc 45%, #d8c3ad 100%);
+  --tint-rgb: 246, 246, 249;   /* Glass setting: a tint over the native glass, denser = easier to read */
 }
 :root[data-provider="codex"] { --accent: #10a37f; }
 @media (prefers-color-scheme: dark) {
   :root { --text: #f5f5f7; --muted: rgba(255,255,255,.55); --faint: rgba(255,255,255,.08); --chip: rgba(255,255,255,.12);
           --glass: rgba(44,44,48,.55); --edge: rgba(255,255,255,.16); --hi: rgba(255,255,255,.14);
-          --error: #ff8a80; --link: #7ab0ff; --page: linear-gradient(140deg, #2b2733 0%, #1d2230 50%, #2d2622 100%); }
+          --error: #ff8a80; --link: #7ab0ff; --page: linear-gradient(140deg, #2b2733 0%, #1d2230 50%, #2d2622 100%);
+          --tint-rgb: 30, 30, 36; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -41,6 +43,15 @@ html.native, html.native body { background: transparent; min-height: 0; }
 #root.is-mini #main { display: none; }
 #root:not(.is-mini) .minibar { display: none; }
 #root:not(.is-mini) .plist, #root:not(.is-mini) .bubble { display: none; }
+/* Beside the conversation the icon sits at the bottom, next to the input; the conversation grows upward. */
+#root:not(.is-mini) { align-items: flex-end; }
+/* The conversation slides out of the icon and back into it. */
+#root { --reveal-dx: -18px; } #root.side-right { --reveal-dx: 18px; }
+#main.reveal-in { animation: qp-reveal-in .24s cubic-bezier(.2, .8, .2, 1) both; }
+#main.reveal-out { animation: qp-reveal-out .2s ease-in both; }
+@keyframes qp-reveal-in { from { opacity: 0; transform: translateX(var(--reveal-dx)); } to { opacity: 1; transform: none; } }
+@keyframes qp-reveal-out { to { opacity: 0; transform: translateX(var(--reveal-dx)); } }
+@media (prefers-reduced-motion: reduce) { #main.reveal-in, #main.reveal-out { animation-duration: .01s; } }
 
 /* Glass shapes: CSS imitation; the native panel draws real glass behind transparent shapes. */
 .glass {
@@ -49,7 +60,7 @@ html.native, html.native body { background: transparent; min-height: 0; }
   border: 1px solid var(--edge);
   box-shadow: 0 10px 34px rgba(0,0,0,.16), inset 0 1px 0 var(--hi);
 }
-html.native .glass { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: transparent; }
+html.native .glass { background: rgba(var(--tint-rgb), var(--glass-tint, .3)); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: transparent; }
 html.native.vibrancy .glass { border-color: var(--edge); }
 
 /* Conversation: a header pill and one glass bubble per message, newest at the bottom */
@@ -82,7 +93,11 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 /* The conversation never scrolls as a whole (each bubble has native glass behind it, which cannot follow
    a scroll smoothly): the newest bubbles that fit are shown, older ones are a click away, and an answer
    too long for the popup scrolls inside its own bubble. */
-.thread { display: flex; flex-direction: column; gap: 8px; }
+.thread { overflow-y: auto; max-height: var(--thread-max, 380px); scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; }
+.thread::-webkit-scrollbar { display: none; }
+/* While the conversation scrolls, the bubbles draw their own background (the native glass cannot
+   follow a scroll smoothly); the glass comes back as soon as it stops. */
+html.native .thread.scrolling .msg { background: rgba(var(--tint-rgb), max(.62, var(--glass-tint, .3))); border-color: var(--edge); }
 .a.scroll { overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
 .pager { align-self: center; font-size: 11.5px; padding: 3px 12px; border-radius: 999px; color: var(--muted); }
 .thread:empty { display: none; }
@@ -287,9 +302,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
     </div>
     <div class="notice glass" id="notice" hidden></div>
-    <button type="button" class="pager glass" id="earlier" hidden></button>
     <div class="thread" id="thread"></div>
-    <button type="button" class="pager glass" id="newer" hidden></button>
     <div class="actions" id="errActions" hidden><button type="button" id="errSettings">Open settings</button></div>
     <div class="actions" id="actions" hidden>
       <button type="button" id="copy">Copy</button>
@@ -343,7 +356,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat size"><span class="sz big">A</span></div></div>
       <div class="srow" style="margin-top:10px"><span class="sname">Icon size</span>
         <div class="slider"><span class="sz small">A</span><input type="range" id="iconSlider" min="0" max="100" step="1" aria-label="Icon size"><span class="sz big">A</span></div></div>
-      <div class="shint">Chat size: the popup with the conversation. Icon size: the floating icon and its toolbar when pinned. Applied when you save.</div>
+      <div class="srow" style="margin-top:10px"><span class="sname">Glass</span>
+        <div class="slider"><span class="sz small" title="Clear">◌</span><input type="range" id="glassSlider" min="0" max="100" step="1" aria-label="Glass density"><span class="sz big" title="Solid">●</span></div></div>
+      <div class="shint">Chat size: the popup with the conversation. Icon size: the floating icon and its toolbar when pinned. Glass: from clear to dense, for easier reading (you see it as you move it). Applied when you save.</div>
     </div>
     <div class="sgroup">
       <div class="srow"><span class="sname">Prompt templates</span><button type="button" id="setActions">Manage…</button></div>
@@ -480,26 +495,36 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     size = { w: Math.round(400 + v * 4.2), h: Math.round(220 + v * 4) };
     sizeKnown = true;
     document.documentElement.style.setProperty("--thread-max", size.h + "px");
-    if (els.thread.children.length) fitThread();
     queueLayout();
   }
 
   // Icon size (Settings): zoom of the floating icon and its toolbar, 0.7× … 1.5×.
+  // Glass density (Settings): the tint over the native glass, 0 = clear … 100 = nearly solid.
+  function applyGlass(value) {
+    const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 35));
+    document.documentElement.style.setProperty("--glass-tint", (v / 100 * 0.88).toFixed(3));
+  }
+  applyGlass(35);
+  let lastStateGlass = null, savedGlass = 35;
+
   function applyIconScale(value) {
     const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 38));
     document.documentElement.style.setProperty("--mini-zoom", (0.7 + v * 0.008).toFixed(3));
     queueLayout();
   }
 
-  let layoutQueued = false, lastLayout = "";
+  let layoutQueued = false, lastLayout = "", layoutAfterReveal = false;
+  let revealing = false, revealNext = null;
   function queueLayout() {
     if (!bridge || layoutQueued || !sizeKnown) return;
+    if (revealing) { layoutAfterReveal = true; return; }   // positions are mid-slide; measure when done
     layoutQueued = true;
     requestAnimationFrame(() => {
       layoutQueued = false;
       const view = els.thread.getBoundingClientRect();
+      const scrolling = els.thread.classList.contains("scrolling");
       const rects = [...document.querySelectorAll(".glass")]
-        .filter(el => !el.hidden && el.offsetParent !== null)
+        .filter(el => !el.hidden && el.offsetParent !== null && !(scrolling && els.thread.contains(el)))
         .map(el => {
           const r = el.getBoundingClientRect();
           let top = r.top, bottom = r.bottom;
@@ -515,13 +540,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       // Where the icon's middle will be in a panel of this width, so the panel can keep the icon still
       // on screen while things around it change (toolbar opening, conversation opening on either side).
       const icon = mini.hidden ? null : $("miniOpen").getBoundingClientRect();
+      const anchorY = icon ? icon.top + icon.height / 2 - box.top : null;
       const anchorX = !icon ? null
         : els.root.classList.contains("side-right") ? width - (box.right - (icon.left + icon.width / 2))
         : icon.left + icon.width / 2 - box.left;
-      const key = JSON.stringify([width, height, rects, anchorX]);
+      const key = JSON.stringify([width, height, rects, anchorX, anchorY]);
       if (key === lastLayout) return;
       lastLayout = key;
-      bridge.postMessage({ type: "layout", width, height, rects, anchorX });
+      bridge.postMessage({ type: "layout", width, height, rects, anchorX, anchorY });
+      if (revealNext) startReveal(revealNext);
     });
   }
   const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;
@@ -673,7 +700,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     iconSlider.value = Number.isFinite(+value) ? +value : 38;
     iconSlider.style.setProperty("--fill", iconSlider.value + "%");
   }
-  [sizeSlider, iconSlider].forEach(sl => sl.addEventListener("input", () => sl.style.setProperty("--fill", sl.value + "%")));
+  const glassSlider = $("glassSlider");
+  function setGlassSlider(value) {
+    glassSlider.value = Number.isFinite(+value) ? +value : 35;
+    glassSlider.style.setProperty("--fill", glassSlider.value + "%");
+  }
+  glassSlider.addEventListener("input", () => applyGlass(glassSlider.value));   // live preview
+  [sizeSlider, iconSlider, glassSlider].forEach(sl => sl.addEventListener("input", () => sl.style.setProperty("--fill", sl.value + "%")));
 
   async function openSettings(only) {
     settingsOnly = !!only;
@@ -689,6 +722,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
       setSlider(s.popupScale);
       setIconSlider(s.iconScale);
+      savedGlass = s.glassTint; setGlassSlider(s.glassTint);
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
       if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
@@ -803,6 +837,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   function closeSettings() {
     if (scale !== savedScale) applySize(savedScale);
+    applyGlass(savedGlass);   // undo a preview that was not saved
     if (settingsOnly) { closeWindow(); return; }
     settingsOpen = false;
     set.view.hidden = true; els.bar.hidden = false;
@@ -821,11 +856,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       saveHistory: segValues.saveHistory,
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
+      glassTint: String(glassSlider.value),
       claudeSetup: setupChoice("claude"), chatgptSetup: setupChoice("chatgpt"),
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
-    try { const saved = await res.json(); savedScale = saved.popupScale; applySize(savedScale); applyIconScale(saved.iconScale); } catch (e) {}
+    try { const saved = await res.json(); savedScale = saved.popupScale; applySize(savedScale); applyIconScale(saved.iconScale); savedGlass = saved.glassTint; applyGlass(savedGlass); } catch (e) {}
     toast("Saved");
     closeSettings();
   }
@@ -877,14 +913,41 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.bar.hidden = false;
     lastKey = "";
     lastLayout = "";
+    revealNext = bridge ? "in" : null;   // slide out of the icon once the panel has its new size
     if (state) render();
     queueLayout();
     setTimeout(() => els.prompt.focus(), 0);
   }
 
+  // The slide: the page moves #main with CSS, the native panel moves the glass behind it the same way.
+  function startReveal(dir) {
+    revealNext = null;
+    const main = $("main");
+    const dx = els.root.classList.contains("side-right") ? 18 : -18;
+    main.classList.remove("reveal-in", "reveal-out");
+    void main.offsetWidth;
+    main.classList.add(dir === "in" ? "reveal-in" : "reveal-out");
+    revealing = true;
+    if (bridge) bridge.postMessage({ type: "reveal", dir, dx, duration: dir === "in" ? 0.24 : 0.2 });
+    clearTimeout(startReveal.t);
+    startReveal.t = setTimeout(() => {
+      revealing = false;
+      if (dir === "in") main.classList.remove("reveal-in");
+      if (layoutAfterReveal) { layoutAfterReveal = false; lastLayout = ""; queueLayout(); }
+    }, dir === "in" ? 260 : 220);
+  }
+
+  /// Tucks the conversation back into the icon with the slide.
+  function collapseAnimated() {
+    if (collapsed) return;
+    if (!bridge) { collapse(); return; }
+    startReveal("out");
+    setTimeout(() => { $("main").classList.remove("reveal-out"); collapse(); }, 210);
+  }
+
   /// Esc / ✕: a pinned popup shrinks to an icon, otherwise it closes.
   function dismiss() {
-    if (bridge && pinned) collapse(); else closeWindow();
+    if (bridge && pinned) collapseAnimated(); else closeWindow();
   }
 
   $("pinBtn").addEventListener("click", () => setPinned(!pinned));
@@ -1186,7 +1249,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // A click on the icon opens it again; a drag (the icon moved under the mouse) does not.
   $("miniOpen").addEventListener("click", e => {
     if (downAt && Math.abs(e.screenX - downAt.x) + Math.abs(e.screenY - downAt.y) > 4) return;
-    if (collapsed) expand(); else collapse();   // the icon beside the conversation tucks it away
+    if (collapsed) expand(); else collapseAnimated();   // the icon beside the conversation tucks it away
   });
 
   // ---------- history ----------
@@ -1386,6 +1449,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     // Apply sizes from the server only when they change there (Save applies its own values right away).
     if (!sizeKnown || (s.popupScale !== lastStateScale && !settingsOpen)) applySize(s.popupScale);
     if (s.iconScale !== lastStateIcon) applyIconScale(s.iconScale);
+    if (s.glassTint !== lastStateGlass && !settingsOpen) { applyGlass(s.glassTint); savedGlass = s.glassTint; }
+    lastStateGlass = s.glassTint;
     lastStateScale = s.popupScale; lastStateIcon = s.iconScale;
     if (collapsed) { updateMini(s); return; }
     lastBusy = !!s.busy;
@@ -1466,7 +1531,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         lastBubble.appendChild(els.errActions);
       }
       if (bridge && window.ResizeObserver) els.thread.querySelectorAll(".glass").forEach(el => threadObserver.observe(el));
-      fitThread();
+      if (stick) els.thread.scrollTop = els.thread.scrollHeight;
     }
     queueLayout();
   }
@@ -1521,60 +1586,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.send.classList.toggle("idle", !!state && !state.busy && empty);
   }
 
-  // Show the newest bubbles that fit (or an earlier page of them).
-  let pageEnd = null;   // index of the last bubble shown; null = the newest
-  function fitThread() {
-    const items = [...els.thread.children];
-    for (const el of items) {
-      el.hidden = false;
-      const a = el.querySelector(".a");
-      if (a) { a.style.maxHeight = ""; a.classList.remove("scroll"); }
-    }
-    const last = items.length - 1;
-    const end = pageEnd == null ? last : Math.min(pageEnd, last);
-    if (pageEnd != null && pageEnd >= last) pageEnd = null;
-    let used = 0, start = end;
-    for (let i = end; i >= 0; i--) {
-      const h = items[i].offsetHeight + 8;
-      if (i < end && used + h > size.h) break;
-      used += h; start = i;
-    }
-    items.forEach((el, i) => { el.hidden = i < start || i > end; });
-    // One bubble taller than the popup: its text scrolls inside it; the bubble (and its glass) stay put.
-    const big = items[end];
-    if (big && start === end && big.offsetHeight > size.h) {
-      const a = big.querySelector(".a");
-      if (a) {
-        a.style.maxHeight = Math.max(80, size.h - (big.offsetHeight - a.offsetHeight)) + "px";
-        a.classList.add("scroll");
-        if (stick) a.scrollTop = a.scrollHeight;
-      }
-    }
-    const earlier = $("earlier"), newer = $("newer");
-    earlier.hidden = start <= 0;
-    earlier.textContent = "↑ " + start + " earlier";
-    newer.hidden = end >= last;
-    newer.textContent = "↓ " + (last - end) + " newer";
-    queueLayout();
-  }
-  $("earlier").addEventListener("click", () => {
-    const items = [...els.thread.children];
-    const firstShown = items.findIndex(el => !el.hidden);
-    if (firstShown > 0) { pageEnd = firstShown - 1; stick = false; fitThread(); }
+  // Scrolling: the bubbles switch to their own background until it stops, then the glass returns.
+  let scrollIdle = 0;
+  els.thread.addEventListener("scroll", () => {
+    const t = els.thread;
+    stick = t.scrollHeight - t.scrollTop - t.clientHeight < 30;
+    if (!t.classList.contains("scrolling")) { t.classList.add("scrolling"); lastLayout = ""; queueLayout(); }
+    clearTimeout(scrollIdle);
+    scrollIdle = setTimeout(() => { t.classList.remove("scrolling"); lastLayout = ""; queueLayout(); }, 160);
   });
-  $("newer").addEventListener("click", () => {
-    const items = [...els.thread.children];
-    const shown = items.filter(el => !el.hidden).length;
-    const lastShown = items.length - 1 - [...items].reverse().findIndex(el => !el.hidden);
-    pageEnd = lastShown + Math.max(1, shown) >= items.length - 1 ? null : lastShown + Math.max(1, shown);
-    stick = pageEnd == null;
-    fitThread();
-  });
-  // Scrolling inside a long answer: follow new text only while at its end.
-  els.thread.addEventListener("scroll", e => {
-    const a = e.target;
-    if (a instanceof HTMLElement && a.classList.contains("scroll")) stick = a.scrollHeight - a.scrollTop - a.clientHeight < 30;
-  }, true);
   els.thread.addEventListener("click", e => {
     const t = e.target;
     if (t instanceof HTMLElement && t.hasAttribute("data-copy")) copyText(t.parentElement.querySelector("code").textContent);
@@ -1610,7 +1630,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const res = await post("send", { instruction, context, fields: fields ? JSON.stringify(fields.values) : "" });
     els.send.disabled = false;
     if (res.ok) {
-      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); autoGrow(); stick = true; pageEnd = null;
+      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); autoGrow(); stick = true;
     } else {
       toast(fields ? "Paste the text first" : "Could not send");
       if (fields) els.prompt.focus();

@@ -352,6 +352,7 @@ namespace QuickPrompt.Core
                 saveHistory = s.SaveHistory,
                 popupScale = s.PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                 iconScale = s.IconScale,
+                glassTint = s.GlassTint,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -463,6 +464,11 @@ namespace QuickPrompt.Core
             if (Int32.TryParse(Get("popupScale"), out var scale))
             {
                 s.PopupScale = Math.Clamp(scale, 0, 100);
+            }
+
+            if (Int32.TryParse(Get("glassTint"), out var glassTint))
+            {
+                s.GlassTint = Math.Clamp(glassTint, 0, 100);
             }
 
             if (Int32.TryParse(Get("iconScale"), out var iconScale))

@@ -85,6 +85,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// where it is while the conversation opens beside it, the toolbar opens under it, and so on.
     private var lastAnchorX: CGFloat?
     private var iconScreenX: CGFloat?
+    private var lastAnchorY: CGFloat?
+    private var iconScreenY: CGFloat?
     /// Which side of the conversation the icon sits on: away from the nearer screen edge.
     private var side = "left"
 
@@ -101,6 +103,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         updateArea(screen)
         side = mouse.x > visibleArea.midX ? "right" : "left"
         iconScreenX = mouse.x
+        iconScreenY = mouse.y
         let initialHeight: CGFloat = 76
         let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
@@ -389,6 +392,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         if let anchor = lastAnchorX {
             iconScreenX = target.minX + anchor
         }
+        if let anchorY = lastAnchorY {
+            iconScreenY = target.maxY - anchorY
+        }
         // Dropped on the other half of the screen: the conversation moves to the icon's other side.
         updateSide()
     }
@@ -449,6 +455,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             let h = CGFloat(r["h"] as? Double ?? 0)
             let radius = CGFloat(r["r"] as? Double ?? 0)
             view.isHidden = false
+            view.alphaValue = 1
             view.frame = NSRect(x: x, y: height - y - h, width: w, height: h)
             setCornerRadius(view, min(radius, min(w, h) / 2))
         }
@@ -499,13 +506,22 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             if let value = body["height"] as? Double {
                 // Keep the floating icon where it is when its column changes width.
                 let anchor = (body["anchorX"] as? Double).map { CGFloat($0) }
+                let anchorY = (body["anchorY"] as? Double).map { CGFloat($0) }
                 if let anchor = anchor, let screenX = iconScreenX {
                     topLeft.x = screenX - anchor
                 }
+                // Vertically too: beside the conversation the icon sits at the bottom, so the panel grows upward.
+                if let anchorY = anchorY, let screenY = iconScreenY {
+                    topLeft.y = screenY + anchorY
+                }
                 lastAnchorX = anchor
+                lastAnchorY = anchorY
                 setSize(width: (body["width"] as? Double).map { CGFloat($0) }, height: CGFloat(value))
                 if let anchor = anchor {
                     iconScreenX = panel.frame.minX + anchor
+                }
+                if let anchorY = anchorY {
+                    iconScreenY = panel.frame.maxY - anchorY
                 }
             }
             if let rects = body["rects"] as? [[String: Any]] {
@@ -522,6 +538,27 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             isMini = mini
             watchHover(mini)
             updateSide()
+        case "reveal":
+            // The conversation slides out of (or back into) the icon: move the glass with it.
+            let goingIn = (body["dir"] as? String) == "in"
+            let dx = CGFloat(body["dx"] as? Double ?? 0)
+            let duration = body["duration"] as? Double ?? 0.22
+            for view in glassViews where !view.isHidden {
+                let final = view.frame.origin
+                let offset = NSPoint(x: final.x + dx, y: final.y)
+                if goingIn {
+                    view.alphaValue = 0
+                    view.setFrameOrigin(offset)
+                }
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = duration
+                    context.timingFunction = goingIn
+                        ? CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
+                        : CAMediaTimingFunction(name: .easeIn)
+                    view.animator().alphaValue = goingIn ? 1 : 0
+                    view.animator().setFrameOrigin(goingIn ? final : offset)
+                }
+            }
         case "menu":
             if let items = body["items"] as? [[String: Any]] {
                 showMenu(items)
@@ -578,6 +615,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
         if let anchor = lastAnchorX {
             iconScreenX = panel.frame.minX + anchor
+        }
+        if let anchorY = lastAnchorY {
+            iconScreenY = panel.frame.maxY - anchorY
         }
         if isMini {
             miniTopLeft = topLeft
