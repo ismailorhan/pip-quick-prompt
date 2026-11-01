@@ -133,6 +133,11 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(session.ToJson(request.Query("tab") != "1"));
             }
 
+            if (request.Method == "GET" && action == "presets")
+            {
+                return HttpResponse.Json(this._manager.GetPresetsJson());
+            }
+
             if (request.Method == "GET" && action == "history")
             {
                 return HttpResponse.Json(this._manager.GetHistoryJson());
@@ -158,6 +163,9 @@ namespace QuickPrompt.Core
             var body = ParseJson(request.Body);
             switch (action)
             {
+                case "usepreset":
+                    return this._manager.UsePreset(session, GetString(body, "id")) ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
+
                 case "new":
                     return session.StartNew() ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
 

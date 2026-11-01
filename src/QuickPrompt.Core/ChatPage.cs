@@ -150,6 +150,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .minibar button { background: transparent; color: var(--text); width: 32px; height: 28px; padding: 0; border-radius: 999px; display: grid; place-items: center; }
 .minibar button:hover { background: var(--faint); }
 .minibar .sep { width: 1px; height: 16px; background: var(--faint); }
+.minibar { transition: padding .25s ease, width .25s ease, height .25s ease; overflow: hidden; }
+.minibar.tucked { padding: 0; width: 34px; height: 6px; margin-top: -4px; cursor: pointer; }
+.minibar.tucked > * { display: none; }
+.plist { width: 250px; border-radius: 18px; padding: 8px 6px; margin-top: 6px; }
+.plist .ptitle { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 2px 10px 6px; }
+.pitem { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border-radius: 12px; padding: 7px 10px; text-align: left; }
+.pitem:hover, .pitem:focus-visible { background: var(--faint); }
+.pitem .dot { flex: none; }
+.pitem[data-provider="codex"] .dot { background: #10a37f; }
+.pitem[data-provider="claude"] .dot { background: #d97757; }
+.pitem .pname { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pitem .pmeta { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .bubble { max-width: 300px; border-radius: 18px; padding: 9px 14px 10px; text-align: left; margin-top: 10px; cursor: pointer; }
 .bubble .bt { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
 .bubble .bt .ok { width: 16px; height: 16px; border-radius: 50%; background: #2fbf71; color: #fff; display: grid; place-items: center; font-size: 10px; }
@@ -248,14 +260,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   </div>
   <div class="mini" id="mini" hidden>
     <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="46" height="46"><defs><linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient></defs><path d="M12 3.8L14.05 9.95L20.2 12L14.05 14.05L12 20.2L9.95 14.05L3.8 12L9.95 9.95Z" fill="url(#qpMini)"/><path d="M16.1 7.9L17.5 6.5M16.1 16.1L17.5 17.5M7.9 16.1L6.5 17.5M7.9 7.9L6.5 6.5" stroke="url(#qpMini)" stroke-width="1.25" stroke-linecap="round"/></svg></button>
-    <div class="minibar glass">
-      <button type="button" id="miniNew" title="New conversation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+    <div class="minibar glass" id="minibar">
+      <button type="button" id="miniNew" title="New chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
       <span class="sep"></span>
-      <button type="button" id="miniExpand" title="Open"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button type="button" id="miniRecent" title="Recent chats"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
       <span class="sep"></span>
-      <button type="button" id="miniClose" title="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button type="button" id="miniActions" title="Predefined actions"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg></button>
     </div>
   </div>
+  <div class="plist glass" id="presetList" hidden><div class="ptitle">Predefined actions</div><div id="plistItems"></div></div>
   <div class="bubble glass" id="bubble" hidden><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar" data-drag>
@@ -578,18 +591,25 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   function collapse() {
     collapsed = true;
     bubble.hidden = true;
+    $("presetList").hidden = true;
+    if (bridge) bridge.postMessage({ type: "mode", value: "mini" });
     [els.card, els.bar, els.ctxWrap, set.view, $("historyView")].forEach(el => el.hidden = true);
     settingsOpen = false; historyOpen = false;
     els.root.classList.add("is-mini");
     mini.hidden = false;
     lastLayout = "";
     queueLayout();
+    $("minibar").classList.remove("tucked");
+    clearTimeout(window.__qpTuck);
+    window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) { $("minibar").classList.add("tucked"); queueLayout(); } }, 3000);
   }
 
   function expand() {
     collapsed = false;
     mini.hidden = true;
     bubble.hidden = true;
+    $("presetList").hidden = true;
+    if (bridge) bridge.postMessage({ type: "mode", value: "full" });
     els.root.classList.remove("is-mini");
     els.bar.hidden = false;
     lastKey = "";
@@ -606,9 +626,68 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   $("pinBtn").addEventListener("click", () => setPinned(!pinned));
   $("barPin").addEventListener("click", () => setPinned(!pinned));
-  $("miniClose").addEventListener("click", closeWindow);
-  $("miniExpand").addEventListener("click", expand);
   bubble.addEventListener("click", expand);
+
+  // Toolbar under the icon: tucks into a thin line after a few seconds; hover or click brings it back.
+  const minibar = $("minibar");
+  const presetList = $("presetList");
+  let tuckTimer = null;
+  function scheduleTuck() {
+    clearTimeout(tuckTimer);
+    tuckTimer = setTimeout(() => {
+      if (collapsed && presetList.hidden) { minibar.classList.add("tucked"); queueLayout(); }
+    }, 3000);
+  }
+  function untuck() {
+    clearTimeout(tuckTimer);
+    if (minibar.classList.contains("tucked")) { minibar.classList.remove("tucked"); queueLayout(); }
+  }
+  mini.addEventListener("mouseenter", untuck);
+  mini.addEventListener("mouseleave", scheduleTuck);
+  minibar.addEventListener("click", e => {
+    if (minibar.classList.contains("tucked")) { e.stopPropagation(); untuck(); scheduleTuck(); }
+  }, true);
+
+  $("miniRecent").addEventListener("click", () => { expand(); openHistory(false); });
+
+  async function togglePresets() {
+    if (!presetList.hidden) { presetList.hidden = true; queueLayout(); scheduleTuck(); return; }
+    bubble.hidden = true;
+    let items = [];
+    try { items = await (await fetch(base + "presets", { cache: "no-store" })).json(); } catch (e) {}
+    $("plistItems").innerHTML = items.length ? items.map(p =>
+      '<button type="button" class="pitem" data-id="' + esc(p.id) + '" data-provider="' + esc(p.provider) + '">'
+      + '<span class="dot"></span><span class="pname">' + esc(p.title) + '</span>'
+      + '<span class="pmeta">' + esc(p.providerName) + (p.connection === "api" ? " · API" : "") + '</span></button>').join("")
+      : '<div class="hempty">Presets you use from the ring show up here.</div>';
+    presetList.hidden = false;
+    clearTimeout(tuckTimer);
+    queueLayout();
+  }
+  $("miniActions").addEventListener("click", togglePresets);
+  $("plistItems").addEventListener("click", async e => {
+    const item = e.target.closest(".pitem");
+    if (!item) return;
+    const res = await post("usepreset", { id: item.dataset.id });
+    if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }
+  });
+
+  // Right click on the icon: native menu (Open, Settings, Close).
+  mini.addEventListener("contextmenu", e => {
+    if (!bridge) return;
+    e.preventDefault();
+    bridge.postMessage({ type: "menu", items: [
+      { id: "open", title: "Open" },
+      { id: "settings", title: "Settings…" },
+      { separator: true },
+      { id: "close", title: "Close" },
+    ] });
+  });
+  window.__quickPromptMenu = id => {
+    if (id === "open") expand();
+    else if (id === "settings") { expand(); openSettings(false); }
+    else if (id === "close") closeWindow();
+  };
   $("miniNew").addEventListener("click", async () => {
     const res = await post("new");
     if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }

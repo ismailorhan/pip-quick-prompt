@@ -71,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     private var dragStart = NSPoint.zero
     private var dragOrigin = NSPoint.zero
     private var dragSamples: [(time: TimeInterval, point: NSPoint)] = []
+    /// The page shows either the full popup or the floating icon ("mini"); the icon keeps its own place.
+    private var isMini = false
+    private var miniTopLeft: NSPoint?
 
     init(url: URL) {
         self.url = url
@@ -232,6 +235,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             })
         }
         topLeft = NSPoint(x: target.minX, y: target.maxY)
+        if isMini {
+            miniTopLeft = topLeft
+        }
+    }
+
+    // MARK: context menu (right click on the floating icon)
+
+    private func showMenu(_ items: [[String: Any]]) {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for item in items {
+            if (item["separator"] as? Bool) == true {
+                menu.addItem(.separator())
+                continue
+            }
+            guard let id = item["id"] as? String, let title = item["title"] as? String else { continue }
+            let menuItem = NSMenuItem(title: title, action: #selector(menuItemSelected(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.representedObject = id
+            menu.addItem(menuItem)
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    @objc private func menuItemSelected(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String, id.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else { return }
+        webView.evaluateJavaScript("window.__quickPromptMenu && window.__quickPromptMenu('\(id)')", completionHandler: nil)
     }
 
     /// Places one glass view behind each rectangle reported by the page (CSS pixels, top-left origin).
@@ -312,6 +342,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             close()
         case "drag":
             startDrag()
+        case "mode":
+            let mini = (body["value"] as? String) == "mini"
+            if mini && !isMini {
+                // Back to where the icon was left (not where the popup happened to be).
+                if let saved = miniTopLeft { topLeft = saved }
+            } else if !mini && isMini {
+                // The popup opens from the icon's place; remember it for the way back.
+                miniTopLeft = topLeft
+            }
+            isMini = mini
+        case "menu":
+            if let items = body["items"] as? [[String: Any]] {
+                showMenu(items)
+            }
         case "pin":
             pinned = (body["value"] as? Bool) ?? false
             // Pinned: above other apps' floating windows too, on every Space and over full-screen apps.
@@ -356,6 +400,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func windowDidMove(_ notification: Notification) {
         topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        if isMini {
+            miniTopLeft = topLeft
+        }
         if let screen = panel.screen {
             visibleArea = screen.visibleFrame
         }

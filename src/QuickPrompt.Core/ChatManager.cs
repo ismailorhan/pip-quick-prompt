@@ -21,6 +21,7 @@ namespace QuickPrompt.Core
         private readonly String _settingsPath;
         private readonly UiServer _server;
         private readonly ConversationStore _history;
+        private readonly PresetCatalog _presets;
         private readonly Timer _cleanupTimer;
         private readonly SemaphoreSlim _clipboardGate = new SemaphoreSlim(1, 1);
         private QuickPromptSettings _settings;
@@ -54,6 +55,7 @@ namespace QuickPrompt.Core
 
             this._server = new UiServer(this);
             this._history = new ConversationStore(Path.Combine(dataDirectory, "history"));
+            this._presets = new PresetCatalog(Path.Combine(dataDirectory, "presets.json"));
             this.Launcher = new WindowLauncher(() => this.Settings, Path.Combine(dataDirectory, "browser-profile"), host);
             this._cleanupTimer = new Timer(_ => this.Cleanup(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
         }
@@ -202,6 +204,31 @@ namespace QuickPrompt.Core
             });
         }
 
+        /// <summary>Presets for "Predefined actions": the ones used from the ring, then built-ins.</summary>
+        public String GetPresetsJson() =>
+            System.Text.Json.JsonSerializer.Serialize(this._presets.List().Select(p => new
+            {
+                id = p.Id,
+                title = p.Title,
+                provider = p.ProviderId,
+                providerName = this.GetProvider(p.ProviderId, p.Connection).DisplayName,
+                connection = this.ResolveConnection(p.ProviderId, p.Connection),
+                builtIn = p.BuiltIn,
+            }).ToArray());
+
+        /// <summary>Turns the popup into the chosen preset, waiting for pasted text.</summary>
+        public Boolean UsePreset(ChatSession session, String presetId)
+        {
+            var preset = this._presets.Find(presetId);
+            if (preset == null)
+            {
+                return false;
+            }
+
+            var connection = this.ResolveConnection(preset.ProviderId, preset.Connection);
+            return session.ApplyPreset(this.GetProvider(preset.ProviderId, connection), connection, preset.Title, preset.Model, preset.Instruction);
+        }
+
         /// <summary>Loads a saved conversation into the popup so it can be continued.</summary>
         public Boolean ResumeConversation(ChatSession session, String historyId)
         {
@@ -325,6 +352,8 @@ namespace QuickPrompt.Core
 
         private async Task ExecutePresetCoreAsync(Preset preset)
         {
+            this._presets.Remember(preset);
+
             var instruction = preset.Instruction ?? "";
             var flow = preset.Flow ?? FlowModes.Send;
 

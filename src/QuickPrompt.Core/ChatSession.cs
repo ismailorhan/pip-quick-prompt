@@ -99,6 +99,35 @@ namespace QuickPrompt.Core
             }
         }
 
+        /// <summary>Switches this popup to a saved preset: a new conversation waiting for pasted text.</summary>
+        public Boolean ApplyPreset(IAiProvider provider, String connection, String title, String model, String instruction)
+        {
+            lock (this._lock)
+            {
+                if (this._busy)
+                {
+                    return false;
+                }
+
+                this.Provider = provider;
+                this.Connection = connection;
+                this.Title = title ?? "";
+                this.Model = model ?? "";
+            }
+
+            if (!this.StartNew())
+            {
+                return false;
+            }
+
+            lock (this._lock)
+            {
+                this.PresetInstruction = instruction ?? "";
+                this.TouchLocked();
+                return true;
+            }
+        }
+
         /// <summary>Starts a new, empty conversation in this popup (same provider and preset title).</summary>
         public Boolean StartNew()
         {
