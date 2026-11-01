@@ -142,10 +142,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 /* Collapsed (pinned): a free-floating mark, a small glass toolbar, and a notification bubble. No window. */
 #root.is-mini { padding: 8px; display: inline-flex; flex-direction: row; align-items: flex-start; gap: 10px; }
 .mini { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.mascot { width: 64px; height: 64px; padding: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; cursor: grab; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.mascot { width: 64px; height: 64px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.4)) !important; padding: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; cursor: grab; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
 .mascot:hover { background: transparent; transform: translateY(-1px); }
-.mascot.busy svg { animation: pulse 1.4s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.88); opacity: .75; } }
+.mascot svg { overflow: visible; }
+.mascot .rays, .mascot .star { transform-origin: 12px 12px; transform-box: view-box; }
+.mascot .rays { animation: qp-spin 14s linear infinite; }
+.mascot.busy .star { animation: qp-beat 1.1s ease-in-out infinite; }
+.mascot.busy .rays { animation-duration: 3s; }
+.mascot:hover svg, .mascot.wiggle svg { animation: qp-wiggle .6s ease-in-out; }
+@keyframes qp-spin { to { transform: rotate(360deg); } }
+@keyframes qp-beat { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.18); } 28% { transform: scale(.96); } 42% { transform: scale(1.12); } 70% { transform: scale(1); } }
+@keyframes qp-wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-9deg) scale(1.04); } 40% { transform: rotate(8deg) scale(1.06); } 60% { transform: rotate(-5deg) scale(1.03); } 80% { transform: rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) { .mascot .rays, .mascot.busy .star, .mascot:hover svg { animation: none !important; } }
 .minibar { display: flex; align-items: center; border-radius: 999px; padding: 3px; }
 .minibar button { background: transparent; color: var(--text); width: 32px; height: 28px; padding: 0; border-radius: 999px; display: grid; place-items: center; }
 .minibar button:hover { background: var(--faint); }
@@ -259,7 +267,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     <div class="actions"><button type="button" id="histBack">Back</button><button type="button" id="histClear">Clear history</button></div>
   </div>
   <div class="mini" id="mini" hidden>
-    <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="46" height="46"><defs><linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient></defs><path d="M12 3.8L14.05 9.95L20.2 12L14.05 14.05L12 20.2L9.95 14.05L3.8 12L9.95 9.95Z" fill="url(#qpMini)"/><path d="M16.1 7.9L17.5 6.5M16.1 16.1L17.5 17.5M7.9 16.1L6.5 17.5M7.9 7.9L6.5 6.5" stroke="url(#qpMini)" stroke-width="1.25" stroke-linecap="round"/></svg></button>
+    <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="56" height="56">
+      <defs>
+        <linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
+        <radialGradient id="qpDisc" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
+        <linearGradient id="qpGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11.2" fill="url(#qpDisc)" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
+      <g class="rays"><path d="M16.1 7.9L17.5 6.5M16.1 16.1L17.5 17.5M7.9 16.1L6.5 17.5M7.9 7.9L6.5 6.5" stroke="url(#qpMini)" stroke-width="1.15" stroke-linecap="round"/></g>
+      <g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g>
+      <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
+    </svg></button>
     <div class="minibar glass" id="minibar">
       <button type="button" id="miniNew" title="New chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
       <span class="sep"></span>
