@@ -8,7 +8,7 @@ namespace QuickPrompt.Core
     using System.Text;
     using System.Text.Json;
 
-    /// <summary>A preset offered under "Predefined actions" in the floating icon's toolbar.</summary>
+    /// <summary>A preset offered under "Prompt templates" in the floating icon's toolbar.</summary>
     public sealed class SavedPreset
     {
         public String Id { get; set; } = "";
@@ -30,7 +30,7 @@ namespace QuickPrompt.Core
 
         public Boolean BuiltIn { get; set; }
 
-        /// <summary>Made or edited in the Predefined actions editor (not remembered from the ring).</summary>
+        /// <summary>Made or edited in the Prompt templates editor (not remembered from the ring).</summary>
         public Boolean Custom { get; set; }
 
         /// <summary>CLI setup for this action: SetupModes (default = as in Settings).</summary>
@@ -127,7 +127,7 @@ namespace QuickPrompt.Core
         {
             if (action == null || String.IsNullOrWhiteSpace(action.Title) || String.IsNullOrWhiteSpace(action.Instruction))
             {
-                throw new ArgumentException("An action needs a title and a prompt.");
+                throw new ArgumentException("A template needs a title and a prompt.");
             }
 
             lock (this._lock)

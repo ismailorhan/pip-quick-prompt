@@ -13,7 +13,7 @@ namespace QuickPrompt.Core
     ///   POST /api/hotkey           the global shortcut: read the selection, open a popup with it
     ///   POST /api/new | /api/history | /api/settings   open a popup on that view
     ///   POST /api/run {presetId}   run a saved preset (asks for its fields first, if it has any)
-    ///   POST /api/actions          open the Predefined actions editor; GET /api/presets lists them
+    ///   POST /api/actions          open the Prompt templates editor; GET /api/presets lists them
     /// Every call needs the X-QuickPrompt-Control header with the token the app passed at start.
     /// </summary>
     public sealed class AppControl

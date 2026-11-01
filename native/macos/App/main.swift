@@ -65,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(ask)
         menu.addItem(NSMenuItem(title: "New Chat", action: #selector(newChat), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Recent Chats", action: #selector(recentChats), keyEquivalent: ""))
-        let actionsItem = NSMenuItem(title: "Predefined Actions", action: nil, keyEquivalent: "")
+        let actionsItem = NSMenuItem(title: "Prompt Templates", action: nil, keyEquivalent: "")
         actionsItem.submenu = actionsMenu
         menu.addItem(actionsItem)
         rebuildActionsMenu()
@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !actions.isEmpty {
             actionsMenu.addItem(.separator())
         }
-        let edit = NSMenuItem(title: "Edit Actions…", action: #selector(editActions), keyEquivalent: "")
+        let edit = NSMenuItem(title: "Edit Templates…", action: #selector(editActions), keyEquivalent: "")
         edit.target = self
         actionsMenu.addItem(edit)
     }

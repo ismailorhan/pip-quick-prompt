@@ -151,7 +151,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px va
 .skey button { margin-bottom: 1px; }
 button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 
-/* Fields of a predefined action */
+/* Fields of a prompt template */
 .fields { border-radius: 20px; padding: 9px 14px 12px; }
 .ftitle { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
 .flist { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 10px; }
@@ -306,7 +306,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <div class="shint">Chat size: the popup with the conversation. Icon size: the floating icon and its toolbar when pinned. Applied when you save.</div>
     </div>
     <div class="sgroup">
-      <div class="srow"><span class="sname">Predefined actions</span><button type="button" id="setActions">Manage…</button></div>
+      <div class="srow"><span class="sname">Prompt templates</span><button type="button" id="setActions">Manage…</button></div>
       <div class="shint">Your own prompts, with fields to fill in. Run them from the floating icon or the menu bar.</div>
     </div>
     <div class="sgroup">
@@ -329,16 +329,16 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   </div>
   <div class="history glass" id="actionsView" hidden>
     <div class="meta" data-drag>
-      <span class="title" id="actTitle">Predefined actions</span>
+      <span class="title" id="actTitle">Prompt templates</span>
       <span class="status"></span>
       <button type="button" class="x" id="actClose" title="Close">✕</button>
     </div>
     <div class="hlist" id="actList"></div>
-    <div class="actions" id="actButtons"><button type="button" class="primary" id="actNew">New action</button><button type="button" id="actBack">Back</button></div>
+    <div class="actions" id="actButtons"><button type="button" class="primary" id="actNew">New template</button><button type="button" id="actBack">Back</button></div>
     <div class="aform" id="actForm" hidden>
       <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
       <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{text}"></textarea></label>
-      <div class="shint"><b>{text}</b> is the selected text. Add a field to fill in with <b>{name}</b>, or a list with <b>{tone:friendly|formal|short}</b>. Fields are asked each time the action runs.</div>
+      <div class="shint"><b>{text}</b> is the selected text. Add a field to fill in with <b>{name}</b>, or a list with <b>{tone:friendly|formal|short}</b>. Fields are asked each time the template runs.</div>
       <div class="srow" style="margin-top:10px"><span class="sname">AI</span>
         <div class="seg" data-name="afProvider"><button type="button" data-v="claude">Claude</button><button type="button" data-v="codex">ChatGPT</button></div></div>
       <div class="frow">
@@ -377,10 +377,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <span class="sep"></span>
       <button type="button" id="miniRecent" title="Recent chats"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
       <span class="sep"></span>
-      <button type="button" id="miniActions" title="Predefined actions"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg></button>
+      <button type="button" id="miniActions" title="Prompt templates"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg></button>
     </div>
   </div>
-  <div class="plist glass" id="presetList" hidden><div class="ptitle">Predefined actions</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit actions…</span></button></div>
+  <div class="plist glass" id="presetList" hidden><div class="ptitle">Prompt templates</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit templates…</span></button></div>
   <div class="bubble glass" id="bubble" hidden><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
   <div class="fields glass" id="fieldsBox" hidden><div class="ftitle" id="fieldsTitle"></div><div class="flist" id="fieldList"></div></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
@@ -903,7 +903,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       '<button type="button" class="pitem" data-id="' + esc(p.id) + '" data-provider="' + esc(p.provider) + '">'
       + '<span class="dot"></span><span class="pname">' + esc(p.title) + '</span>'
       + '<span class="pmeta">' + esc(p.providerName) + (p.connection === "api" ? " · API" : "") + '</span></button>').join("")
-      : '<div class="hempty">No actions yet.</div>';
+      : '<div class="hempty">No templates yet.</div>';
     presetList.hidden = false;
     clearTimeout(tuckTimer);
     queueLayout();
@@ -923,7 +923,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     e.preventDefault();
     bridge.postMessage({ type: "menu", items: [
       { id: "open", title: "Open" },
-      { id: "actions", title: "Predefined Actions…" },
+      { id: "actions", title: "Prompt Templates…" },
       { id: "settings", title: "Settings…" },
       { separator: true },
       { id: "close", title: "Close" },
@@ -1193,7 +1193,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     queueLayout();
   }
 
-  // ---------- Predefined actions editor ----------
+  // ---------- Prompt templates editor ----------
   const act = { view: $("actionsView"), list: $("actList"), form: $("actForm"), buttons: $("actButtons"), items: [], editing: null };
   const INPUT_NAMES = { selection: "Selected text", clipboard: "Clipboard", popup: "Paste in popup", none: "No text" };
   function renderActions() {
@@ -1206,7 +1206,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       + (a.setup === "custom" ? ' · own plugins/MCP/skills' : a.setup === "off" ? ' · no plugins/MCP/skills' : '')
       + (a.builtIn ? ' · built-in' : '') + '</div></div>'
       + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button></div>').join("")
-      : '<div class="hempty">No actions yet.</div>';
+      : '<div class="hempty">No templates yet.</div>';
     queueLayout();
   }
   async function openActions(only) {
@@ -1231,12 +1231,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   function showActionList() {
     act.form.hidden = true; act.list.hidden = false; act.buttons.hidden = false;
-    $("actTitle").textContent = "Predefined actions";
+    $("actTitle").textContent = "Prompt templates";
     queueLayout();
   }
   function editAction(a) {
     act.editing = a || null;
-    $("actTitle").textContent = a ? (a.builtIn ? "Edit " + a.title + " (saved as your copy)" : "Edit action") : "New action";
+    $("actTitle").textContent = a ? (a.builtIn ? "Edit " + a.title + " (saved as your copy)" : "Edit template") : "New template";
     $("afTitle").value = a ? a.title : "";
     $("afPrompt").value = a ? a.instruction : "";
     setSeg("afProvider", a ? a.provider : "claude");
@@ -1259,7 +1259,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     box.hidden = mode !== "custom";
     $("afSetupHint").textContent = mode === "default" ? "Uses what Settings → Use my setup has ticked."
       : mode === "off" ? "Plain answer: no plugins, MCP servers or skills (fastest)."
-      : "Only for this action. Used when it runs through the CLI.";
+      : "Only for this template. Used when it runs through the CLI.";
     if (mode === "custom") loadSetup(); else queueLayout();
   }
 
@@ -1429,7 +1429,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     queueLayout();
   }
 
-  // ---------- fields of a predefined action ({name} / {name:a|b}) ----------
+  // ---------- fields of a prompt template ({name} / {name:a|b}) ----------
   let fieldsKey = "";
   const fieldList = $("fieldList");
   function fieldsActive() { return !$("fieldsBox").hidden; }
@@ -1440,7 +1440,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (key === fieldsKey) return;
     fieldsKey = key;
     $("fieldsBox").hidden = !fields.length;
-    $("fieldsTitle").textContent = (s.title || "Action") + " · fill in";
+    $("fieldsTitle").textContent = (s.title || "Template") + " · fill in";
     fieldList.innerHTML = fields.map(f => {
       const control = f.options && f.options.length
         ? '<select data-field="' + esc(f.name) + '">' + f.options.map(o => '<option>' + esc(o) + '</option>').join("") + '</select>'

@@ -80,7 +80,7 @@ namespace QuickPrompt.Core
         /// <summary>The CLI setup this conversation uses (from its action); null = as in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
 
-        /// <summary>Open on the Predefined actions editor.</summary>
+        /// <summary>Open on the Prompt templates editor.</summary>
         public Boolean ShowActions { get; set; }
 
         /// <summary>Snapshot of the finished messages, for the history.</summary>

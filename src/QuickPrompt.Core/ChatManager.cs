@@ -65,7 +65,7 @@ namespace QuickPrompt.Core
         /// <summary>Set by the desktop app's engine (QuickPrompt.Agent) to enable the /api control endpoints.</summary>
         public AppControl Control { get; set; }
 
-        /// <summary>Runs a saved preset ("Predefined actions") on the current selection.</summary>
+        /// <summary>Runs a saved preset ("Prompt templates") on the current selection.</summary>
         public async Task<Boolean> RunSavedPresetAsync(String presetId)
         {
             var saved = this._presets.Find(presetId);
@@ -230,7 +230,7 @@ namespace QuickPrompt.Core
             });
         }
 
-        /// <summary>Presets for "Predefined actions": the ones used from the ring, then built-ins.</summary>
+        /// <summary>Presets for "Prompt templates": the ones used from the ring, then built-ins.</summary>
         public String GetPresetsJson() =>
             System.Text.Json.JsonSerializer.Serialize(this._presets.List().Select(p => new
             {
@@ -242,7 +242,7 @@ namespace QuickPrompt.Core
                 builtIn = p.BuiltIn,
             }).ToArray());
 
-        /// <summary>The Predefined actions editor: your actions and the built-ins.</summary>
+        /// <summary>The Prompt templates editor: your templates and the built-ins.</summary>
         public String GetActionsJson() =>
             System.Text.Json.JsonSerializer.Serialize(this._presets.ListEditable().Select(p => new
             {
@@ -290,7 +290,7 @@ namespace QuickPrompt.Core
             return this.GetActionsJson();
         }
 
-        /// <summary>Opens the popup on the Predefined actions editor.</summary>
+        /// <summary>Opens the popup on the Prompt templates editor.</summary>
         public void OpenActions()
         {
             var session = this.CreateSession(ProviderIds.Claude, "", "");

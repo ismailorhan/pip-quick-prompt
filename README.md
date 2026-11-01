@@ -12,8 +12,8 @@ Press a ring button and the selection, together with that button's prompt, is se
 - **Each ring button is a preset**, with its own title, prompt, input source, behavior, icon, color and model, all set in the Options+ action editor.
 - **Four behaviors:** send and show the answer in the popup, edit in the popup first, replace the selection (no popup), or copy to the clipboard (no popup).
 - **Popup:** follow-up questions, **Copy**, and **Paste** (⌘↵ / Ctrl+Enter) into the app you came from.
-- **Pin and move (macOS):** drag the popup by its top row or the empty part of the capsule and drop it anywhere; throw it and it glides to that corner of the screen. Pinned (📌), it stays above every app, and Esc / ✕ turn it into a free-floating icon that keeps its own place. Under it a small toolbar (New chat, Recent chats, Predefined actions) tucks into a thin line when idle; right-click the icon for Open, Settings and Close. Click the icon to open the conversation again. An answer that arrives meanwhile pops up as a bubble next to it.
-- **Predefined actions:** every preset you use from the ring is remembered (plus Summarize, Translate, Fix grammar and Explain); pick one from the icon's toolbar and paste the text. Settings has two size sliders: **Chat size** (the conversation popup) and **Icon size** (the floating icon and its toolbar); the Settings view itself keeps a fixed width.
+- **Pin and move (macOS):** drag the popup by its top row or the empty part of the capsule and drop it anywhere; throw it and it glides to that corner of the screen. Pinned (📌), it stays above every app, and Esc / ✕ turn it into a free-floating icon that keeps its own place. Under it a small toolbar (New chat, Recent chats, Prompt templates) tucks into a thin line when idle; right-click the icon for Open, Settings and Close. Click the icon to open the conversation again. An answer that arrives meanwhile pops up as a bubble next to it.
+- **Prompt templates:** every preset you use from the ring is remembered (plus Summarize, Translate, Fix grammar and Explain); pick one from the icon's toolbar and paste the text. Settings has two size sliders: **Chat size** (the conversation popup) and **Icon size** (the floating icon and its toolbar); the Settings view itself keeps a fixed width.
 - **History:** the last 50 conversations stay on this computer. Reopen one from the clock button (or the *Quick Prompt History* ring action) and continue it, over CLI or API alike. Can be turned off in Settings.
 - **CLI or API, per provider and per preset:** CLI uses the subscription you already have (no keys). API is faster (no process start per request, typically 3–4 s quicker) and billed per use. Tools are disabled and the CLIs run read-only.
 
@@ -85,14 +85,14 @@ and tick what may be used:
 
 Answers get slower when the setup is on (servers start and tools run). API connections never use it.
 
-Each predefined action can override this under **Plugins, MCP servers and skills**: *As in Settings*
+Each prompt template can override this under **Plugins, MCP servers and skills**: *As in Settings*
 (default), *None* (plain answer, fastest) or *Choose* (its own ticks, e.g. only the CRM server for a
 "CRM lookup" action).
 
-## Predefined actions
+## Prompt templates
 
-Your own prompts, kept on this computer. Manage them from **Settings → Predefined actions → Manage…**, the
-floating icon's actions list (**Edit actions…**), or the menu bar (**Predefined Actions → Edit Actions…**).
+Your own prompts, kept on this computer. Manage them from **Settings → Prompt templates → Manage…**, the
+floating icon's templates list (**Edit templates…**), or the menu bar (**Prompt Templates → Edit Templates…**).
 Run them from the floating icon or the menu bar.
 
 - `{text}` is where the selected text (or clipboard, or pasted text) goes.
@@ -102,7 +102,7 @@ Run them from the floating icon or the menu bar.
 Example: `Write a {tone:friendly|formal|short} reply in {language} to this email:\n\n{text}` asks for the
 tone and the language, with the selected email already in place, then sends.
 
-Editing a built-in action (Summarize, Translate, …) saves your own copy in its place.
+Editing a built-in template (Summarize, Translate, …) saves your own copy in its place.
 
 ## Settings
 
