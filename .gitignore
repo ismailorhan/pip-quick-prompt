@@ -403,3 +403,4 @@ FodyWeavers.xsd
 native/macos/build/
 src/QuickPrompt.Plugin/package/mac/
 dist/
+screenshots/

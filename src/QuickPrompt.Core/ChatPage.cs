@@ -121,8 +121,9 @@ textarea::placeholder { color: var(--muted); }
 .bar textarea:focus-visible, .ctx textarea:focus-visible { outline: none; }
 .round[hidden] + textarea { padding-left: 12px; }
 
-/* Settings view */
-.settings { border-radius: 22px; padding: 10px 16px 14px; }
+/* Settings view (long: scrolls inside a screen-high limit, set from the screen size at start) */
+.settings { border-radius: 22px; padding: 10px 16px 14px; max-height: var(--view-max, 760px); overflow-y: auto; scrollbar-width: thin; }
+#actionsView { max-height: var(--view-max, 760px); overflow-y: auto; scrollbar-width: thin; }
 .sgroup { padding: 10px 0 4px; border-top: 1px solid var(--faint); margin-top: 8px; }
 .meta + .sgroup { border-top: 0; margin-top: 2px; }
 .srow { display: flex; align-items: center; gap: 10px; }
@@ -165,7 +166,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 .pedit .pname { color: var(--muted); font-size: 12px; }
 
 .srow.sub { margin-top: 10px; } .srow.sub .sname { font-weight: 500; font-size: 13px; }
-.setup { margin-top: 6px; padding: 6px 10px 8px; background: var(--faint); border-radius: 12px; max-height: 230px; overflow-y: auto; scrollbar-width: thin; }
+.setup { margin-top: 6px; padding: 6px 10px 8px; background: var(--faint); border-radius: 12px; }
 .setup .stitle { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 2px; }
 .chk { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
 .chk input { accent-color: var(--accent); margin: 0; }
@@ -400,6 +401,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (nativeInfo.glass !== "liquid") document.documentElement.classList.add("vibrancy");
   }
   const $ = id => document.getElementById(id);
+  // The panel cannot be taller than ~85% of the screen; long views scroll inside that.
+  document.documentElement.style.setProperty("--view-max", Math.max(360, Math.round((screen.availHeight || 900) * 0.8) - 20) + "px");
   const els = {
     root: $("root"), card: $("card"), who: $("who"), title: $("title"), status: $("status"), notice: $("notice"),
     ctxWrap: $("ctxWrap"), ctx: $("ctx"), thread: $("thread"), actions: $("actions"),
