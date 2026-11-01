@@ -133,6 +133,11 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(session.ToJson(request.Query("tab") != "1"));
             }
 
+            if (request.Method == "GET" && action == "history")
+            {
+                return HttpResponse.Json(this._manager.GetHistoryJson());
+            }
+
             if (request.Method == "GET" && action == "settings")
             {
                 return HttpResponse.Json(this._manager.GetSettingsJson());
@@ -153,6 +158,18 @@ namespace QuickPrompt.Core
             var body = ParseJson(request.Body);
             switch (action)
             {
+                case "resume":
+                    var resumed = this._manager.ResumeConversation(session, GetString(body, "id"));
+                    return resumed ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
+
+                case "forget":
+                    this._manager.DeleteConversation(GetString(body, "id"));
+                    return HttpResponse.Json(this._manager.GetHistoryJson());
+
+                case "clearhistory":
+                    this._manager.ClearHistory();
+                    return HttpResponse.Json(this._manager.GetHistoryJson());
+
                 case "settings":
                     this._manager.SaveSettings(body);
                     return HttpResponse.Json(this._manager.GetSettingsJson());

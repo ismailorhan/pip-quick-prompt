@@ -41,7 +41,15 @@ namespace QuickPrompt.Core
 
         public String Token { get; }
 
-        public IAiProvider Provider { get; }
+        public IAiProvider Provider { get; private set; }
+
+        /// <summary>Stable id of this conversation in the history (unlike Token, which is per popup).</summary>
+        public String HistoryId { get; private set; } = Guid.NewGuid().ToString("N");
+
+        public DateTime CreatedUtc { get; private set; } = DateTime.UtcNow;
+
+        /// <summary>Raised after every finished turn (answer or error), e.g. to save the conversation.</summary>
+        public event Action<ChatSession> TurnFinished;
 
         public String Title { get; set; } = "";
 
@@ -65,6 +73,60 @@ namespace QuickPrompt.Core
 
         /// <summary>Open the popup on the Settings view.</summary>
         public Boolean ShowSettings { get; set; }
+
+        /// <summary>Open the popup on the History view.</summary>
+        public Boolean ShowHistory { get; set; }
+
+        /// <summary>Snapshot of the finished messages, for the history.</summary>
+        public ConversationRecord ToRecord()
+        {
+            lock (this._lock)
+            {
+                return new ConversationRecord
+                {
+                    Id = this.HistoryId,
+                    ProviderId = this.Provider.Id,
+                    Connection = this.Connection,
+                    Model = this.Model,
+                    Title = this.Title,
+                    CreatedUtc = this.CreatedUtc,
+                    UpdatedUtc = DateTime.UtcNow,
+                    Messages = this._messages
+                        .Where(m => m.State != "streaming")
+                        .Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State })
+                        .ToList(),
+                };
+            }
+        }
+
+        /// <summary>Continues a saved conversation in this popup. Not allowed while a turn is running.</summary>
+        public Boolean ResumeFrom(ConversationRecord record, IAiProvider provider)
+        {
+            lock (this._lock)
+            {
+                if (this._busy || record == null)
+                {
+                    return false;
+                }
+
+                this.Provider = provider;
+                this.HistoryId = record.Id;
+                this.CreatedUtc = record.CreatedUtc;
+                this.Connection = record.Connection;
+                this.Model = record.Model ?? "";
+                this.Title = record.Title ?? "";
+                this.PresetInstruction = "";
+                this.DraftInstruction = "";
+                this.DraftContext = "";
+                this.Notice = "";
+                this.ShowSettings = false;
+                this.ShowHistory = false;
+                this._messages.Clear();
+                this._messages.AddRange(record.Messages.Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State }));
+                this.TouchLocked();
+                return true;
+            }
+        }
 
         public DateTime LastActivityUtc { get; private set; }
 
@@ -248,6 +310,7 @@ namespace QuickPrompt.Core
                     pasteMode = this.PresetInstruction.Trim().Length > 0,
                     connection = this.Connection,
                     showSettings = this.ShowSettings,
+                    showHistory = this.ShowHistory,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);
@@ -342,6 +405,15 @@ namespace QuickPrompt.Core
                 this._busy = false;
                 this._status = "";
                 this.TouchLocked();
+            }
+
+            try
+            {
+                this.TurnFinished?.Invoke(this);
+            }
+            catch (Exception)
+            {
+                // Saving history must never break the conversation.
             }
 
             if (errorText != null)

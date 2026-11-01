@@ -1,9 +1,10 @@
 // Quick Prompt DevHost: runs the popup and the CLI providers without Logi Options+.
 //
 //   dotnet run --project src/QuickPrompt.DevHost -- [--provider claude|codex] [--flow send|edit|replace|copy]
-//       [--connection default|cli|api] [--settings] [--input clipboard|popup|none] [--prompt "..."] [--text "..."] [--title "..."] [--model "..."] [--no-open] [--data <dir>]
+//       [--connection default|cli|api] [--settings] [--history] [--input clipboard|popup|none] [--prompt "..."] [--text "..."] [--title "..."] [--model "..."] [--no-open] [--data <dir>]
 //   dotnet run --project src/QuickPrompt.DevHost -- --icons icons.html
 //   dotnet run --project src/QuickPrompt.DevHost -- --app-icon icon.svg
+//   dotnet run --project src/QuickPrompt.DevHost -- --action-icons src/QuickPrompt.Plugin/package/actionicons
 //
 // The "clipboard" is simply --text.
 using QuickPrompt.Core;
@@ -23,6 +24,26 @@ for (var i = 0; i < args.Length; i++)
 }
 
 string Opt(string name, string fallback) => options.TryGetValue(name, out var v) ? v : fallback;
+
+// --action-icons <dir> : writes the package's actionicons/*.svg (static action images) and exits.
+if (options.TryGetValue("action-icons", out var actionIconDir))
+{
+    Directory.CreateDirectory(actionIconDir);
+    var icons = new Dictionary<string, string>
+    {
+        ["Loupedeck.QuickPromptPlugin.AskClaudeCommand.svg"] = IconCatalog.AppIconSvg(80, 80),
+        ["Loupedeck.QuickPromptPlugin.AskChatGptCommand.svg"] = IconCatalog.AppIconSvg(80, 80),
+        ["Loupedeck.QuickPromptPlugin.SettingsCommand.svg"] = IconCatalog.BuildSvg("settings", "slate", "slate", "", 80, 80),
+        ["Loupedeck.QuickPromptPlugin.HistoryCommand.svg"] = IconCatalog.BuildSvg("history", "slate", "slate", "", 80, 80),
+    };
+    foreach (var (name, svg) in icons)
+    {
+        File.WriteAllText(Path.Combine(actionIconDir, name), svg);
+    }
+
+    Console.WriteLine($"Action icons: {actionIconDir} ({icons.Count})");
+    return;
+}
 
 // --app-icon icon.svg : writes the app icon (256 px) and exits.
 if (options.TryGetValue("app-icon", out var appIconPath))
@@ -92,6 +113,10 @@ var preset = new Preset
 if (flags.Contains("settings"))
 {
     manager.OpenSettings();
+}
+else if (flags.Contains("history"))
+{
+    manager.OpenHistory();
 }
 else
 {

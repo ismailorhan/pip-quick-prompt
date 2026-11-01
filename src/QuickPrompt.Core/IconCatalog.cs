@@ -87,6 +87,7 @@ namespace QuickPrompt.Core
             new IconDef("calendar", "Meeting", "M4 6h16v14H4z M4 10h16 M8.5 3.5v4 M15.5 3.5v4"),
             new IconDef("smile", "Tone", "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M8.5 14c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2 M9 9.5v.5 M15 9.5v.5"),
             new IconDef(TextIconId, "Title initials", ""),
+            new IconDef("history", "History", "M3.5 12a8.5 8.5 0 1 0 2.5-6 M3.5 4.5V8H7 M12 7.5V12l3 2"),
             new IconDef("settings", "Settings", "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"),
         };
 

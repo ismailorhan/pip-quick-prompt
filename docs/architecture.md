@@ -52,6 +52,14 @@ The plugin presses ⌘C/Ctrl+C and watches the clipboard:
 - **Anthropic:** official C# SDK (`Anthropic` NuGet), beta Messages endpoint with `fallbacks: "default"` (`server-side-fallback-2026-07-01`), `output_config.effort` (default `low` for quick answers), streamed. `haiku`/`sonnet`/`opus` map to the current model ids.
 - **OpenAI:** `POST /v1/chat/completions` with `stream: true`, parsed by `OpenAiStreamParser`.
 
+## History
+
+Calls are stateless for both CLI and API: a follow-up carries the earlier turns in its prompt. So the conversation lives entirely in `ChatSession`. After every finished turn, `ChatManager` writes it to `history/<id>.json` (`ConversationStore`, last 50, plugin data folder). `POST /s/<token>/resume` loads a saved conversation into the current popup, with its original provider and connection, and the next message simply continues it. Turning history off in Settings deletes the folder's contents.
+
+## Action images
+
+`package/actionicons/<action class>.svg` gives each action a static image. Logi Plugin Service checks this folder first, and the Actions Ring did not show `GetCommandImage` results for action-editor presets. Regenerate the files with `dotnet run --project src/QuickPrompt.DevHost -- --action-icons src/QuickPrompt.Plugin/package/actionicons`.
+
 ## Popup
 
 - `UiServer` listens on `127.0.0.1` only. Every URL contains a random 144-bit session token. The `Host` header is checked against DNS rebinding, and state-changing requests need an `X-QuickPrompt` header to block cross-site posts. The page has a strict CSP and no external resources.

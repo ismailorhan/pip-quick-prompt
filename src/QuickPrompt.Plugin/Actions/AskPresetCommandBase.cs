@@ -88,8 +88,17 @@ namespace Loupedeck.QuickPromptPlugin
             return String.IsNullOrWhiteSpace(title) ? this._defaultDisplayName : title.Trim();
         }
 
+        private static Boolean _imageRequestLogged;
+
         protected override BitmapImage GetCommandImage(ActionEditorActionParameters actionParameters, Int32 imageWidth, Int32 imageHeight)
         {
+            if (!_imageRequestLogged)
+            {
+                // Diagnostics: tells from the plugin log whether this device asks the plugin for preset images.
+                _imageRequestLogged = true;
+                PluginLog.Info($"Preset image requested ({imageWidth}x{imageHeight})");
+            }
+
             try
             {
                 var svg = IconCatalog.BuildSvg(

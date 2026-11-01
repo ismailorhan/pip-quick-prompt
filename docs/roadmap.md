@@ -9,6 +9,7 @@
 - [x] CLI or API per provider and per preset; Settings view with encrypted API keys
 - [x] "Paste in popup" input
 - [x] Quick Prompt app icon (default preset icon)
+- [x] Conversation history: reopen and continue (CLI and API)
 
 ## Next
 

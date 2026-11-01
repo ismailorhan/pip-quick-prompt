@@ -61,6 +61,9 @@ namespace QuickPrompt.Core
 
         public Int32 WindowHeight { get; set; } = 560;
 
+        /// <summary>Keep the last conversations on this computer so they can be reopened and continued.</summary>
+        public Boolean SaveHistory { get; set; } = true;
+
         /// <summary>Restore the previous clipboard text after reading the selection or pasting an answer.</summary>
         public Boolean RestoreClipboard { get; set; } = true;
 

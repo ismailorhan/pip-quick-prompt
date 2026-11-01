@@ -82,7 +82,7 @@ button:hover { filter: brightness(1.06); }
 button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .actions { display: flex; gap: 6px; margin-top: 10px; }
 kbd { font: 11px -apple-system, sans-serif; color: var(--muted); margin-left: 5px; }
-button.x { background: transparent; color: var(--muted); padding: 0 4px; font-size: 13px; line-height: 1; }
+button.x { background: transparent; color: var(--muted); padding: 0 4px; font-size: 13px; line-height: 1; display: inline-grid; place-items: center; }
 button.x:hover { color: var(--text); }
 
 /* Optional pasted text */
@@ -119,6 +119,22 @@ textarea::placeholder { color: var(--muted); }
 .skey .sfield { flex: 1; }
 .skey button { margin-bottom: 1px; }
 button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+
+/* History view */
+.history { border-radius: 22px; padding: 10px 10px 12px; }
+.history .meta { padding: 0 6px; }
+.hlist { max-height: 380px; overflow-y: auto; margin-top: 6px; scrollbar-width: thin; }
+.hitem { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: transparent; border-radius: 14px; padding: 8px 10px; }
+.hitem:hover, .hitem:focus-visible { background: var(--faint); }
+.hitem .dot { margin-top: 6px; }
+.hitem[data-provider="codex"] .dot { background: #10a37f; }
+.hitem[data-provider="claude"] .dot { background: #d97757; }
+.hbody { flex: 1; min-width: 0; }
+.hq { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ha { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.hmeta { font-size: 11px; color: var(--muted); white-space: nowrap; margin-top: 2px; }
+.hempty { color: var(--muted); font-size: 13px; padding: 14px 8px; }
+.history .actions { padding: 0 6px; }
 .toast { position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--glass); padding: 4px 12px; border-radius: 999px; font-size: 12px; opacity: 0; transition: opacity .15s; pointer-events: none; }
 .toast.show { opacity: .92; }
 [hidden] { display: none !important; }
@@ -132,7 +148,8 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       <span id="who"></span>
       <span class="title" id="title"></span>
       <span class="status" id="status"></span>
-      <button type="button" class="x" id="gear" title="Settings">⚙</button>
+      <button type="button" class="x" id="metaHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
+      <button type="button" class="x" id="gear" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
     </div>
     <div class="notice" id="notice" hidden></div>
@@ -173,14 +190,30 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       <label class="sfield">API model<input type="text" id="chatgptModel" spellcheck="false" placeholder="gpt-5-mini"></label>
       </div>
     </div>
+    <div class="sgroup">
+      <div class="srow"><span class="sname">History</span>
+        <div class="seg" data-name="saveHistory"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
+      <div class="shint">Keeps your last 50 conversations on this computer so you can reopen and continue them (clock button). Turning it off deletes them.</div>
+    </div>
     <div class="shint">Keys are stored encrypted on this computer. A preset can override CLI/API in its Connection field. Changes apply to the next request.</div>
     <div class="actions"><button type="button" class="primary" id="setSave">Save</button><button type="button" id="setBack">Cancel</button></div>
+  </div>
+  <div class="history glass" id="historyView" hidden>
+    <div class="meta">
+      <span class="dot"></span>
+      <span class="title">Recent conversations</span>
+      <span class="status"></span>
+      <button type="button" class="x" id="histClose" title="Close">✕</button>
+    </div>
+    <div class="hlist" id="hlist"></div>
+    <div class="actions"><button type="button" id="histBack">Back</button><button type="button" id="histClear">Clear history</button></div>
   </div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar">
     <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
-    <button type="button" class="round gear" id="barGear" title="Settings">⚙</button>
+    <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
+    <button type="button" class="round gear" id="barGear" title="Settings"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
   </div>
 </div>
@@ -405,6 +438,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       $("setVersion").textContent = s.version ? "v" + s.version : "";
       setSeg("claudeConnection", s.claude.connection);
       setSeg("chatgptConnection", s.chatgpt.connection);
+      setSeg("saveHistory", s.saveHistory ? "true" : "false");
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
       if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
@@ -434,6 +468,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       claudeConnection: segValues.claudeConnection, chatgptConnection: segValues.chatgptConnection,
       claudeModel: set.claudeModel.value, chatgptModel: set.chatgptModel.value.trim(),
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
+      saveHistory: segValues.saveHistory,
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
@@ -448,13 +483,88 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   $("setBack").addEventListener("click", closeSettings);
   $("setClose").addEventListener("click", closeWindow);
 
+  // ---------- history ----------
+  const hist = { view: $("historyView"), list: $("hlist") };
+  let historyOpen = false, historyOnly = false;
+
+  function ago(iso) {
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.floor(s / 60) + " min ago";
+    if (s < 86400) return Math.floor(s / 3600) + " h ago";
+    if (s < 7 * 86400) return Math.floor(s / 86400) + " d ago";
+    return new Date(iso).toLocaleDateString();
+  }
+
+  function renderHistory(data) {
+    if (!data.enabled) {
+      hist.list.innerHTML = '<div class="hempty">History is off. Turn it on in Settings (⚙).</div>';
+    } else if (!data.items.length) {
+      hist.list.innerHTML = '<div class="hempty">No conversations yet.</div>';
+    } else {
+      hist.list.innerHTML = data.items.map(it =>
+        '<button type="button" class="hitem" data-id="' + esc(it.id) + '" data-provider="' + esc(it.provider) + '">'
+        + '<span class="dot"></span><span class="hbody">'
+        + '<div class="hq">' + esc(it.title ? it.title + " · " + it.question : it.question) + '</div>'
+        + '<div class="ha">' + esc(it.answer) + '</div>'
+        + '<div class="hmeta">' + esc(it.providerName) + (it.connection === "api" ? " · API" : "") + " · " + ago(it.updated)
+        + (it.turns > 1 ? " · " + it.turns + " messages" : "") + '</div>'
+        + '</span></button>').join("");
+    }
+    $("histClear").hidden = !data.enabled || !data.items.length;
+    queueLayout();
+  }
+
+  async function openHistory(only) {
+    historyOnly = !!only;
+    historyOpen = true;
+    els.card.hidden = true; els.bar.hidden = true; els.ctxWrap.hidden = true; set.view.hidden = true;
+    hist.view.hidden = false;
+    hist.list.innerHTML = '<div class="hempty">Loading…</div>';
+    try {
+      renderHistory(await (await fetch(base + "history", { cache: "no-store" })).json());
+    } catch (e) {
+      hist.list.innerHTML = '<div class="hempty">Could not load history.</div>';
+    }
+    queueLayout();
+  }
+
+  function closeHistory() {
+    if (historyOnly) { closeWindow(); return; }
+    historyOpen = false;
+    hist.view.hidden = true; els.bar.hidden = false;
+    lastKey = "";
+    if (state) render();
+    queueLayout();
+    els.prompt.focus();
+  }
+
+  hist.list.addEventListener("click", async e => {
+    const item = e.target.closest(".hitem");
+    if (!item) return;
+    const res = await post("resume", { id: item.dataset.id });
+    if (!res.ok) { toast("Could not open it"); return; }
+    historyOnly = false;
+    stick = true;
+    closeHistory();
+  });
+  $("barHistory").addEventListener("click", () => openHistory(false));
+  $("metaHistory").addEventListener("click", () => openHistory(false));
+  $("histBack").addEventListener("click", closeHistory);
+  $("histClose").addEventListener("click", closeWindow);
+  $("histClear").addEventListener("click", async () => {
+    renderHistory(await (await post("clearhistory")).json());
+    toast("History cleared");
+  });
+
   // ---------- rendering ----------
   function render() {
     const s = state;
     document.documentElement.dataset.provider = s.provider;
     els.who.textContent = s.providerName + (s.connection === "api" ? " · API" : "") + (s.model ? " · " + s.model : "");
     if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
-    if (settingsOpen) return;
+    if (s.showHistory && !historyOpen && !draftApplied) { draftApplied = true; openHistory(true); return; }
+    if (settingsOpen || historyOpen) return;
     els.title.textContent = s.title || "";
     document.title = (s.title ? s.title + " — " : "") + s.providerName;
     els.status.innerHTML = s.busy ? '<span class="spin"></span>' + esc(s.status || "Working…") : "";
@@ -464,6 +574,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     els.notice.textContent = s.notice || "";
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
     $("barGear").hidden = !els.card.hidden;
+    $("barHistory").hidden = !els.card.hidden;
     const last = s.messages[s.messages.length - 1];
     els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 
@@ -567,7 +678,14 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   els.prompt.addEventListener("input", autoGrow);
   els.ctx.addEventListener("input", () => { updateSendState(); queueLayout(); });
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { e.preventDefault(); if (settingsOpen && !settingsOnly) closeSettings(); else closeWindow(); return; }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (settingsOpen && !settingsOnly) closeSettings();
+      else if (historyOpen && !historyOnly) closeHistory();
+      else closeWindow();
+      return;
+    }
+    if (historyOpen) return;
     if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveSettings(); } return; }
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.metaKey || e.ctrlKey) {

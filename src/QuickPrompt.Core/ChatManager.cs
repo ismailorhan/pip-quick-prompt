@@ -20,6 +20,7 @@ namespace QuickPrompt.Core
         private readonly String _dataDirectory;
         private readonly String _settingsPath;
         private readonly UiServer _server;
+        private readonly ConversationStore _history;
         private readonly Timer _cleanupTimer;
         private readonly SemaphoreSlim _clipboardGate = new SemaphoreSlim(1, 1);
         private QuickPromptSettings _settings;
@@ -52,6 +53,7 @@ namespace QuickPrompt.Core
             this._apiProviders = apiList.ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
 
             this._server = new UiServer(this);
+            this._history = new ConversationStore(Path.Combine(dataDirectory, "history"));
             this.Launcher = new WindowLauncher(() => this.Settings, Path.Combine(dataDirectory, "browser-profile"), host);
             this._cleanupTimer = new Timer(_ => this.Cleanup(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
         }
@@ -137,6 +139,7 @@ namespace QuickPrompt.Core
                 Model = model ?? "",
                 Connection = resolved,
             };
+            session.TurnFinished += this.OnTurnFinished;
             this._sessions[session.Token] = session;
             return session;
         }
@@ -146,6 +149,75 @@ namespace QuickPrompt.Core
 
         public void OpenWindow(ChatSession session) =>
             this.Launcher.Open(appWindow => this.GetSessionUrl(session, appWindow));
+
+        private void OnTurnFinished(ChatSession session)
+        {
+            if (!this.Settings.SaveHistory)
+            {
+                return;
+            }
+
+            try
+            {
+                this._history.Save(session.ToRecord());
+            }
+            catch (Exception ex)
+            {
+                this._host.Log("Could not save the conversation", ex);
+            }
+        }
+
+        /// <summary>Opens the popup on the History view.</summary>
+        public void OpenHistory()
+        {
+            var session = this.CreateSession(ProviderIds.Claude, "", "");
+            session.ShowHistory = true;
+            this.OpenWindow(session);
+        }
+
+        /// <summary>Recent conversations for the History view, newest first.</summary>
+        public String GetHistoryJson()
+        {
+            var items = this.Settings.SaveHistory ? this._history.List() : new List<ConversationRecord>();
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                enabled = this.Settings.SaveHistory,
+                items = items.Select(r =>
+                {
+                    var question = r.Messages.FirstOrDefault(m => m.Role == "user");
+                    var answer = r.Messages.FirstOrDefault(m => m.Role == "assistant");
+                    return new
+                    {
+                        id = r.Id,
+                        title = r.Title ?? "",
+                        provider = r.ProviderId,
+                        providerName = this.GetProvider(r.ProviderId, r.Connection).DisplayName,
+                        connection = r.Connection,
+                        question = Shorten(question == null ? "" : PromptBuilder.Build(question.Text, question.Context), 160),
+                        answer = Shorten(answer?.Text ?? "", 160),
+                        turns = r.Messages.Count(m => m.Role == "user"),
+                        updated = r.UpdatedUtc.ToString("o"),
+                    };
+                }).ToArray(),
+            });
+        }
+
+        /// <summary>Loads a saved conversation into the popup so it can be continued.</summary>
+        public Boolean ResumeConversation(ChatSession session, String historyId)
+        {
+            var record = this._history.Load(historyId);
+            return record != null && session.ResumeFrom(record, this.GetProvider(record.ProviderId, record.Connection));
+        }
+
+        public void DeleteConversation(String historyId) => this._history.Delete(historyId);
+
+        public void ClearHistory() => this._history.Clear();
+
+        private static String Shorten(String text, Int32 max)
+        {
+            var oneLine = System.Text.RegularExpressions.Regex.Replace(text ?? "", @"\s+", " ").Trim();
+            return oneLine.Length <= max ? oneLine : oneLine.Substring(0, max - 1) + "…";
+        }
 
         /// <summary>Opens the popup on the Settings view (keys, connections, models).</summary>
         public void OpenSettings()
@@ -162,6 +234,7 @@ namespace QuickPrompt.Core
             return System.Text.Json.JsonSerializer.Serialize(new
             {
                 version = AppVersion,
+                saveHistory = s.SaveHistory,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -201,6 +274,15 @@ namespace QuickPrompt.Core
             if (!String.IsNullOrEmpty(Get("chatgptModel")))
             {
                 s.OpenAiApiModel = Get("chatgptModel");
+            }
+
+            if (Get("saveHistory") is "true" or "false")
+            {
+                s.SaveHistory = Get("saveHistory") == "true";
+                if (!s.SaveHistory)
+                {
+                    this._history.Clear();
+                }
             }
 
             s.Save(this._settingsPath);

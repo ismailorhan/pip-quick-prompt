@@ -12,6 +12,7 @@ Press a ring button and the selection, together with that button's prompt, is se
 - **Each ring button is a preset**, with its own title, prompt, input source, behavior, icon, color and model, all set in the Options+ action editor.
 - **Four behaviors:** send and show the answer in the popup, edit in the popup first, replace the selection (no popup), or copy to the clipboard (no popup).
 - **Popup:** follow-up questions, **Copy**, and **Paste** (⌘↵ / Ctrl+Enter) into the app you came from.
+- **History:** the last 50 conversations stay on this computer. Reopen one from the clock button (or the *Quick Prompt History* ring action) and continue it, over CLI or API alike. Can be turned off in Settings.
 - **CLI or API, per provider and per preset:** CLI uses the subscription you already have (no keys). API is faster (no process start per request, typically 3–4 s quicker) and billed per use. Tools are disabled and the CLIs run read-only.
 
 ## Install
