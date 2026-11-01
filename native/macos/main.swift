@@ -93,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         // Place the panel just below and to the right of the cursor, inside the visible screen area.
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
-        visibleArea = screen.visibleFrame
+        visibleArea = AppDelegate.usableFrame(of: screen)
         let initialHeight: CGFloat = 76
         let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
@@ -160,11 +160,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             popupWidth = min(max(w.rounded(.up), 56), visibleArea.width - 16)
         }
         let height = min(max(requested.rounded(.up), 40), visibleArea.height * 0.85)
-        var top = topLeft.y
-        if top - height < visibleArea.minY + 8 {
-            top = min(visibleArea.minY + 8 + height, visibleArea.maxY - 8)
+        // The floating icon may sit right in a corner; the full popup keeps a small gap.
+        let edge: CGFloat = isMini ? 0 : 8
+        var top = min(topLeft.y, visibleArea.maxY - edge)
+        if top - height < visibleArea.minY + edge {
+            top = min(visibleArea.minY + edge + height, visibleArea.maxY - edge)
         }
-        let x = min(max(topLeft.x, visibleArea.minX + 8), visibleArea.maxX - popupWidth - 8)
+        let x = min(max(topLeft.x, visibleArea.minX + edge), visibleArea.maxX - popupWidth - edge)
         topLeft = NSPoint(x: x, y: top)
         panel.setFrame(NSRect(x: x, y: top - height, width: popupWidth, height: height), display: true, animate: false)
         container.layoutSubtreeIfNeeded()
@@ -197,11 +199,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         panel.setFrameOrigin(NSPoint(x: dragOrigin.x + now.x - dragStart.x, y: dragOrigin.y + now.y - dragStart.y))
     }
 
+    /// The screen area the popup may use: the visible frame, minus where an auto-hidden Dock appears
+    /// when it slides in (macOS counts that area as free, so the icon would sit under the Dock).
+    static func usableFrame(of screen: NSScreen) -> NSRect {
+        var area = screen.visibleFrame
+        let dock = UserDefaults(suiteName: "com.apple.dock")
+        guard dock?.bool(forKey: "autohide") == true else { return area }
+        let tile = CGFloat(dock?.double(forKey: "tilesize") ?? 0)
+        let reserve = (tile > 0 ? tile : 48) + 22
+        switch dock?.string(forKey: "orientation") ?? "bottom" {
+        case "left":
+            area.origin.x += reserve
+            area.size.width -= reserve
+        case "right":
+            area.size.width -= reserve
+        default:
+            area.origin.y += reserve
+            area.size.height -= reserve
+        }
+        return area
+    }
+
     private func finishDrag(_ samples: [(time: TimeInterval, point: NSPoint)]) {
-        let screen = (panel.screen ?? NSScreen.main)?.visibleFrame ?? visibleArea
+        let screen = AppDelegate.usableFrame(of: panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
         visibleArea = screen
         let frame = panel.frame
-        let margin: CGFloat = 16
+        let margin: CGFloat = 0
         var target = frame
 
         if let first = samples.first, let last = samples.last, last.time - first.time > 0.01 {
@@ -220,9 +243,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             }
         }
 
-        // Always end fully on screen.
-        target.origin.x = min(max(target.origin.x, screen.minX + 4), screen.maxX - frame.width - 4)
-        target.origin.y = min(max(target.origin.y, screen.minY + 4), screen.maxY - frame.height - 4)
+        // Always end fully on screen (and off the Dock).
+        target.origin.x = min(max(target.origin.x, screen.minX), screen.maxX - frame.width)
+        target.origin.y = min(max(target.origin.y, screen.minY), screen.maxY - frame.height)
 
         if target.origin != frame.origin {
             NSAnimationContext.runAnimationGroup({ context in
@@ -404,7 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             miniTopLeft = topLeft
         }
         if let screen = panel.screen {
-            visibleArea = screen.visibleFrame
+            visibleArea = AppDelegate.usableFrame(of: screen)
         }
     }
 }
