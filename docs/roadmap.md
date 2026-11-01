@@ -17,7 +17,7 @@
 
 ## Before the Logi Marketplace
 
-- [ ] Decide on the license (`LoupedeckPackage.yaml` says MIT for now) and the author/publisher name
+- [x] License: MIT (see `LICENSE`)
 - [ ] Developer ID signing and notarization of the macOS popup
 - [ ] Localization (`logiplugintool xliff`), with English as the base
 - [ ] Marketplace approval guidelines review, screenshots, support page

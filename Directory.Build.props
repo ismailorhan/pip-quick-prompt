@@ -4,7 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <Version>0.2.0</Version>
-    <Company>Sapcon</Company>
+    <Authors>İsmail Orhan</Authors>
+    <Copyright>Copyright © 2026 İsmail Orhan</Copyright>
     <Product>Quick Prompt</Product>
     <NoWarn>$(NoWarn);SA0001</NoWarn>
   </PropertyGroup>

@@ -74,4 +74,6 @@ Example presets:
 - [Development](docs/development.md): building, testing, DevHost, CI
 - [Roadmap](docs/roadmap.md)
 
-Quick Prompt is not affiliated with Anthropic, OpenAI or Logitech. It only runs CLIs the user has installed.
+## License
+
+[MIT](LICENSE). Quick Prompt is not affiliated with Anthropic, OpenAI or Logitech. It only runs CLIs the user has installed.

@@ -10,8 +10,8 @@ description: Ask Claude or ChatGPT about the selected text from your Actions Rin
 
 pluginFileName: QuickPromptPlugin.dll
 version: 0.2.0
-author: Sapcon
-copyright: Copyright © 2026 Sapcon. All rights reserved.
+author: İsmail Orhan
+copyright: Copyright © 2026 İsmail Orhan
 
 # Plugin files live in bin/ on both platforms (package root also holds mac/QuickPromptPopup).
 pluginFolderWin: bin
@@ -28,3 +28,5 @@ minimumLoupedeckVersion: 6.4
 # Marketplace
 license: MIT
 licenseUrl: https://opensource.org/licenses/MIT
+homePageUrl: https://github.com/ismailorhan/quick-prompt-for-logi-action-rings
+supportPageUrl: https://github.com/ismailorhan/quick-prompt-for-logi-action-rings/issues
