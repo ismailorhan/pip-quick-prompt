@@ -164,6 +164,15 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 .aitem .run { flex: none; align-self: center; font-size: 11.5px; padding: 3px 10px; }
 .pedit .pname { color: var(--muted); font-size: 12px; }
 
+.srow.sub { margin-top: 10px; } .srow.sub .sname { font-weight: 500; font-size: 13px; }
+.setup { margin-top: 6px; padding: 6px 10px 8px; background: var(--faint); border-radius: 12px; max-height: 230px; overflow-y: auto; scrollbar-width: thin; }
+.setup .stitle { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 2px; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
+.chk input { accent-color: var(--accent); margin: 0; }
+.chk em { font-style: normal; font-size: 11px; color: var(--muted); }
+.chk.off { opacity: .55; cursor: default; }
+.setup a { color: var(--link); }
+
 /* History view */
 .history { border-radius: 22px; padding: 10px 10px 12px; }
 
@@ -266,6 +275,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <option value="claude-haiku-5-5">Claude Haiku 5.5 — fastest</option>
       </select></label>
       </div>
+      <div class="cli-only" data-for="claudeConnection">
+        <div class="srow sub"><span class="sname">Use my Claude Code setup</span>
+          <div class="seg" data-name="claudeSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
+        <div class="shint">Off: plain answers, fastest. On: the plugins, skills and MCP servers you tick can be used (slower). It can look things up and use the servers' tools, but cannot run commands or change files.</div>
+        <div class="setup" data-setup="claude" data-for="claudeSetupOn" hidden></div>
+      </div>
     </div>
     <div class="sgroup">
       <div class="srow"><span class="sname">ChatGPT</span>
@@ -274,6 +289,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <div class="api-only" data-for="chatgptConnection">
       <div class="skey"><label class="sfield">OpenAI API key<input type="password" id="chatgptKey" autocomplete="off" spellcheck="false" placeholder="sk-…"></label><button type="button" data-clear="chatgptKey" hidden>Remove</button></div>
       <label class="sfield">API model<input type="text" id="chatgptModel" spellcheck="false" placeholder="gpt-5-mini"></label>
+      </div>
+      <div class="cli-only" data-for="chatgptConnection">
+        <div class="srow sub"><span class="sname">Use my Codex setup</span>
+          <div class="seg" data-name="chatgptSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
+        <div class="shint">Off: none of your Codex MCP servers start (faster). On: the ones you tick are available. Codex stays read-only.</div>
+        <div class="setup" data-setup="chatgpt" data-for="chatgptSetupOn" hidden></div>
       </div>
     </div>
     <div class="sgroup">
@@ -585,6 +606,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     document.querySelectorAll('.seg[data-name="' + name + '"] button').forEach(b => b.classList.toggle("on", b.dataset.v === value));
     const fields = document.querySelector('.api-only[data-for="' + name + '"]');
     if (fields) fields.hidden = value !== "api";
+    const cli = document.querySelector('.cli-only[data-for="' + name + '"]');
+    if (cli) cli.hidden = value !== "cli";
+    const setup = document.querySelector('.setup[data-for="' + name + '"]');
+    if (setup) { setup.hidden = value !== "on"; if (value === "on") loadSetup(); }
     queueLayout();
   }
   document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => setSeg(b.parentElement.dataset.name, b.dataset.v)));
@@ -639,10 +664,72 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       }
       set.claudeModel.value = s.claude.model;
       set.chatgptModel.value = s.chatgpt.model;
+      setupData = null;
+      setSeg("claudeSetupOn", s.claude.setup ? "on" : "off");
+      setSeg("chatgptSetupOn", s.chatgpt.setup ? "on" : "off");
     } catch (e) {
       set.status.textContent = "Could not load settings";
     }
     queueLayout();
+  }
+
+  // ---------- "Use my setup": plugins, MCP servers, skills of the user's CLIs ----------
+  let setupData = null, setupLoading = null;
+  function loadSetup(refresh) {
+    if (setupData && !refresh) { renderSetup(); return; }
+    if (setupLoading) return;
+    document.querySelectorAll(".setup").forEach(el => { el.innerHTML = '<div class="shint">Reading your setup…</div>'; });
+    setupLoading = fetch(base + "setup" + (refresh ? "?refresh=1" : ""), { cache: "no-store" })
+      .then(r => r.json()).then(d => { setupData = d; }).catch(() => { setupData = { error: true }; })
+      .finally(() => { setupLoading = null; renderSetup(); });
+  }
+  function check(kind, id, label, on, disabled, note) {
+    return '<label class="chk' + (disabled ? ' off' : '') + '"><input type="checkbox" data-kind="' + kind + '" data-id="' + esc(id) + '"'
+      + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span>' + esc(label) + '</span>' + (note ? '<em>' + esc(note) + '</em>' : '') + '</label>';
+  }
+  function renderSetup() {
+    document.querySelectorAll(".setup").forEach(el => {
+      const d = setupData && setupData[el.dataset.setup];
+      if (!d) { el.innerHTML = '<div class="shint">Could not read your setup.</div>'; return; }
+      if (!d.installed) { el.innerHTML = '<div class="shint">The CLI was not found on this computer.</div>'; return; }
+      let html = "";
+      if (el.dataset.setup === "claude") {
+        html += '<div class="stitle">Plugins</div>' + (d.plugins.length
+          ? d.plugins.map(p => check("plugin", p.id, p.id.replace(/@.*$/, ""), p.on, !p.cliEnabled, p.cliEnabled ? "" : "off in Claude Code")).join("")
+          : '<div class="shint">No plugins installed.</div>');
+      }
+      html += '<div class="stitle">MCP servers</div>' + (d.servers.length
+        ? d.servers.map(s => check("server", s.name, s.name, s.on)).join("")
+        : '<div class="shint">No MCP servers in your ' + (el.dataset.setup === "claude" ? "user configuration (~/.claude.json)" : "~/.codex/config.toml") + '.</div>');
+      if (el.dataset.setup === "claude") {
+        html += '<div class="stitle">Other</div>'
+          + check("skills", "skills", "Skills" + (d.skillNames.length ? " (" + d.skillNames.join(", ") + ")" : ""), d.skills)
+          + check("web", "web", "Web search and fetch", d.web);
+      }
+      html += '<div class="shint">' + (d.error ? esc(d.error) + " " : "") + '<a href="#" data-refresh>Refresh</a></div>';
+      el.innerHTML = html;
+    });
+    queueLayout();
+  }
+  document.addEventListener("click", e => {
+    const a = e.target.closest("[data-refresh]");
+    if (a) { e.preventDefault(); loadSetup(true); }
+  });
+  function setupChoice(name) {
+    const el = document.querySelector('.setup[data-setup="' + name + '"]');
+    const on = segValues[name + "SetupOn"] === "on";
+    if (!setupData || !setupData[name] || !setupData[name].installed) return JSON.stringify({ enabled: on });
+    const box = (kind, id) => el.querySelector('input[data-kind="' + kind + '"][data-id="' + CSS.escape(id) + '"]');
+    const d = setupData[name];
+    const off = (kind, ids) => ids.filter(id => { const b = box(kind, id); return b && !b.disabled && !b.checked; });
+    const skills = box("skills", "skills"), web = box("web", "web");
+    return JSON.stringify({
+      enabled: on,
+      disabledPlugins: off("plugin", (d.plugins || []).map(p => p.id)),
+      disabledServers: off("server", d.servers.map(s => s.name)),
+      skills: skills ? skills.checked : d.skills,
+      web: web ? web.checked : d.web,
+    });
   }
 
   function closeSettings() {
@@ -665,6 +752,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       saveHistory: segValues.saveHistory,
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
+      claudeSetup: setupChoice("claude"), chatgptSetup: setupChoice("chatgpt"),
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }

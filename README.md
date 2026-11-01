@@ -70,6 +70,19 @@ Example presets:
 | Translate | ChatGPT | `Translate to English (or to Turkish if it is English). Reply with the translation only:\n\n{text}` | Replace selection |
 | Translate… | Claude | same prompt, Input: *Paste in popup* | Send now |
 
+## Your CLI setup (plugins, MCP servers, skills)
+
+By default the CLIs run as plain question and answer: no tools, none of your MCP servers, fastest.
+In **Settings**, with a provider on **CLI**, turn on **Use my Claude Code setup** / **Use my Codex setup**
+and tick what may be used:
+
+- **Claude Code:** installed plugins (from `claude plugin list`), MCP servers from your user configuration
+  (`~/.claude.json`), skills, and web search/fetch. No shell and no file-writing tools: it can look things up
+  and call the ticked servers' tools, but cannot change files.
+- **Codex:** MCP servers from `~/.codex/config.toml`. Codex stays in its read-only sandbox.
+
+Answers get slower when the setup is on (servers start and tools run). API connections never use it.
+
 ## Predefined actions
 
 Your own prompts, kept on this computer. Manage them from **Settings → Predefined actions → Manage…**, the

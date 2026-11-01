@@ -80,6 +80,12 @@ namespace QuickPrompt.Core
         /// <summary>Restore the previous clipboard text after reading the selection or pasting an answer.</summary>
         public Boolean RestoreClipboard { get; set; } = true;
 
+        /// <summary>Use the user's Claude Code plugins / MCP servers / skills in CLI calls (off: plain Q&amp;A).</summary>
+        public CliSetupChoice ClaudeSetup { get; set; } = new CliSetupChoice();
+
+        /// <summary>Use the user's Codex MCP servers in CLI calls (off: none are started).</summary>
+        public CliSetupChoice CodexSetup { get; set; } = new CliSetupChoice();
+
         public static QuickPromptSettings LoadOrCreate(String filePath, Action<String> log = null)
         {
             try

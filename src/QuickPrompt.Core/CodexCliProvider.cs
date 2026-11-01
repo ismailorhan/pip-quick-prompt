@@ -37,12 +37,12 @@ namespace QuickPrompt.Core
         {
             var lastFile = Path.Combine(this.WorkingDirectory, $".codex-last-{Environment.ProcessId}-{Interlocked.Increment(ref _counter)}.txt");
             return new CliInvocation(
-                BuildArguments(request, this.WorkingDirectory, lastFile),
+                BuildArguments(request, this.WorkingDirectory, lastFile, CliSetup.CodexArguments(this.Settings.CodexSetup, CliSetup.DiscoverCodex())),
                 BuildStdin(request),
                 new CodexStreamParser(() => ReadAndDelete(lastFile)));
         }
 
-        public static IReadOnlyList<String> BuildArguments(AiRequest request, String workingDirectory, String lastFile)
+        public static IReadOnlyList<String> BuildArguments(AiRequest request, String workingDirectory, String lastFile, IReadOnlyList<String> setup = null)
         {
 
             var args = new List<String>
@@ -61,6 +61,11 @@ namespace QuickPrompt.Core
             {
                 args.Add("-m");
                 args.Add(request.Model.Trim());
+            }
+
+            if (setup != null)
+            {
+                args.AddRange(setup);
             }
 
             args.Add("-");   // read the prompt from stdin

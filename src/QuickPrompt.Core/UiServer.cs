@@ -152,6 +152,13 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(this._manager.GetPresetsJson());
             }
 
+            if (request.Method == "GET" && action == "setup")
+            {
+                // Lists plugins by running the CLI: keep it off the request thread pool's hot path.
+                var refresh = request.Query("refresh") == "1";
+                return HttpResponse.Json(await Task.Run(() => this._manager.GetSetupJson(refresh)).ConfigureAwait(false));
+            }
+
             if (request.Method == "GET" && action == "actions")
             {
                 return HttpResponse.Json(this._manager.GetActionsJson());

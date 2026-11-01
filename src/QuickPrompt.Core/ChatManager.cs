@@ -340,14 +340,77 @@ namespace QuickPrompt.Core
                     model = s.ClaudeApiModel,
                     effort = s.ClaudeApiEffort,
                     keyHint = KeyHint(this._host.GetSecret(AnthropicApiProvider.SecretName)),
+                    setup = s.ClaudeSetup?.Enabled == true,
                 },
                 chatgpt = new
                 {
                     connection = s.ChatGptConnection,
                     model = s.OpenAiApiModel,
                     keyHint = KeyHint(this._host.GetSecret(OpenAiApiProvider.SecretName)),
+                    setup = s.CodexSetup?.Enabled == true,
                 },
             });
+        }
+
+        /// <summary>What the CLIs have installed and what Quick Prompt may use (Settings → "Use my setup").</summary>
+        public String GetSetupJson(Boolean refresh)
+        {
+            var s = this.Settings;
+            var claudeExe = CliLocator.Find("claude", s.ClaudePath);
+            var codexExe = CliLocator.Find("codex", s.CodexPath);
+            var claude = claudeExe != null ? CliSetup.DiscoverClaude(claudeExe, refresh) : new CliSetupInventory();
+            var codex = CliSetup.DiscoverCodex();
+
+            Object Describe(CliSetupChoice choice, CliSetupInventory inventory, Boolean installed) => new
+            {
+                installed,
+                enabled = choice.Enabled,
+                skills = choice.Skills,
+                web = choice.Web,
+                plugins = inventory.Plugins.Select(p => new { id = p.Id, cliEnabled = p.EnabledInCli, on = p.EnabledInCli && !choice.DisabledPlugins.Contains(p.Id) }).ToArray(),
+                servers = inventory.Servers.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).Select(n => new { name = n, on = !choice.DisabledServers.Contains(n) }).ToArray(),
+                skillNames = inventory.Skills,
+                error = inventory.Error,
+            };
+
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                claude = Describe(s.ClaudeSetup ??= new CliSetupChoice(), claude, claudeExe != null),
+                chatgpt = Describe(s.CodexSetup ??= new CliSetupChoice(), codex, codexExe != null),
+            });
+        }
+
+        private static CliSetupChoice ParseSetupChoice(String json, CliSetupChoice current)
+        {
+            if (String.IsNullOrWhiteSpace(json))
+            {
+                return current;
+            }
+
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                Boolean Flag(String name, Boolean fallback) =>
+                    root.TryGetProperty(name, out var v) && (v.ValueKind == System.Text.Json.JsonValueKind.True || v.ValueKind == System.Text.Json.JsonValueKind.False) ? v.GetBoolean() : fallback;
+                // A list that was not sent (the setup was still loading) keeps its saved value.
+                List<String> Names(String name, List<String> saved) =>
+                    root.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.Array
+                        ? v.EnumerateArray().Where(e => e.ValueKind == System.Text.Json.JsonValueKind.String).Select(e => e.GetString()).Distinct().ToList()
+                        : saved ?? new List<String>();
+                return new CliSetupChoice
+                {
+                    Enabled = Flag("enabled", current.Enabled),
+                    Skills = Flag("skills", current.Skills),
+                    Web = Flag("web", current.Web),
+                    DisabledPlugins = Names("disabledPlugins", current.DisabledPlugins),
+                    DisabledServers = Names("disabledServers", current.DisabledServers),
+                };
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return current;
+            }
         }
 
         /// <summary>
@@ -374,6 +437,9 @@ namespace QuickPrompt.Core
             {
                 s.OpenAiApiModel = Get("chatgptModel");
             }
+
+            s.ClaudeSetup = ParseSetupChoice(Get("claudeSetup"), s.ClaudeSetup ?? new CliSetupChoice());
+            s.CodexSetup = ParseSetupChoice(Get("chatgptSetup"), s.CodexSetup ?? new CliSetupChoice());
 
             if (Int32.TryParse(Get("popupScale"), out var scale))
             {

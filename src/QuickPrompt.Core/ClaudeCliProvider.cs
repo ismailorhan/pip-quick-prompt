@@ -29,10 +29,17 @@ namespace QuickPrompt.Core
 
         protected override String GetOverridePath(QuickPromptSettings settings) => settings.ClaudePath;
 
-        protected override CliInvocation CreateInvocation(AiRequest request) =>
-            new CliInvocation(BuildArguments(request), request.Prompt ?? "", new ClaudeStreamParser());
+        protected override CliInvocation CreateInvocation(AiRequest request)
+        {
+            var choice = this.Settings.ClaudeSetup;
+            var setup = choice != null && choice.Enabled
+                ? CliSetup.ClaudeArguments(choice, CliSetup.DiscoverClaude(this.LocateExecutable()))
+                : null;
+            return new CliInvocation(BuildArguments(request, setup), request.Prompt ?? "", new ClaudeStreamParser());
+        }
 
-        public static IReadOnlyList<String> BuildArguments(AiRequest request)
+        /// <param name="setup">The tool / MCP flags for "use my setup"; null for plain question and answer.</param>
+        public static IReadOnlyList<String> BuildArguments(AiRequest request, IReadOnlyList<String> setup = null)
         {
             var args = new List<String>
             {
@@ -40,10 +47,11 @@ namespace QuickPrompt.Core
                 "--output-format", "stream-json",
                 "--verbose",
                 "--include-partial-messages",
-                "--tools", "",                 // no file/shell/web tools: plain question and answer
-                "--strict-mcp-config",          // do not start the user's MCP servers (faster, nothing to call)
                 "--no-session-persistence",
             };
+
+            // Default: no tools and none of the user's MCP servers (plain question and answer, fastest).
+            args.AddRange(setup ?? new[] { "--tools", "", "--strict-mcp-config" });
 
             if (!String.IsNullOrWhiteSpace(request.Model))
             {
