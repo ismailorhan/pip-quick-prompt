@@ -99,6 +99,28 @@ namespace QuickPrompt.Core
             }
         }
 
+        /// <summary>Starts a new, empty conversation in this popup (same provider and preset title).</summary>
+        public Boolean StartNew()
+        {
+            lock (this._lock)
+            {
+                if (this._busy)
+                {
+                    return false;
+                }
+
+                this.HistoryId = Guid.NewGuid().ToString("N");
+                this.CreatedUtc = DateTime.UtcNow;
+                this.PresetInstruction = "";
+                this.DraftInstruction = "";
+                this.DraftContext = "";
+                this.Notice = "";
+                this._messages.Clear();
+                this.TouchLocked();
+                return true;
+            }
+        }
+
         /// <summary>Continues a saved conversation in this popup. Not allowed while a turn is running.</summary>
         public Boolean ResumeFrom(ConversationRecord record, IAiProvider provider)
         {

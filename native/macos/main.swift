@@ -9,6 +9,7 @@
 // Build: ./build.sh  (needs Xcode Command Line Tools: xcode-select --install)
 
 import AppKit
+import QuartzCore
 import WebKit
 
 let defaultPopupWidth: CGFloat = 520
@@ -67,6 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     /// Pinned popups survive new popups (and collapse to an icon instead of closing; the page handles that).
     private var pinned = false
     private var dragTimer: Timer?
+    private var dragStart = NSPoint.zero
+    private var dragOrigin = NSPoint.zero
+    private var dragSamples: [(time: TimeInterval, point: NSPoint)] = []
 
     init(url: URL) {
         self.url = url
@@ -164,26 +168,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     }
 
     /// Moves the panel with the mouse until the button is released (started by the page on mouse down).
+    /// A quick throw sends it to the screen corner in that direction; otherwise it stays where dropped.
     private func startDrag() {
-        let start = NSEvent.mouseLocation
-        let origin = panel.frame.origin
+        dragStart = NSEvent.mouseLocation
+        dragOrigin = panel.frame.origin
+        dragSamples = []
         dragTimer?.invalidate()
-        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
-            }
-            if NSEvent.pressedMouseButtons & 1 == 0 {
-                timer.invalidate()
-                self.dragTimer = nil
-                return
-            }
-            let now = NSEvent.mouseLocation
-            self.panel.setFrameOrigin(NSPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y))
-        }
+        let timer = Timer(timeInterval: 1.0 / 120.0, target: self, selector: #selector(dragTick(_:)), userInfo: nil, repeats: true)
         // .common so it also runs while the web view is tracking the mouse.
         RunLoop.main.add(timer, forMode: .common)
         dragTimer = timer
+    }
+
+    @objc private func dragTick(_ timer: Timer) {
+        let now = NSEvent.mouseLocation
+        let time = ProcessInfo.processInfo.systemUptime
+        dragSamples.append((time, now))
+        dragSamples.removeAll { time - $0.time > 0.08 }
+        if NSEvent.pressedMouseButtons & 1 == 0 {
+            timer.invalidate()
+            dragTimer = nil
+            finishDrag(dragSamples)
+            return
+        }
+        panel.setFrameOrigin(NSPoint(x: dragOrigin.x + now.x - dragStart.x, y: dragOrigin.y + now.y - dragStart.y))
+    }
+
+    private func finishDrag(_ samples: [(time: TimeInterval, point: NSPoint)]) {
+        let screen = (panel.screen ?? NSScreen.main)?.visibleFrame ?? visibleArea
+        visibleArea = screen
+        let frame = panel.frame
+        let margin: CGFloat = 16
+        var target = frame
+
+        if let first = samples.first, let last = samples.last, last.time - first.time > 0.01 {
+            let dt = CGFloat(last.time - first.time)
+            let vx = (last.point.x - first.point.x) / dt
+            let vy = (last.point.y - first.point.y) / dt
+            let speed = hypot(vx, vy)
+            if speed > 1400 {
+                // Thrown: go to the corner (or edge) in the direction of the throw.
+                if abs(vx) > speed * 0.3 {
+                    target.origin.x = vx > 0 ? screen.maxX - frame.width - margin : screen.minX + margin
+                }
+                if abs(vy) > speed * 0.3 {
+                    target.origin.y = vy > 0 ? screen.maxY - frame.height - margin : screen.minY + margin
+                }
+            }
+        }
+
+        // Always end fully on screen.
+        target.origin.x = min(max(target.origin.x, screen.minX + 4), screen.maxX - frame.width - 4)
+        target.origin.y = min(max(target.origin.y, screen.minY + 4), screen.maxY - frame.height - 4)
+
+        if target.origin != frame.origin {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.28
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                self.panel.animator().setFrame(target, display: true)
+            }, completionHandler: { [weak self] in
+                guard let self = self else { return }
+                self.topLeft = NSPoint(x: self.panel.frame.minX, y: self.panel.frame.maxY)
+            })
+        }
+        topLeft = NSPoint(x: target.minX, y: target.maxY)
     }
 
     /// Places one glass view behind each rectangle reported by the page (CSS pixels, top-left origin).
@@ -266,6 +314,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             startDrag()
         case "pin":
             pinned = (body["value"] as? Bool) ?? false
+            // Pinned: above other apps' floating windows too, on every Space and over full-screen apps.
+            panel.level = pinned ? .statusBar : .floating
         default:
             break
         }

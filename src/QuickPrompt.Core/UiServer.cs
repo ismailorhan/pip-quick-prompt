@@ -158,6 +158,9 @@ namespace QuickPrompt.Core
             var body = ParseJson(request.Body);
             switch (action)
             {
+                case "new":
+                    return session.StartNew() ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
+
                 case "resume":
                     var resumed = this._manager.ResumeConversation(session, GetString(body, "id"));
                     return resumed ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);

@@ -100,6 +100,21 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task New_conversation_keeps_the_old_one_in_history()
+        {
+            var session = await this.AskAsync("first topic");
+            var oldId = session.HistoryId;
+            Assert.True(session.StartNew());
+            Assert.NotEqual(oldId, session.HistoryId);
+            Assert.Equal(0, JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("messages").GetArrayLength());
+
+            Assert.True(session.StartTurn("second topic", ""));
+            await session.CurrentTurn;
+            Assert.DoesNotContain("first topic", this._claudeCli.Requests.Last().Prompt);
+            Assert.Equal(2, History().GetProperty("items").GetArrayLength());
+        }
+
+        [Fact]
         public void Store_rejects_bad_ids_and_prunes()
         {
             var store = new ConversationStore(Path.Combine(this._dir, "store"));
