@@ -499,7 +499,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const key = JSON.stringify([width, height, rects]);
       if (key === lastLayout) return;
       lastLayout = key;
-      bridge.postMessage({ type: "layout", width, height, rects });
+      // Floating icon: where the icon's middle is, so the panel can keep the icon still while the
+      // toolbar under it opens or tucks (that column changes width).
+      const icon = collapsed ? $("miniOpen").getBoundingClientRect() : null;
+      const anchorX = icon ? icon.left + icon.width / 2 : null;
+      bridge.postMessage({ type: "layout", width, height, rects, anchorX });
     });
   }
   const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;

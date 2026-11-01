@@ -81,6 +81,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// app gets no hover events from WebKit while another app is in front.
     private var hoverTimer: Timer?
     private var mouseInside = false
+    /// The icon's middle inside the page at the last layout (floating icon only).
+    private var lastAnchorX: CGFloat?
 
     init(url: URL) {
         self.url = url
@@ -472,6 +474,12 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         switch type {
         case "layout":
             if let value = body["height"] as? Double {
+                // Keep the floating icon where it is when its column changes width.
+                let anchor = (body["anchorX"] as? Double).map { CGFloat($0) }
+                if isMini, let anchor = anchor, let previous = lastAnchorX, abs(anchor - previous) > 0.5 {
+                    topLeft.x -= anchor - previous
+                }
+                lastAnchorX = isMini ? anchor : nil
                 setSize(width: (body["width"] as? Double).map { CGFloat($0) }, height: CGFloat(value))
             }
             if let rects = body["rects"] as? [[String: Any]] {
@@ -492,6 +500,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                 miniTopLeft = topLeft
             }
             isMini = mini
+            lastAnchorX = nil
             watchHover(mini)
         case "menu":
             if let items = body["items"] as? [[String: Any]] {
