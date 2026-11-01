@@ -81,8 +81,12 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// app gets no hover events from WebKit while another app is in front.
     private var hoverTimer: Timer?
     private var mouseInside = false
-    /// The icon's middle inside the page at the last layout (floating icon only).
+    /// The icon's middle: inside the page at the last layout, and on screen. The panel keeps the icon
+    /// where it is while the conversation opens beside it, the toolbar opens under it, and so on.
     private var lastAnchorX: CGFloat?
+    private var iconScreenX: CGFloat?
+    /// Which side of the conversation the icon sits on: away from the nearer screen edge.
+    private var side = "left"
 
     init(url: URL) {
         self.url = url
@@ -95,6 +99,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
         updateArea(screen)
+        side = mouse.x > visibleArea.midX ? "right" : "left"
+        iconScreenX = mouse.x
         let initialHeight: CGFloat = 76
         let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
@@ -125,7 +131,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         config.userContentController.add(self, name: "quickPrompt")
         let glassKind = glassViewClass != nil ? "liquid" : "vibrancy"
         config.userContentController.addUserScript(WKUserScript(
-            source: "window.__quickPromptNative = { glass: '\(glassKind)' };",
+            source: "window.__quickPromptNative = { glass: '\(glassKind)', side: '\(side)' };",
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true))
         webView = WKWebView(frame: container.bounds, configuration: config)
@@ -380,6 +386,20 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         if isMini {
             miniTopLeft = topLeft
         }
+        if let anchor = lastAnchorX {
+            iconScreenX = target.minX + anchor
+        }
+        // Dropped on the other half of the screen: the conversation moves to the icon's other side.
+        updateSide()
+    }
+
+    /// Puts the icon on the side away from the nearer screen edge (the page lays itself out mirrored).
+    private func updateSide() {
+        let x = iconScreenX ?? panel.frame.midX
+        let next = x > visibleArea.midX ? "right" : "left"
+        guard next != side else { return }
+        side = next
+        webView?.evaluateJavaScript("window.__quickPromptSide && window.__quickPromptSide('\(next)')", completionHandler: nil)
     }
 
     // MARK: context menu (right click on the floating icon)
@@ -396,6 +416,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             let menuItem = NSMenuItem(title: title, action: #selector(menuItemSelected(_:)), keyEquivalent: "")
             menuItem.target = self
             menuItem.representedObject = id
+            if (item["checked"] as? Bool) == true {
+                menuItem.state = .on
+            }
             menu.addItem(menuItem)
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
@@ -476,11 +499,14 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             if let value = body["height"] as? Double {
                 // Keep the floating icon where it is when its column changes width.
                 let anchor = (body["anchorX"] as? Double).map { CGFloat($0) }
-                if isMini, let anchor = anchor, let previous = lastAnchorX, abs(anchor - previous) > 0.5 {
-                    topLeft.x -= anchor - previous
+                if let anchor = anchor, let screenX = iconScreenX {
+                    topLeft.x = screenX - anchor
                 }
-                lastAnchorX = isMini ? anchor : nil
+                lastAnchorX = anchor
                 setSize(width: (body["width"] as? Double).map { CGFloat($0) }, height: CGFloat(value))
+                if let anchor = anchor {
+                    iconScreenX = panel.frame.minX + anchor
+                }
             }
             if let rects = body["rects"] as? [[String: Any]] {
                 layoutGlass(rects)
@@ -491,17 +517,11 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         case "drag":
             startDrag()
         case "mode":
+            // The icon stays where it is either way; the conversation opens on its free side.
             let mini = (body["value"] as? String) == "mini"
-            if mini && !isMini {
-                // Back to where the icon was left (not where the popup happened to be).
-                if let saved = miniTopLeft { topLeft = saved }
-            } else if !mini && isMini {
-                // The popup opens from the icon's place; remember it for the way back.
-                miniTopLeft = topLeft
-            }
             isMini = mini
-            lastAnchorX = nil
             watchHover(mini)
+            updateSide()
         case "menu":
             if let items = body["items"] as? [[String: Any]] {
                 showMenu(items)
@@ -550,6 +570,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
 
     func windowDidMove(_ notification: Notification) {
         topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        if let anchor = lastAnchorX {
+            iconScreenX = panel.frame.minX + anchor
+        }
         if isMini {
             miniTopLeft = topLeft
         }

@@ -34,7 +34,13 @@ html, body { margin: 0; color: var(--text); font: 14px/1.5 -apple-system, BlinkM
 body { background: var(--page); min-height: 100vh; }
 html.native, html.native body { background: transparent; min-height: 0; }
 
-#root { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+#root { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px; }
+/* The icon sits beside the conversation, on the side away from the nearer screen edge (set natively). */
+#root.side-right { flex-direction: row-reverse; }
+#main { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+#root.is-mini #main { display: none; }
+#root:not(.is-mini) .minibar { display: none; }
+#root:not(.is-mini) .plist, #root:not(.is-mini) .bubble { display: none; }
 
 /* Glass shapes: CSS imitation; the native panel draws real glass behind transparent shapes. */
 .glass {
@@ -183,7 +189,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .pinned { color: var(--accent) !important; }
 
 /* Collapsed (pinned): a free-floating mark, a small glass toolbar, and a notification bubble. No window. */
-#root.is-mini { padding: 8px; display: inline-flex; flex-direction: row; align-items: flex-start; gap: 10px; }
+#root.is-mini { display: inline-flex; }
 .mini { zoom: var(--mini-zoom, 1); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .mascot { width: 64px; height: 64px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.4)) !important; padding: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; cursor: grab; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
 .mascot:hover { background: transparent; transform: translateY(-1px); }
@@ -237,8 +243,36 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 </head>
 <body>
 <div id="root">
+  <div class="mini" id="mini" hidden>
+    <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="56" height="56">
+      <defs>
+        <linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
+        <radialGradient id="qpDisc" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
+        <linearGradient id="qpGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11.2" fill="url(#qpDisc)" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
+      <g class="links" stroke="url(#qpMini)" stroke-linecap="round" fill="none"></g>
+      <g class="rays" stroke="url(#qpMini)" stroke-width="1.15" stroke-linecap="round">
+        <g class="piece" data-cx="16.8" data-cy="7.2"><path d="M16.1 7.9L17.5 6.5"/></g>
+        <g class="piece" data-cx="16.8" data-cy="16.8"><path d="M16.1 16.1L17.5 17.5"/></g>
+        <g class="piece" data-cx="7.2" data-cy="16.8"><path d="M7.9 16.1L6.5 17.5"/></g>
+        <g class="piece" data-cx="7.2" data-cy="7.2"><path d="M7.9 7.9L6.5 6.5"/></g>
+      </g>
+      <g class="signals"></g>
+      <g class="core"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
+      <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
+    </svg></button>
+    <div class="minibar glass" id="minibar">
+      <button type="button" id="miniNew" title="New chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+      <span class="sep"></span>
+      <button type="button" id="miniRecent" title="Recent chats"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
+      <span class="sep"></span>
+      <button type="button" id="miniActions" title="Prompt templates"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg></button>
+    </div>
+  </div>
+  <div id="main">
   <div class="card" id="card" hidden>
-    <div class="meta head glass" data-drag>
+    <div class="meta head glass" data-drag hidden>
       <span class="dot"></span>
       <span id="who"></span>
       <span class="title" id="title"></span>
@@ -353,35 +387,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <div class="actions"><button type="button" class="primary" id="afSave">Save</button><button type="button" id="afCancel">Cancel</button><span style="flex:1"></span><button type="button" id="afDelete">Delete</button></div>
     </div>
   </div>
-  <div class="mini" id="mini" hidden>
-    <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="56" height="56">
-      <defs>
-        <linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
-        <radialGradient id="qpDisc" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
-        <linearGradient id="qpGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
-      </defs>
-      <circle cx="12" cy="12" r="11.2" fill="url(#qpDisc)" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
-      <g class="links" stroke="url(#qpMini)" stroke-linecap="round" fill="none"></g>
-      <g class="rays" stroke="url(#qpMini)" stroke-width="1.15" stroke-linecap="round">
-        <g class="piece" data-cx="16.8" data-cy="7.2"><path d="M16.1 7.9L17.5 6.5"/></g>
-        <g class="piece" data-cx="16.8" data-cy="16.8"><path d="M16.1 16.1L17.5 17.5"/></g>
-        <g class="piece" data-cx="7.2" data-cy="16.8"><path d="M7.9 16.1L6.5 17.5"/></g>
-        <g class="piece" data-cx="7.2" data-cy="7.2"><path d="M7.9 7.9L6.5 6.5"/></g>
-      </g>
-      <g class="signals"></g>
-      <g class="core"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
-      <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
-    </svg></button>
-    <div class="minibar glass" id="minibar">
-      <button type="button" id="miniNew" title="New chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
-      <span class="sep"></span>
-      <button type="button" id="miniRecent" title="Recent chats"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
-      <span class="sep"></span>
-      <button type="button" id="miniActions" title="Prompt templates"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg></button>
-    </div>
-  </div>
-  <div class="plist glass" id="presetList" hidden><div class="ptitle">Prompt templates</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit templates…</span></button></div>
-  <div class="bubble glass" id="bubble" hidden><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
   <div class="fields glass" id="fieldsBox" hidden><div class="ftitle" id="fieldsTitle"></div><div class="flist" id="fieldList"></div></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar" data-drag>
@@ -392,6 +397,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     <button type="button" class="round gear" id="barGear" title="Settings"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
   </div>
+  </div>
+  <div class="plist glass" id="presetList" hidden><div class="ptitle">Prompt templates</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit templates…</span></button></div>
+  <div class="bubble glass" id="bubble" hidden><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -495,14 +503,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         .filter(r => r.h > 1);
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
-      const width = collapsed ? Math.ceil(box.width) : (settingsOpen || actionsOpen ? 520 : size.w);
-      const key = JSON.stringify([width, height, rects]);
+      const side = mini.hidden ? 0 : Math.ceil(mini.getBoundingClientRect().width) + 10;
+      const width = collapsed ? Math.ceil(box.width) : (settingsOpen || actionsOpen ? 520 : size.w) + side;
+      // Where the icon's middle will be in a panel of this width, so the panel can keep the icon still
+      // on screen while things around it change (toolbar opening, conversation opening on either side).
+      const icon = mini.hidden ? null : $("miniOpen").getBoundingClientRect();
+      const anchorX = !icon ? null
+        : els.root.classList.contains("side-right") ? width - (box.right - (icon.left + icon.width / 2))
+        : icon.left + icon.width / 2 - box.left;
+      const key = JSON.stringify([width, height, rects, anchorX]);
       if (key === lastLayout) return;
       lastLayout = key;
-      // Floating icon: where the icon's middle is, so the panel can keep the icon still while the
-      // toolbar under it opens or tucks (that column changes width).
-      const icon = collapsed ? $("miniOpen").getBoundingClientRect() : null;
-      const anchorX = icon ? icon.left + icon.width / 2 : null;
       bridge.postMessage({ type: "layout", width, height, rects, anchorX });
     });
   }
@@ -850,7 +861,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   function expand() {
     collapsed = false;
-    mini.hidden = true;
+    mini.hidden = !bridge;   // in the native popup the icon stays beside the conversation
+    setTimeout(() => globe.start(), 0);
     bubble.hidden = true;
     $("presetList").hidden = true;
     if (bridge) bridge.postMessage({ type: "mode", value: "full" });
@@ -918,23 +930,46 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   // Right click on the icon: native menu (Open, Settings, Close).
-  mini.addEventListener("contextmenu", e => {
-    if (!bridge) return;
-    e.preventDefault();
-    bridge.postMessage({ type: "menu", items: [
-      { id: "open", title: "Open" },
+  // Right click (on the icon or anywhere that is not text): the native menu with everything that used
+  // to sit in the popup's top row.
+  function menuItems() {
+    return [
+      ...(collapsed ? [{ id: "open", title: "Open" }] : []),
+      { id: "new", title: "New Chat" },
+      { id: "recent", title: "Recent Chats" },
       { id: "actions", title: "Prompt Templates…" },
+      { separator: true },
+      { id: "pin", title: "Pin", checked: pinned },
       { id: "settings", title: "Settings…" },
       { separator: true },
       { id: "close", title: "Close" },
-    ] });
+    ];
+  }
+  document.addEventListener("contextmenu", e => {
+    if (!bridge) return;
+    if (e.target.closest("textarea, input, select")) return;            // keep the text field's own menu
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && e.target.closest(".thread")) return;  // and Copy for selected answer text
+    e.preventDefault();
+    bridge.postMessage({ type: "menu", items: menuItems() });
   });
-  window.__quickPromptMenu = id => {
+  window.__quickPromptMenu = async id => {
     if (id === "open") expand();
+    else if (id === "new") { const res = await post("new"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
+    else if (id === "recent") { expand(); openHistory(false); }
     else if (id === "settings") { expand(); openSettings(false); }
     else if (id === "actions") { expand(); openActions(false); }
+    else if (id === "pin") setPinned(!pinned);
     else if (id === "close") closeWindow();
   };
+  // Which side of the conversation the icon sits on (the native panel decides from the screen position).
+  window.__quickPromptSide = side => {
+    els.root.classList.toggle("side-right", side === "right");
+    lastLayout = "";
+    queueLayout();
+  };
+  if (nativeInfo.side) els.root.classList.toggle("side-right", nativeInfo.side === "right");
+  if (bridge) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
   $("miniNew").addEventListener("click", async () => {
     const res = await post("new");
     if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }
@@ -1013,7 +1048,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
 
     function frame(now) {
-      if (!collapsed || document.hidden) { running = false; return; }
+      if (mini.hidden || document.hidden) { running = false; return; }
       requestAnimationFrame(frame);
       if (last && now - last < 30) return;          // ~30 fps is plenty for this and saves energy
       const dt = Math.min(0.06, (now - (last || now)) / 1000);
@@ -1088,7 +1123,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       }
     }
     function start() {
-      if (running || !collapsed) return;
+      if (running || mini.hidden) return;
       running = true; last = 0;
       requestAnimationFrame(frame);
     }
@@ -1144,7 +1179,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // A click on the icon opens it again; a drag (the icon moved under the mouse) does not.
   $("miniOpen").addEventListener("click", e => {
     if (downAt && Math.abs(e.screenX - downAt.x) + Math.abs(e.screenY - downAt.y) > 4) return;
-    expand();
+    if (collapsed) expand(); else collapse();   // the icon beside the conversation tucks it away
   });
 
   // ---------- history ----------
