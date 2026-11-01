@@ -72,17 +72,6 @@ namespace QuickPrompt.Core
             }
         }
 
-        /// <summary>Raised after an API key was added, replaced or removed (e.g. to refresh Options+ "Plugin settings").</summary>
-        public event Action SecretsChanged;
-
-        /// <summary>Masked hint ("••••1234") of a stored key, or "" when none.</summary>
-        public String GetKeyHint(String secretName) => KeyHint(this._host.GetSecret(secretName));
-
-        public void RemoveKey(String secretName)
-        {
-            this._host.SetSecret(secretName, null);
-            this.SecretsChanged?.Invoke();
-        }
 
         public WindowLauncher Launcher { get; }
 
@@ -217,22 +206,15 @@ namespace QuickPrompt.Core
             s.Save(this._settingsPath);
             this._settingsReadUtc = SafeLastWrite(this._settingsPath);
 
-            var changed = SaveKey(AnthropicApiProvider.SecretName, Get("claudeKey"));
-            changed |= SaveKey(OpenAiApiProvider.SecretName, Get("chatgptKey"));
-            if (changed)
-            {
-                this.SecretsChanged?.Invoke();
-            }
+            SaveKey(AnthropicApiProvider.SecretName, Get("claudeKey"));
+            SaveKey(OpenAiApiProvider.SecretName, Get("chatgptKey"));
 
-            Boolean SaveKey(String name, String value)
+            void SaveKey(String name, String value)
             {
-                if (String.IsNullOrEmpty(value))
+                if (!String.IsNullOrEmpty(value))
                 {
-                    return false;
+                    this._host.SetSecret(name, value == "-" ? null : value);
                 }
-
-                this._host.SetSecret(name, value == "-" ? null : value);
-                return true;
             }
         }
 

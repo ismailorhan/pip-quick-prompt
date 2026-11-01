@@ -18,7 +18,7 @@ Press a ring button and the selection, together with that button's prompt, is se
 
 1. Download `QuickPrompt.lplug4` from the [latest release](../../releases/latest) (or the rolling **Latest build** pre-release).
 2. Double-click it. Logi Options+ installs the plugin.
-3. Choose how each provider connects. Open the Settings popup in any of three ways: Options+ → Quick Prompt → ⋮ → **Plugin settings** → **Add key**; the **Quick Prompt Settings** ring action; or ⚙ in the popup. Plugin settings also shows each stored key (`••••1234`), with **Remove key**.
+3. Choose how each provider connects. Open the Settings popup with ⚙ in any Quick Prompt popup, or with the **Quick Prompt Settings** ring action. (Options+ "Plugin settings" cannot host plugin settings: it only shows the description and language.)
    - **CLI:** the CLI must be installed and signed in (below).
    - **API:** paste an Anthropic or OpenAI API key. Keys are stored encrypted by Logi Plugin Service, on this computer only.
 
