@@ -61,8 +61,13 @@ namespace QuickPrompt.Core
 
         public Int32 WindowHeight { get; set; } = 560;
 
-        /// <summary>Popup size: "small", "medium" or "large" (width and answer height).</summary>
-        public String PopupSize { get; set; } = "medium";
+        /// <summary>Popup size, 0 (smallest) … 100 (largest): sets the width and the answer height.</summary>
+        public Int32? PopupScale { get; set; }
+
+        /// <summary>Older setting ("small" / "medium" / "large"); read once to seed PopupScale.</summary>
+        public String PopupSize { get; set; } = "";
+
+        public const Int32 DefaultPopupScale = 30;
 
         /// <summary>Keep the last conversations on this computer so they can be reopened and continued.</summary>
         public Boolean SaveHistory { get; set; } = true;
@@ -118,7 +123,14 @@ namespace QuickPrompt.Core
             this.CodexPath ??= "";
             this.BrowserPath ??= "";
             this.PopupPath ??= "";
-            this.PopupSize = this.PopupSize?.Trim().ToLowerInvariant() is "small" or "large" ? this.PopupSize.Trim().ToLowerInvariant() : "medium";
+            this.PopupScale ??= (this.PopupSize ?? "").Trim().ToLowerInvariant() switch
+            {
+                "small" => 5,
+                "large" => 85,
+                _ => DefaultPopupScale,
+            };
+            this.PopupScale = Math.Clamp(this.PopupScale.Value, 0, 100);
+            this.PopupSize = "";
             this.SystemPrompt ??= "";
             this.ClaudeConnection = ConnectionModes.Normalize(this.ClaudeConnection, ConnectionModes.Cli);
             this.ChatGptConnection = ConnectionModes.Normalize(this.ChatGptConnection, ConnectionModes.Cli);

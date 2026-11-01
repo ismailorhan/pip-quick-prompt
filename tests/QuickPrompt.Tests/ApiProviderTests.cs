@@ -326,17 +326,26 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
-        public void Popup_size_is_saved_validated_and_reported()
+        public void Popup_scale_is_saved_clamped_and_reported()
         {
             var session = this._manager.CreateSession(ProviderIds.Claude, "", "");
-            Assert.Equal("medium", JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("popupSize").GetString());
+            Assert.Equal(QuickPromptSettings.DefaultPopupScale, JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("popupScale").GetInt32());
 
-            this._manager.SaveSettings(new Dictionary<string, string> { ["popupSize"] = "large" });
-            Assert.Equal("large", JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("popupSize").GetString());
-            Assert.Equal("large", JsonDocument.Parse(this._manager.GetSettingsJson()).RootElement.GetProperty("popupSize").GetString());
+            this._manager.SaveSettings(new Dictionary<string, string> { ["popupScale"] = "72" });
+            Assert.Equal(72, JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("popupScale").GetInt32());
+            Assert.Equal(72, JsonDocument.Parse(this._manager.GetSettingsJson()).RootElement.GetProperty("popupScale").GetInt32());
 
-            this._manager.SaveSettings(new Dictionary<string, string> { ["popupSize"] = "huge" });
-            Assert.Equal("large", this._manager.Settings.PopupSize);
+            this._manager.SaveSettings(new Dictionary<string, string> { ["popupScale"] = "250" });
+            Assert.Equal(100, this._manager.Settings.PopupScale);
+        }
+
+        [Fact]
+        public void Older_popup_size_setting_is_carried_over()
+        {
+            File.WriteAllText(this._manager.SettingsPath, "{\"PopupSize\": \"large\", \"ClaudeConnection\": \"api\"}");
+            File.SetLastWriteTimeUtc(this._manager.SettingsPath, DateTime.UtcNow.AddSeconds(5));
+            Assert.Equal(85, this._manager.Settings.PopupScale);
+            Assert.Equal("api", this._manager.Settings.ClaudeConnection);
         }
 
         [Fact]

@@ -337,7 +337,7 @@ namespace QuickPrompt.Core
                     connection = this.Connection,
                     showSettings = this.ShowSettings,
                     showHistory = this.ShowHistory,
-                    popupSize = this._settings().PopupSize,
+                    popupScale = this._settings().PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);

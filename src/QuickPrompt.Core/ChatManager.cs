@@ -235,7 +235,7 @@ namespace QuickPrompt.Core
             {
                 version = AppVersion,
                 saveHistory = s.SaveHistory,
-                popupSize = s.PopupSize,
+                popupScale = s.PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -277,9 +277,9 @@ namespace QuickPrompt.Core
                 s.OpenAiApiModel = Get("chatgptModel");
             }
 
-            if (Get("popupSize") is "small" or "medium" or "large")
+            if (Int32.TryParse(Get("popupScale"), out var scale))
             {
-                s.PopupSize = Get("popupSize");
+                s.PopupScale = Math.Clamp(scale, 0, 100);
             }
 
             if (Get("saveHistory") is "true" or "false")

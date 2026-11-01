@@ -111,6 +111,17 @@ textarea::placeholder { color: var(--muted); }
 .seg { display: inline-flex; background: var(--faint); border-radius: 999px; padding: 2px; }
 .seg button { background: transparent; padding: 3px 14px; font-size: 12px; color: var(--muted); }
 .seg button.on { background: var(--chip); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.slider { display: flex; align-items: center; gap: 8px; width: 220px; }
+.slider .sz { color: var(--muted); font-weight: 600; line-height: 1; }
+.slider .sz.small { font-size: 10px; } .slider .sz.big { font-size: 16px; }
+input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 22px; background: transparent; margin: 0; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent) 0 var(--fill, 30%), var(--faint) var(--fill, 30%) 100%); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; margin-top: -7px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--faint); }
+input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+input[type=range]:focus-visible { outline: none; }
+input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
 .shint { font-size: 11.5px; color: var(--muted); margin: 5px 0 2px; }
 .sfield { display: block; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
 .sfield input, .sfield select { display: block; width: 100%; margin-top: 3px; font: inherit; font-size: 13px; color: var(--text); background: var(--faint); border: 0; border-radius: 9px; padding: 7px 10px; outline: none; }
@@ -215,7 +226,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
     <div class="sgroup">
       <div class="srow"><span class="sname">Popup size</span>
-        <div class="seg" data-name="popupSize"><button type="button" data-v="small">Small</button><button type="button" data-v="medium">Medium</button><button type="button" data-v="large">Large</button></div></div>
+        <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Popup size"><span class="sz big">A</span></div></div>
     </div>
     <div class="sgroup">
       <div class="srow"><span class="sname">History</span>
@@ -318,11 +329,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   // ---------- native layout: panel height + glass shapes ----------
-  // Popup size (Settings): width of the panel and height of the answer area.
-  const SIZES = { small: { w: 440, h: 260 }, medium: { w: 520, h: 380 }, large: { w: 680, h: 540 } };
-  let size = SIZES.medium, sizeKnown = false, collapsed = false, pinned = false;
-  function applySize(name) {
-    size = SIZES[name] || SIZES.medium;
+  // Popup size (Settings slider, 0 = smallest … 100 = largest): panel width and answer height.
+  let scale = -1, size = { w: 520, h: 380 }, sizeKnown = false, collapsed = false, pinned = false;
+  function applySize(value) {
+    const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 30));
+    scale = v;
+    size = { w: Math.round(400 + v * 4.2), h: Math.round(220 + v * 4) };
     sizeKnown = true;
     document.documentElement.style.setProperty("--thread-max", size.h + "px");
     queueLayout();
@@ -478,6 +490,19 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     b.hidden = true;
   }));
 
+  // The slider resizes the popup live; Cancel goes back to the saved size.
+  const sizeSlider = $("sizeSlider");
+  let savedScale = 30;
+  function setSlider(value) {
+    savedScale = Number.isFinite(+value) ? +value : 30;
+    sizeSlider.value = savedScale;
+    sizeSlider.style.setProperty("--fill", savedScale + "%");
+  }
+  sizeSlider.addEventListener("input", () => {
+    sizeSlider.style.setProperty("--fill", sizeSlider.value + "%");
+    applySize(sizeSlider.value);
+  });
+
   async function openSettings(only) {
     settingsOnly = !!only;
     settingsOpen = true;
@@ -490,7 +515,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("claudeConnection", s.claude.connection);
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
-      setSeg("popupSize", s.popupSize || "medium");
+      setSlider(s.popupScale);
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
       if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
@@ -505,6 +530,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   function closeSettings() {
+    if (scale !== savedScale) applySize(savedScale);
     if (settingsOnly) { closeWindow(); return; }
     settingsOpen = false;
     set.view.hidden = true; els.bar.hidden = false;
@@ -521,11 +547,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       claudeModel: set.claudeModel.value, chatgptModel: set.chatgptModel.value.trim(),
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
-      popupSize: segValues.popupSize,
+      popupScale: String(sizeSlider.value),
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
-    try { applySize((await res.json()).popupSize); } catch (e) {}
+    try { savedScale = (await res.json()).popupScale; applySize(savedScale); } catch (e) {}
     toast("Saved");
     closeSettings();
   }
@@ -703,7 +729,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const s = state;
     document.documentElement.dataset.provider = s.provider;
     els.who.textContent = s.providerName + (s.connection === "api" ? " · API" : "") + (s.model ? " · " + s.model : "");
-    if (!sizeKnown || SIZES[s.popupSize] !== size) applySize(s.popupSize);
+    if (!sizeKnown || (s.popupScale !== scale && !settingsOpen)) applySize(s.popupScale);
     if (collapsed) { updateMini(s); return; }
     lastBusy = !!s.busy;
     if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
@@ -852,7 +878,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         const res = await fetch(base + "state?v=" + version + (isTab ? "&tab=1" : ""), { cache: "no-store" });
         if (res.status === 404) {
           els.card.hidden = false;
-          if (!sizeKnown) applySize("medium");
+          if (!sizeKnown) applySize(30);
           els.thread.innerHTML = '<div class="a error">This popup session has ended. Press Esc and try again.</div>';
           els.send.disabled = true;
           queueLayout();
@@ -863,7 +889,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         render();
       } catch (e) {
         els.card.hidden = false;
-        if (!sizeKnown) applySize("medium");
+        if (!sizeKnown) applySize(30);
         els.status.textContent = "No connection — is the plugin running?";
         queueLayout();
         await new Promise(r => setTimeout(r, 1500));
