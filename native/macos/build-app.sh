@@ -17,7 +17,7 @@ outputs=()
 for arch in arm64 x86_64; do
   swiftc -O -swift-version 5 \
     -target "$arch-apple-macos12.0" \
-    -o "build/QuickPromptApp-$arch" App/main.swift Shared/PopupController.swift \
+    -o "build/QuickPromptApp-$arch" App/main.swift App/Updater.swift Shared/PopupController.swift \
     -framework AppKit -framework WebKit -framework Carbon -framework ServiceManagement
   outputs+=("build/QuickPromptApp-$arch")
 done
@@ -113,4 +113,7 @@ if [[ -n "$identity" && -n "${ASC_KEY_P8:-}" && -n "${ASC_KEY_ID:-}" && -n "${AS
   ditto -c -k --keepParent "$app" "$zip"
   spctl --assess --type execute --verbose=2 "$app" || true
 fi
-echo "Done: native/macos/$app and dist/QuickPrompt-mac.zip ($version)"
+# What the app's "Check for Updates…" reads (published next to the zip on the Latest build release).
+sha="$(shasum -a 256 "$zip" | awk '{ print $1 }')"
+printf '{ "version": "%s", "url": "https://github.com/ismailorhan/quick-prompt-for-logi-action-rings/releases/download/latest/QuickPrompt-mac.zip", "sha256": "%s" }\n' "$version" "$sha" > "$root/dist/QuickPrompt-mac.json"
+echo "Done: native/macos/$app, dist/QuickPrompt-mac.zip and dist/QuickPrompt-mac.json ($version)"

@@ -36,10 +36,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let actionsMenu = NSMenu()
     private var actions: [[String: Any]] = []
 
+    private let updater = Updater()
+    private var updateItem: NSMenuItem?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotKey()
         startAgent()
+        updater.onChange = { [weak self] in self?.refreshUpdateItem() }
+        updater.startAutomaticChecks()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -71,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildActionsMenu()
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ","))
+        let update = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        menu.addItem(update)
+        updateItem = update
         if #available(macOS 13.0, *) {
             let item = NSMenuItem(title: "Open at Login", action: #selector(toggleLoginItem), keyEquivalent: "")
             menu.addItem(item)
@@ -151,6 +159,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         } catch {
             showAlert("Could not change Open at Login", error.localizedDescription)
+        }
+    }
+
+    @objc private func checkForUpdates() {
+        if updater.available != nil {
+            updater.offerInstall()
+        } else {
+            updater.check(interactive: true)
+        }
+    }
+
+    /// When a quiet check found a newer version, the menu says so.
+    private func refreshUpdateItem() {
+        if let release = updater.available {
+            updateItem?.title = "Install Update \(release.version)…"
+            statusItem.button?.toolTip = "\(appName): version \(release.version) is available"
+        } else {
+            updateItem?.title = "Check for Updates…"
+            statusItem.button?.toolTip = appName
         }
     }
 
