@@ -701,16 +701,36 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       html += '<div class="stitle">MCP servers</div>' + (d.servers.length
         ? d.servers.map(s => check("server", s.name, s.name, s.on)).join("")
         : '<div class="shint">No MCP servers in your ' + (el.dataset.setup === "claude" ? "user configuration (~/.claude.json)" : "~/.codex/config.toml") + '.</div>');
+      const skillList = (d.skillList || []);
       if (el.dataset.setup === "claude") {
-        html += '<div class="stitle">Other</div>'
-          + check("skills", "skills", "Skills" + (d.skillNames.length ? " (" + d.skillNames.join(", ") + ")" : ""), d.skills)
-          + check("web", "web", "Web search and fetch", d.web);
+        html += '<div class="stitle">Skills</div>' + check("skills", "skills", "Use skills", d.skills, false, "built-in Claude Code skills follow this switch");
+      } else {
+        html += '<div class="stitle">Skills</div>';
+      }
+      html += '<div class="skills"' + (el.dataset.setup === "claude" && !d.skills ? ' hidden' : '') + '>' + (skillList.length
+        ? skillList.map(k => check("skill", k.name, k.name, k.on, false, k.plugin ? "from " + k.plugin.replace(/@.*$/, "") : "")).join("")
+        : '<div class="shint">No skills found.</div>') + '</div>';
+      if (el.dataset.setup === "claude") {
+        html += '<div class="stitle">Other</div>' + check("web", "web", "Web search and fetch", d.web);
       }
       html += '<div class="shint">' + (d.error ? esc(d.error) + " " : "") + '<a href="#" data-refresh>Refresh</a></div>';
       el.innerHTML = html;
     });
     queueLayout();
   }
+  document.addEventListener("change", e => {
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement) || !t.dataset.kind) return;
+    const box = t.closest(".setup");
+    if (t.dataset.kind === "skills") { box.querySelector(".skills").hidden = !t.checked; queueLayout(); }
+    if (t.dataset.kind === "plugin") {
+      // A plugin's skills go with it.
+      box.querySelectorAll('input[data-kind="skill"]').forEach(s => {
+        const k = ((setupData[box.dataset.setup] || {}).skillList || []).find(x => x.name === s.dataset.id);
+        if (k && k.plugin === t.dataset.id) { s.disabled = !t.checked; s.parentElement.classList.toggle("off", !t.checked); }
+      });
+    }
+  });
   document.addEventListener("click", e => {
     const a = e.target.closest("[data-refresh]");
     if (a) { e.preventDefault(); loadSetup(true); }
@@ -727,6 +747,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       enabled: on,
       disabledPlugins: off("plugin", (d.plugins || []).map(p => p.id)),
       disabledServers: off("server", d.servers.map(s => s.name)),
+      disabledSkills: off("skill", (d.skillList || []).map(k => k.name)),
       skills: skills ? skills.checked : d.skills,
       web: web ? web.checked : d.web,
     });

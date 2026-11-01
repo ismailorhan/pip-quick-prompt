@@ -50,6 +50,24 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public void SkillsSwitchedOffOneByOneAreDenied()
+        {
+            var inventory = Inventory();
+            inventory.Skills.Add(new CliSkillInfo { Name = "fruit", Folder = "/home/me/.claude/skills/fruit" });
+            inventory.Skills.Add(new CliSkillInfo { Name = "notes:todo", Folder = "/p/notes/skills/todo", Plugin = "notes@market" });
+            var args = CliSetup.ClaudeArguments(new CliSetupChoice { Enabled = true, DisabledSkills = { "fruit" } }, inventory);
+            Assert.Contains("--disallowedTools", args);
+            Assert.Contains("Skill(fruit)", args);
+            Assert.Contains("Read(//home/me/.claude/skills/fruit/**)", args);
+            Assert.DoesNotContain("Skill(notes:todo)", args);
+
+            var codex = new CliSetupInventory();
+            codex.Skills.Add(new CliSkillInfo { Name = "fruit", Folder = "/home/me/.codex/skills/fruit" });
+            var codexArgs = CliSetup.CodexArguments(new CliSetupChoice { Enabled = true, DisabledSkills = { "fruit" } }, codex);
+            Assert.Equal(new[] { "-c", "skills.config=[{path=\"/home/me/.codex/skills/fruit/SKILL.md\", enabled=false}]" }, codexArgs);
+        }
+
+        [Fact]
         public void SkillsOffDisablesSlashCommands()
         {
             var args = CliSetup.ClaudeArguments(new CliSetupChoice { Enabled = true, Skills = false }, new CliSetupInventory());

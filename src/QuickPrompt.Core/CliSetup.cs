@@ -23,6 +23,9 @@ namespace QuickPrompt.Core
 
         public Boolean Skills { get; set; } = true;
 
+        /// <summary>Skills switched off one by one (Claude: invocation names; Codex: SKILL.md paths).</summary>
+        public List<String> DisabledSkills { get; set; } = new List<String>();
+
         public Boolean Web { get; set; } = true;
     }
 
@@ -32,6 +35,20 @@ namespace QuickPrompt.Core
 
         /// <summary>Enabled in the CLI itself (a plugin switched off there stays off).</summary>
         public Boolean EnabledInCli { get; set; }
+
+        public String InstallPath { get; set; } = "";
+    }
+
+    public sealed class CliSkillInfo
+    {
+        /// <summary>The name the CLI calls it by ("my-skill", or "plugin:skill" for a plugin's skill).</summary>
+        public String Name { get; set; } = "";
+
+        /// <summary>The skill's folder (holds SKILL.md).</summary>
+        public String Folder { get; set; } = "";
+
+        /// <summary>The plugin it comes from, if any (off with its plugin).</summary>
+        public String Plugin { get; set; } = "";
     }
 
     /// <summary>What is installed: read from the CLIs' own configuration.</summary>
@@ -42,7 +59,7 @@ namespace QuickPrompt.Core
         /// <summary>MCP server name → its JSON configuration (Claude: from ~/.claude.json, user scope).</summary>
         public Dictionary<String, JsonElement> Servers { get; set; } = new Dictionary<String, JsonElement>(StringComparer.Ordinal);
 
-        public List<String> Skills { get; set; } = new List<String>();
+        public List<CliSkillInfo> Skills { get; set; } = new List<CliSkillInfo>();
 
         public String Error { get; set; } = "";
     }
@@ -85,7 +102,13 @@ namespace QuickPrompt.Core
             }
 
             inventory.Servers = ReadClaudeServers(Path.Combine(Home, ".claude.json"));
-            inventory.Skills = ReadSkills(Path.Combine(ClaudeDir, "skills"));
+            // Your skills, then each plugin's skills ("plugin:skill"). Skills built into Claude Code are not listed.
+            inventory.Skills = ReadSkills(Path.Combine(ClaudeDir, "skills"), "", "", 1);
+            foreach (var plugin in inventory.Plugins.Where(p => p.InstallPath.Length > 0))
+            {
+                var pluginName = plugin.Id.Split('@')[0];
+                inventory.Skills.AddRange(ReadSkills(Path.Combine(plugin.InstallPath, "skills"), pluginName + ":", plugin.Id, 1));
+            }
 
             lock (CacheLock)
             {
@@ -135,6 +158,7 @@ namespace QuickPrompt.Core
                     {
                         Id = id.GetString(),
                         EnabledInCli = !item.TryGetProperty("enabled", out var enabled) || enabled.ValueKind != JsonValueKind.False,
+                        InstallPath = item.TryGetProperty("installPath", out var path) && path.ValueKind == JsonValueKind.String ? path.GetString() : "",
                     });
                 }
             }
@@ -169,18 +193,39 @@ namespace QuickPrompt.Core
             return result;
         }
 
-        private static List<String> ReadSkills(String dir)
+        /// <summary>Folders holding a SKILL.md, down to <paramref name="depth"/> levels (hidden folders only at the second).</summary>
+        public static List<CliSkillInfo> ReadSkills(String dir, String prefix, String plugin, Int32 depth)
         {
+            var result = new List<CliSkillInfo>();
             try
             {
-                return Directory.Exists(dir)
-                    ? Directory.GetDirectories(dir).Where(d => File.Exists(Path.Combine(d, "SKILL.md"))).Select(Path.GetFileName).OrderBy(n => n).ToList()
-                    : new List<String>();
+                if (!Directory.Exists(dir))
+                {
+                    return result;
+                }
+
+                foreach (var folder in Directory.GetDirectories(dir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+                {
+                    var name = Path.GetFileName(folder);
+                    if (File.Exists(Path.Combine(folder, "SKILL.md")))
+                    {
+                        if (!name.StartsWith(".", StringComparison.Ordinal))
+                        {
+                            result.Add(new CliSkillInfo { Name = prefix + name, Folder = folder, Plugin = plugin });
+                        }
+                    }
+                    else if (depth > 1)
+                    {
+                        result.AddRange(ReadSkills(folder, prefix, plugin, depth - 1));
+                    }
+                }
             }
             catch (Exception)
             {
-                return new List<String>();
+                // Unreadable folder: nothing to offer from it.
             }
+
+            return result;
         }
 
         /// <summary>
@@ -226,9 +271,25 @@ namespace QuickPrompt.Core
                 args.Add(JsonSerializer.Serialize(new { enabledPlugins = off.ToDictionary(id => id, _ => false) }));
             }
 
+            var denied = new List<String>();
             if (!choice.Skills)
             {
                 args.Add("--disable-slash-commands");
+            }
+            else
+            {
+                // Skills switched off one by one: neither invoked nor read from disk.
+                foreach (var skill in (inventory?.Skills ?? new List<CliSkillInfo>()).Where(k => choice.DisabledSkills.Contains(k.Name)))
+                {
+                    denied.Add($"Skill({skill.Name})");
+                    denied.Add("Read(//" + skill.Folder.Replace('\\', '/').TrimStart('/') + "/**)");   // "//" = absolute path
+                }
+            }
+
+            if (denied.Count > 0)
+            {
+                args.Add("--disallowedTools");
+                args.AddRange(denied);
             }
 
             // There is nobody to answer permission prompts: allow exactly the chosen tools and servers.
@@ -243,6 +304,9 @@ namespace QuickPrompt.Core
         }
 
         // ---------- Codex (ChatGPT) ----------
+
+        private static String TomlString(String value) =>
+            "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 
         private static readonly Regex CodexServerRegex = new Regex(
             @"^\s*\[mcp_servers\.(?:""([^""]+)""|([A-Za-z0-9_\-]+))\]\s*$",
@@ -267,7 +331,8 @@ namespace QuickPrompt.Core
                 inventory.Error = "Could not read the Codex configuration: " + ex.Message;
             }
 
-            inventory.Skills = ReadSkills(Path.Combine(CodexDir, "skills"));
+            // Codex keeps its own built-in skills in skills/.system.
+            inventory.Skills = ReadSkills(Path.Combine(CodexDir, "skills"), "", "", 2);
             return inventory;
         }
 
@@ -284,6 +349,18 @@ namespace QuickPrompt.Core
         public static List<String> CodexArguments(CliSetupChoice choice, CliSetupInventory inventory)
         {
             var args = new List<String>();
+
+            // Skills switched off one by one (Codex matches them by the path of their SKILL.md).
+            var offSkills = (inventory?.Skills ?? new List<CliSkillInfo>())
+                .Where(k => choice != null && choice.Enabled && choice.DisabledSkills.Contains(k.Name))
+                .Select(k => "{path=" + TomlString(Path.Combine(k.Folder, "SKILL.md")) + ", enabled=false}")
+                .ToList();
+            if (offSkills.Count > 0)
+            {
+                args.Add("-c");
+                args.Add("skills.config=[" + String.Join(", ", offSkills) + "]");
+            }
+
             foreach (var name in (inventory?.Servers.Keys ?? Enumerable.Empty<String>()).Where(n => Regex.IsMatch(n, "^[A-Za-z0-9_-]+$")))
             {
                 if (choice == null || !choice.Enabled || choice.DisabledServers.Contains(name))

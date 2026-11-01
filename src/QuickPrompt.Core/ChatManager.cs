@@ -369,7 +369,7 @@ namespace QuickPrompt.Core
                 web = choice.Web,
                 plugins = inventory.Plugins.Select(p => new { id = p.Id, cliEnabled = p.EnabledInCli, on = p.EnabledInCli && !choice.DisabledPlugins.Contains(p.Id) }).ToArray(),
                 servers = inventory.Servers.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).Select(n => new { name = n, on = !choice.DisabledServers.Contains(n) }).ToArray(),
-                skillNames = inventory.Skills,
+                skillList = inventory.Skills.Select(k => new { name = k.Name, plugin = k.Plugin, on = !choice.DisabledSkills.Contains(k.Name) }).ToArray(),
                 error = inventory.Error,
             };
 
@@ -405,6 +405,7 @@ namespace QuickPrompt.Core
                     Web = Flag("web", current.Web),
                     DisabledPlugins = Names("disabledPlugins", current.DisabledPlugins),
                     DisabledServers = Names("disabledServers", current.DisabledServers),
+                    DisabledSkills = Names("disabledSkills", current.DisabledSkills),
                 };
             }
             catch (System.Text.Json.JsonException)
