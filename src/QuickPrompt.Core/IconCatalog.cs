@@ -45,8 +45,29 @@ namespace QuickPrompt.Core
         /// <summary>Shows the first letters of the preset title instead of a glyph.</summary>
         public const String TextIconId = "text";
 
+        /// <summary>The Quick Prompt app icon (full color; ignores the color setting). Default for presets.</summary>
+        public const String AppIconId = "app";
+
+        /// <summary>
+        /// The Quick Prompt mark: a four-point star with short diagonal rays on a dark tile, in a
+        /// warm-orange → green → blue → violet gradient. Original artwork; no third-party logos.
+        /// </summary>
+        public static String AppIconSvg(Int32 width, Int32 height) =>
+            $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 24 24\">"
+            + "<defs>"
+            + "<linearGradient id=\"qpTile\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#26222E\"/><stop offset=\"1\" stop-color=\"#111114\"/></linearGradient>"
+            + "<linearGradient id=\"qpMark\" gradientUnits=\"userSpaceOnUse\" x1=\"5\" y1=\"5\" x2=\"19\" y2=\"19\">"
+            + "<stop offset=\"0.08\" stop-color=\"#F08A5D\"/><stop offset=\"0.42\" stop-color=\"#1FB890\"/>"
+            + "<stop offset=\"0.7\" stop-color=\"#4C8DF6\"/><stop offset=\"0.95\" stop-color=\"#A56BF2\"/></linearGradient>"
+            + "</defs>"
+            + "<rect width=\"24\" height=\"24\" rx=\"5.5\" fill=\"url(#qpTile)\"/>"
+            + "<path d=\"M12 3.8L14.05 9.95L20.2 12L14.05 14.05L12 20.2L9.95 14.05L3.8 12L9.95 9.95Z\" fill=\"url(#qpMark)\"/>"
+            + "<path d=\"M16.1 7.9L17.5 6.5M16.1 16.1L17.5 17.5M7.9 16.1L6.5 17.5M7.9 7.9L6.5 6.5\" stroke=\"url(#qpMark)\" stroke-width=\"1.25\" stroke-linecap=\"round\"/>"
+            + "</svg>";
+
         public static readonly IReadOnlyList<IconDef> Icons = new[]
         {
+            new IconDef(AppIconId, "Quick Prompt (default)", ""),
             new IconDef("sparkle", "Sparkle (general)", "M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1-5.1-1.9 5.1-1.9z M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"),
             new IconDef("chat", "Chat", "M4 5.5h16v10.5H10l-4.5 3.5V16H4z M8 9.5h8 M8 12.5h5"),
             new IconDef("question", "Question", "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8v.4 M12 16.8v.2"),
@@ -66,6 +87,7 @@ namespace QuickPrompt.Core
             new IconDef("calendar", "Meeting", "M4 6h16v14H4z M4 10h16 M8.5 3.5v4 M15.5 3.5v4"),
             new IconDef("smile", "Tone", "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M8.5 14c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2 M9 9.5v.5 M15 9.5v.5"),
             new IconDef(TextIconId, "Title initials", ""),
+            new IconDef("settings", "Settings", "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"),
         };
 
         public static readonly IReadOnlyList<ColorDef> Colors = new[]
@@ -96,6 +118,10 @@ namespace QuickPrompt.Core
             var color = GetColor(colorId, fallbackColorId);
             width = width > 0 ? width : 80;
             height = height > 0 ? height : 80;
+            if (icon.Id == AppIconId)
+            {
+                return AppIconSvg(width, height);
+            }
 
             String glyph;
             if (icon.Id == TextIconId)

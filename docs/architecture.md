@@ -9,6 +9,8 @@ Actions Ring button (Options+ action editor preset)
             ├─ ChatSession      one popup = one conversation (history, streaming state, long-poll versioning)
             ├─ ClaudeCliProvider  claude -p --output-format stream-json --tools "" …   (prompt on stdin)
             ├─ CodexCliProvider   codex exec --sandbox read-only --json --ephemeral -  (prompt on stdin)
+            ├─ AnthropicApiProvider  Anthropic C# SDK, streamed, server-side refusal fallbacks
+            ├─ OpenAiApiProvider     Chat Completions over HttpClient, streamed (SSE)
             ├─ CliLocator       finds the CLIs (Homebrew, npm, nvm, ~/.local/bin, login-shell PATH)
             ├─ UiServer         HTTP on 127.0.0.1, random port, per-session token
             ├─ ChatPage         the popup page (HTML/CSS/JS, no external resources)
@@ -42,6 +44,13 @@ The plugin presses ⌘C/Ctrl+C and watches the clipboard:
 - Codex: `--sandbox read-only`, `--ephemeral`, `--json`, and `-o <file>` as a fallback for the final message. There is no system-prompt flag, so the instructions are put in front of the prompt.
 - Calls are stateless. Follow-up questions carry the earlier turns inside the prompt.
 - Each CLI runs in an empty `workspace/` folder in the plugin data directory, so no project context is picked up.
+
+## CLI or API
+
+`ChatManager.GetProvider(id, connection)` picks the provider: the preset's **Connection** (`cli` / `api`), or for `default` the provider's connection in Settings (`ClaudeConnection`, `ChatGptConnection`). API keys go through `IHostBridge.GetSecret/SetSecret`. The plugin stores them in Logi Plugin Service's encrypted plugin settings (local only), never in `settings.json`. The popup's Settings view reads `GET /s/<token>/settings`, which returns only a masked key hint, and writes `POST /s/<token>/settings`.
+
+- **Anthropic:** official C# SDK (`Anthropic` NuGet), beta Messages endpoint with `fallbacks: "default"` (`server-side-fallback-2026-07-01`), `output_config.effort` (default `low` for quick answers), streamed. `haiku`/`sonnet`/`opus` map to the current model ids.
+- **OpenAI:** `POST /v1/chat/completions` with `stream: true`, parsed by `OpenAiStreamParser`.
 
 ## Popup
 

@@ -62,6 +62,23 @@ namespace Loupedeck.QuickPromptPlugin
                 }
             }
 
+            // API keys live in Logi Plugin Service's plugin settings, which are stored encrypted.
+            // backupOnline: false keeps them on this computer only.
+            public String GetSecret(String name) =>
+                this._plugin.TryGetPluginSetting("secret." + name, out var value) && !String.IsNullOrWhiteSpace(value) ? value : null;
+
+            public void SetSecret(String name, String value)
+            {
+                if (String.IsNullOrWhiteSpace(value))
+                {
+                    this._plugin.DeletePluginSetting("secret." + name);
+                }
+                else
+                {
+                    this._plugin.SetPluginSetting("secret." + name, value.Trim(), false);
+                }
+            }
+
             // Clipboard access may require the UI thread on some systems: try directly first, then marshal.
             private T OnMainThreadIfNeeded<T>(Func<T> action)
             {

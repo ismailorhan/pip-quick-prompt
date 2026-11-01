@@ -38,6 +38,23 @@ namespace QuickPrompt.Core
 
         public String SystemPrompt { get; set; } = DefaultSystemPrompt;
 
+        // ---- Connections. API keys are not stored here (see IHostBridge.GetSecret). ----
+
+        /// <summary>How "Ask Claude" presets connect unless a preset overrides it: "cli" or "api".</summary>
+        public String ClaudeConnection { get; set; } = ConnectionModes.Cli;
+
+        /// <summary>How "Ask ChatGPT" presets connect unless a preset overrides it: "cli" or "api".</summary>
+        public String ChatGptConnection { get; set; } = ConnectionModes.Cli;
+
+        /// <summary>Anthropic API model when a preset does not name one.</summary>
+        public String ClaudeApiModel { get; set; } = "claude-opus-5-5";
+
+        /// <summary>Anthropic API effort: low, medium, high, xhigh or max. Low keeps short answers fast.</summary>
+        public String ClaudeApiEffort { get; set; } = "low";
+
+        /// <summary>OpenAI API model when a preset does not name one.</summary>
+        public String OpenAiApiModel { get; set; } = "gpt-5-mini";
+
         public Int32 TimeoutSeconds { get; set; } = 300;
 
         public Int32 WindowWidth { get; set; } = 520;
@@ -82,6 +99,13 @@ namespace QuickPrompt.Core
             return settings;
         }
 
+        public void Save(String filePath)
+        {
+            this.Normalize();
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+            File.WriteAllText(filePath, JsonSerializer.Serialize(this, JsonOptions));
+        }
+
         private void Normalize()
         {
             this.ClaudePath ??= "";
@@ -89,6 +113,11 @@ namespace QuickPrompt.Core
             this.BrowserPath ??= "";
             this.PopupPath ??= "";
             this.SystemPrompt ??= "";
+            this.ClaudeConnection = ConnectionModes.Normalize(this.ClaudeConnection, ConnectionModes.Cli);
+            this.ChatGptConnection = ConnectionModes.Normalize(this.ChatGptConnection, ConnectionModes.Cli);
+            this.ClaudeApiModel = String.IsNullOrWhiteSpace(this.ClaudeApiModel) ? "claude-opus-5-5" : this.ClaudeApiModel.Trim();
+            this.ClaudeApiEffort = String.IsNullOrWhiteSpace(this.ClaudeApiEffort) ? "low" : this.ClaudeApiEffort.Trim().ToLowerInvariant();
+            this.OpenAiApiModel = String.IsNullOrWhiteSpace(this.OpenAiApiModel) ? "gpt-5-mini" : this.OpenAiApiModel.Trim();
             if (this.TimeoutSeconds < 10)
             {
                 this.TimeoutSeconds = 300;

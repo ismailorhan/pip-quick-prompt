@@ -30,6 +30,27 @@ namespace QuickPrompt.Core
         public const String Copy = "copy";
     }
 
+    public static class ConnectionModes
+    {
+        /// <summary>Use the provider's connection from Settings.</summary>
+        public const String Default = "default";
+
+        /// <summary>Claude Code / Codex CLI: uses the user's subscription.</summary>
+        public const String Cli = "cli";
+
+        /// <summary>Anthropic / OpenAI API with the user's API key: faster, billed per use.</summary>
+        public const String Api = "api";
+
+        public static String Normalize(String value, String fallback) =>
+            value?.Trim().ToLowerInvariant() switch
+            {
+                Cli => Cli,
+                Api => Api,
+                Default => Default,
+                _ => fallback,
+            };
+    }
+
     /// <summary>What one Actions Ring button is configured to do.</summary>
     public sealed class Preset
     {
@@ -44,6 +65,8 @@ namespace QuickPrompt.Core
         public String Flow { get; set; } = FlowModes.Send;
 
         public String Model { get; set; } = "";
+
+        public String Connection { get; set; } = ConnectionModes.Default;
     }
 
     /// <summary>OS-specific operations the plugin host provides (clipboard, keystrokes, notifications).</summary>
@@ -60,5 +83,11 @@ namespace QuickPrompt.Core
         void Notify(String title, String message, Boolean isError);
 
         void Log(String message, Exception exception = null);
+
+        /// <summary>Reads a secret (API key). Stored encrypted by the host; null when not set.</summary>
+        String GetSecret(String name);
+
+        /// <summary>Stores a secret; null or empty deletes it.</summary>
+        void SetSecret(String name, String value);
     }
 }

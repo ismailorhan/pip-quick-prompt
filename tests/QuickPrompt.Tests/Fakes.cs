@@ -69,6 +69,22 @@ namespace QuickPrompt.Tests
         public void Notify(string title, string message, bool isError) => this.Notifications.Add($"{title}: {message}");
 
         public void Log(string message, Exception exception = null) => this.Logs.Add(message + (exception != null ? " " + exception.Message : ""));
+
+        public Dictionary<string, string> Secrets { get; } = new Dictionary<string, string>();
+
+        public string GetSecret(string name) => this.Secrets.TryGetValue(name, out var v) ? v : null;
+
+        public void SetSecret(string name, string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                this.Secrets.Remove(name);
+            }
+            else
+            {
+                this.Secrets[name] = value;
+            }
+        }
     }
 
     /// <summary>Echoes the prompt back in small pieces.</summary>

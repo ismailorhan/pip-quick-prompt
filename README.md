@@ -2,7 +2,7 @@
 
 Ask Claude or ChatGPT about the text you have selected, from your Logitech **Actions Ring**, without leaving the app you are working in.
 
-Press a ring button and the selection, together with that button's prompt, is sent in the background through the **Claude Code CLI** or the **Codex CLI** (signed in with your ChatGPT account). The answer streams into a small popup next to the mouse cursor. On macOS the popup is a native Liquid Glass panel. The Claude and ChatGPT apps never open, and your current app stays in front.
+Press a ring button and the selection, together with that button's prompt, is sent in the background to Claude or ChatGPT, either through their CLIs (**Claude Code** / **Codex**, using your existing subscription) or through their **APIs** with your own key (faster). The answer streams into a small popup next to the mouse cursor. On macOS the popup is a native Liquid Glass panel. The Claude and ChatGPT apps never open, and your current app stays in front.
 
 ![Quick Prompt popup](docs/images/popup-dark.png)
 
@@ -12,13 +12,17 @@ Press a ring button and the selection, together with that button's prompt, is se
 - **Each ring button is a preset**, with its own title, prompt, input source, behavior, icon, color and model, all set in the Options+ action editor.
 - **Four behaviors:** send and show the answer in the popup, edit in the popup first, replace the selection (no popup), or copy to the clipboard (no popup).
 - **Popup:** follow-up questions, **Copy**, and **Paste** (⌘↵ / Ctrl+Enter) into the app you came from.
-- **No API keys:** it uses the subscriptions you already have through the official CLIs. Tools are disabled and the CLIs run read-only.
+- **CLI or API, per provider and per preset:** CLI uses the subscription you already have (no keys). API is faster (no process start per request, typically 3–4 s quicker) and billed per use. Tools are disabled and the CLIs run read-only.
 
 ## Install
 
 1. Download `QuickPrompt.lplug4` from the [latest release](../../releases/latest) (or the rolling **Latest build** pre-release).
 2. Double-click it. Logi Options+ installs the plugin.
-3. Make sure the CLIs you want are installed and signed in:
+3. Choose how each provider connects. Add **Quick Prompt Settings** to the ring (or press ⚙ in the popup):
+   - **CLI:** the CLI must be installed and signed in (below).
+   - **API:** paste an Anthropic or OpenAI API key. Keys are stored encrypted by Logi Plugin Service, on this computer only.
+
+   CLI setup:
    - Claude: [Claude Code](https://code.claude.com/docs). Run `claude` once to sign in.
    - ChatGPT: `npm i -g @openai/codex`, then run `codex` once and sign in with your ChatGPT account.
 4. In Options+, open **Actions Ring**, find the **Quick Prompt** group and drag *Ask Claude* or *Ask ChatGPT* onto a slot.
@@ -33,8 +37,9 @@ On macOS, Options+ needs *Accessibility* permission to send ⌘C/⌘V. It usuall
 | Prompt | `{text}` is replaced with the selected text. Without it, the text is appended. |
 | Input | Selected text (copied with ⌘C/Ctrl+C), clipboard text, **paste in popup**, or none |
 | Behavior | Send now · Edit in popup first · Replace selection · Copy to clipboard |
-| Icon / Color | 18 line icons or the title's initials, in 10 colors. Options+'s own icon editor also works. |
-| Model | Optional, e.g. `sonnet`, `haiku`. Empty uses the CLI default. |
+| Icon / Color | The Quick Prompt icon (default), 19 line icons or the title's initials, in 10 colors. Options+'s own icon editor also works. |
+| Connection | Default (from Settings), CLI or API |
+| Model | Optional, e.g. `sonnet`, `haiku` (mapped to the current model ids over the API). Empty uses the default. |
 
 **Paste in popup** opens an empty capsule. Paste or type the text and press Enter, and it is sent with the preset's prompt. Follow-ups after that are ordinary messages. With this input the answer always shows in the popup.
 
@@ -60,6 +65,9 @@ Example presets:
 | `PopupPath` | bundled | macOS popup helper |
 | `BrowserPath` | auto-detect | Chromium-based browser for the fallback window |
 | `SystemPrompt` | answer directly, no tools, in the request's language | Added to every request |
+| `ClaudeConnection`, `ChatGptConnection` | `cli` | `cli` or `api` (also set from the Settings view) |
+| `ClaudeApiModel`, `ClaudeApiEffort` | `claude-opus-5-5`, `low` | Anthropic API defaults; `claude-haiku-5-5` is the fastest |
+| `OpenAiApiModel` | `gpt-5-mini` | OpenAI API default model |
 | `TimeoutSeconds` | 300 | |
 | `WindowWidth`, `WindowHeight` | 520 × 560 | Browser fallback window only |
 | `RestoreClipboard` | true | Restore the clipboard after reading the selection or pasting |

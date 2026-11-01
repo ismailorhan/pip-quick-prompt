@@ -1,8 +1,9 @@
 // Quick Prompt DevHost: runs the popup and the CLI providers without Logi Options+.
 //
 //   dotnet run --project src/QuickPrompt.DevHost -- [--provider claude|codex] [--flow send|edit|replace|copy]
-//       [--input clipboard|popup|none] [--prompt "..."] [--text "..."] [--title "..."] [--model "..."] [--no-open] [--data <dir>]
+//       [--connection default|cli|api] [--settings] [--input clipboard|popup|none] [--prompt "..."] [--text "..."] [--title "..."] [--model "..."] [--no-open] [--data <dir>]
 //   dotnet run --project src/QuickPrompt.DevHost -- --icons icons.html
+//   dotnet run --project src/QuickPrompt.DevHost -- --app-icon icon.svg
 //
 // The "clipboard" is simply --text.
 using QuickPrompt.Core;
@@ -22,6 +23,14 @@ for (var i = 0; i < args.Length; i++)
 }
 
 string Opt(string name, string fallback) => options.TryGetValue(name, out var v) ? v : fallback;
+
+// --app-icon icon.svg : writes the app icon (256 px) and exits.
+if (options.TryGetValue("app-icon", out var appIconPath))
+{
+    File.WriteAllText(appIconPath, IconCatalog.AppIconSvg(256, 256));
+    Console.WriteLine("App icon: " + appIconPath);
+    return;
+}
 
 // --icons sheet.html : writes a preview of every icon/color combination and exits.
 if (options.TryGetValue("icons", out var sheetPath))
@@ -44,7 +53,7 @@ if (options.TryGetValue("icons", out var sheetPath))
 }
 
 var dataDir = Opt("data", Path.Combine(Path.GetTempPath(), "quick-prompt-devhost"));
-var host = new ConsoleHost { Clipboard = Opt("text", "") };
+var host = new ConsoleHost(dataDir) { Clipboard = Opt("text", "") };
 using var manager = new ChatManager(dataDir, host);
 if (flags.Contains("no-open"))
 {
@@ -77,14 +86,54 @@ var preset = new Preset
     Input = Opt("input", InputModes.Clipboard),
     Flow = Opt("flow", FlowModes.Edit),
     Model = Opt("model", ""),
+    Connection = Opt("connection", ConnectionModes.Default),
 };
 
-await manager.ExecutePresetAsync(preset);
+if (flags.Contains("settings"))
+{
+    manager.OpenSettings();
+}
+else
+{
+    await manager.ExecutePresetAsync(preset);
+}
+
 Console.WriteLine("Press Ctrl+C to quit.");
 await Task.Delay(Timeout.Infinite);
 
 internal sealed class ConsoleHost : IHostBridge
 {
+    private readonly string _secretsFile;
+
+    public ConsoleHost(string dataDir)
+    {
+        Directory.CreateDirectory(dataDir);
+        this._secretsFile = Path.Combine(dataDir, "devhost-secrets.json");
+    }
+
+    // DevHost only: plain JSON file in the data folder (the plugin stores keys encrypted).
+    public string GetSecret(string name) => this.ReadSecrets().TryGetValue(name, out var v) ? v : null;
+
+    public void SetSecret(string name, string value)
+    {
+        var all = this.ReadSecrets();
+        if (string.IsNullOrEmpty(value))
+        {
+            all.Remove(name);
+        }
+        else
+        {
+            all[name] = value;
+        }
+
+        File.WriteAllText(this._secretsFile, System.Text.Json.JsonSerializer.Serialize(all));
+    }
+
+    private Dictionary<string, string> ReadSecrets() =>
+        File.Exists(this._secretsFile)
+            ? System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(this._secretsFile)) ?? new()
+            : new();
+
     public string Clipboard { get; set; } = "";
 
     public string GetClipboardText() => this.Clipboard;

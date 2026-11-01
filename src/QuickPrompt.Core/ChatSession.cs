@@ -60,6 +60,12 @@ namespace QuickPrompt.Core
         /// </summary>
         public String PresetInstruction { get; set; } = "";
 
+        /// <summary>"cli" or "api" (shown in the popup header).</summary>
+        public String Connection { get; set; } = ConnectionModes.Cli;
+
+        /// <summary>Open the popup on the Settings view.</summary>
+        public Boolean ShowSettings { get; set; }
+
         public DateTime LastActivityUtc { get; private set; }
 
         public Boolean IsBusy
@@ -240,6 +246,8 @@ namespace QuickPrompt.Core
                     draft = new { instruction = this.DraftInstruction, context = this.DraftContext },
                     notice = this.Notice,
                     pasteMode = this.PresetInstruction.Trim().Length > 0,
+                    connection = this.Connection,
+                    showSettings = this.ShowSettings,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);

@@ -100,6 +100,23 @@ textarea::placeholder { color: var(--muted); }
 .bar textarea:focus-visible, .ctx textarea:focus-visible { outline: none; }
 .round[hidden] + textarea { padding-left: 12px; }
 
+/* Settings view */
+.settings { border-radius: 22px; padding: 10px 16px 14px; }
+.sgroup { padding: 10px 0 4px; border-top: 1px solid var(--faint); margin-top: 8px; }
+.meta + .sgroup { border-top: 0; margin-top: 2px; }
+.srow { display: flex; align-items: center; gap: 10px; }
+.sname { font-weight: 600; flex: 1; }
+.seg { display: inline-flex; background: var(--faint); border-radius: 999px; padding: 2px; }
+.seg button { background: transparent; padding: 3px 14px; font-size: 12px; color: var(--muted); }
+.seg button.on { background: var(--chip); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.shint { font-size: 11.5px; color: var(--muted); margin: 5px 0 2px; }
+.sfield { display: block; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+.sfield input, .sfield select { display: block; width: 100%; margin-top: 3px; font: inherit; font-size: 13px; color: var(--text); background: var(--faint); border: 0; border-radius: 9px; padding: 7px 10px; outline: none; }
+.sfield input:focus-visible, .sfield select:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.skey { display: flex; gap: 6px; align-items: flex-end; }
+.skey .sfield { flex: 1; }
+.skey button { margin-bottom: 1px; }
+button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .toast { position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--glass); padding: 4px 12px; border-radius: 999px; font-size: 12px; opacity: 0; transition: opacity .15s; pointer-events: none; }
 .toast.show { opacity: .92; }
 [hidden] { display: none !important; }
@@ -113,14 +130,48 @@ textarea::placeholder { color: var(--muted); }
       <span id="who"></span>
       <span class="title" id="title"></span>
       <span class="status" id="status"></span>
+      <button type="button" class="x" id="gear" title="Settings">⚙</button>
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
     </div>
     <div class="notice" id="notice" hidden></div>
     <div class="thread" id="thread"></div>
+    <div class="actions" id="errActions" hidden><button type="button" id="errSettings">Open settings</button></div>
     <div class="actions" id="actions" hidden>
       <button type="button" id="copy">Copy</button>
       <button type="button" id="paste" title="Closes the popup and pastes the answer into the app you were using">Paste<kbd id="pasteKey">⌘↵</kbd></button>
     </div>
+  </div>
+  <div class="settings glass" id="settings" hidden>
+    <div class="meta">
+      <span class="dot"></span>
+      <span class="title">Settings</span>
+      <span class="status" id="setStatus"></span>
+      <button type="button" class="x" id="setClose" title="Close">✕</button>
+    </div>
+    <div class="sgroup">
+      <div class="srow"><span class="sname">Claude</span>
+        <div class="seg" data-name="claudeConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div></div>
+      <div class="shint">CLI uses your Claude plan through Claude Code. API is faster and billed per use to your API account.</div>
+      <div class="api-only" data-for="claudeConnection">
+      <div class="skey"><label class="sfield">Anthropic API key<input type="password" id="claudeKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label><button type="button" data-clear="claudeKey" hidden>Remove</button></div>
+      <label class="sfield">API model<select id="claudeModel">
+        <option value="claude-opus-5-5">Claude Opus 5.5</option>
+        <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+        <option value="claude-haiku-5-5">Claude Haiku 5.5 — fastest</option>
+      </select></label>
+      </div>
+    </div>
+    <div class="sgroup">
+      <div class="srow"><span class="sname">ChatGPT</span>
+        <div class="seg" data-name="chatgptConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div></div>
+      <div class="shint">CLI uses your ChatGPT plan through the Codex CLI. API is faster and billed per use to your OpenAI account.</div>
+      <div class="api-only" data-for="chatgptConnection">
+      <div class="skey"><label class="sfield">OpenAI API key<input type="password" id="chatgptKey" autocomplete="off" spellcheck="false" placeholder="sk-…"></label><button type="button" data-clear="chatgptKey" hidden>Remove</button></div>
+      <label class="sfield">API model<input type="text" id="chatgptModel" spellcheck="false" placeholder="gpt-5-mini"></label>
+      </div>
+    </div>
+    <div class="shint">Keys are stored encrypted on this computer. A preset can override CLI/API in its Connection field. Changes apply to the next request.</div>
+    <div class="actions"><button type="button" class="primary" id="setSave">Save</button><button type="button" id="setBack">Cancel</button></div>
   </div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar">
@@ -146,7 +197,7 @@ textarea::placeholder { color: var(--muted); }
   const els = {
     root: $("root"), card: $("card"), who: $("who"), title: $("title"), status: $("status"), notice: $("notice"),
     ctxWrap: $("ctxWrap"), ctx: $("ctx"), thread: $("thread"), actions: $("actions"),
-    prompt: $("prompt"), send: $("send"), ctxBtn: $("ctxBtn"), toast: $("toast"),
+    prompt: $("prompt"), send: $("send"), ctxBtn: $("ctxBtn"), toast: $("toast"), bar: $("bar"), errActions: $("errActions"),
   };
   const mod = isMac ? "⌘" : "Ctrl+";
   $("pasteKey").textContent = mod + "↵";
@@ -309,11 +360,95 @@ textarea::placeholder { color: var(--muted); }
     return out.join("");
   }
 
+  // ---------- settings ----------
+  const set = { view: $("settings"), status: $("setStatus"), claudeKey: $("claudeKey"), chatgptKey: $("chatgptKey"),
+                claudeModel: $("claudeModel"), chatgptModel: $("chatgptModel") };
+  const segValues = {};
+  const keyRemoval = {};
+  let settingsOpen = false, settingsOnly = false;
+
+  function setSeg(name, value) {
+    segValues[name] = value;
+    document.querySelectorAll('.seg[data-name="' + name + '"] button').forEach(b => b.classList.toggle("on", b.dataset.v === value));
+    const fields = document.querySelector('.api-only[data-for="' + name + '"]');
+    if (fields) fields.hidden = value !== "api";
+    queueLayout();
+  }
+  document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => setSeg(b.parentElement.dataset.name, b.dataset.v)));
+
+  function showKeyHint(input, hint) {
+    input.value = "";
+    keyRemoval[input.id] = false;
+    input.placeholder = hint ? "Saved (" + hint + ") — type to replace" : (input.id === "claudeKey" ? "sk-ant-…" : "sk-…");
+    document.querySelector('[data-clear="' + input.id + '"]').hidden = !hint;
+  }
+  document.querySelectorAll("[data-clear]").forEach(b => b.addEventListener("click", () => {
+    const input = $(b.dataset.clear);
+    keyRemoval[input.id] = true;
+    input.value = "";
+    input.placeholder = "Will be removed when you save";
+    b.hidden = true;
+  }));
+
+  async function openSettings(only) {
+    settingsOnly = !!only;
+    settingsOpen = true;
+    els.card.hidden = true; els.bar.hidden = true; els.ctxWrap.hidden = true;
+    set.view.hidden = false;
+    set.status.textContent = "";
+    try {
+      const s = await (await fetch(base + "settings", { cache: "no-store" })).json();
+      setSeg("claudeConnection", s.claude.connection);
+      setSeg("chatgptConnection", s.chatgpt.connection);
+      showKeyHint(set.claudeKey, s.claude.keyHint);
+      showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
+      if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
+        set.claudeModel.add(new Option(s.claude.model, s.claude.model));
+      }
+      set.claudeModel.value = s.claude.model;
+      set.chatgptModel.value = s.chatgpt.model;
+    } catch (e) {
+      set.status.textContent = "Could not load settings";
+    }
+    queueLayout();
+  }
+
+  function closeSettings() {
+    if (settingsOnly) { closeWindow(); return; }
+    settingsOpen = false;
+    set.view.hidden = true; els.bar.hidden = false;
+    lastKey = "";
+    if (state) render();
+    queueLayout();
+    els.prompt.focus();
+  }
+
+  async function saveSettings() {
+    const keyValue = input => keyRemoval[input.id] ? "-" : input.value.trim();
+    const body = {
+      claudeConnection: segValues.claudeConnection, chatgptConnection: segValues.chatgptConnection,
+      claudeModel: set.claudeModel.value, chatgptModel: set.chatgptModel.value.trim(),
+      claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
+    };
+    const res = await post("settings", body);
+    if (!res.ok) { set.status.textContent = "Could not save"; return; }
+    toast("Saved");
+    closeSettings();
+  }
+
+  $("gear").addEventListener("click", () => openSettings(false));
+  $("errSettings").addEventListener("click", () => openSettings(false));
+  $("setSave").addEventListener("click", saveSettings);
+  $("setBack").addEventListener("click", closeSettings);
+  $("setClose").addEventListener("click", closeWindow);
+
   // ---------- rendering ----------
   function render() {
     const s = state;
     document.documentElement.dataset.provider = s.provider;
-    els.who.textContent = s.providerName + (s.model ? " · " + s.model : "");
+    els.who.textContent = s.providerName + (s.connection === "api" ? " · API" : "") + (s.model ? " · " + s.model : "");
+    if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
+    if (settingsOpen) return;
     els.title.textContent = s.title || "";
     document.title = (s.title ? s.title + " — " : "") + s.providerName;
     els.status.innerHTML = s.busy ? '<span class="spin"></span>' + esc(s.status || "Working…") : "";
@@ -322,6 +457,8 @@ textarea::placeholder { color: var(--muted); }
     els.notice.hidden = !s.notice;
     els.notice.textContent = s.notice || "";
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
+    const last = s.messages[s.messages.length - 1];
+    els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 
     if (!draftApplied) {
       draftApplied = true;
@@ -423,7 +560,8 @@ textarea::placeholder { color: var(--muted); }
   els.prompt.addEventListener("input", autoGrow);
   els.ctx.addEventListener("input", () => { updateSendState(); queueLayout(); });
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { e.preventDefault(); closeWindow(); return; }
+    if (e.key === "Escape") { e.preventDefault(); if (settingsOpen && !settingsOnly) closeSettings(); else closeWindow(); return; }
+    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); saveSettings(); } return; }
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();

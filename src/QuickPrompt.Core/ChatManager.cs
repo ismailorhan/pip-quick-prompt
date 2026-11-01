@@ -14,7 +14,8 @@ namespace QuickPrompt.Core
     public sealed class ChatManager : IDisposable
     {
         private readonly ConcurrentDictionary<String, ChatSession> _sessions = new ConcurrentDictionary<String, ChatSession>(StringComparer.Ordinal);
-        private readonly Dictionary<String, IAiProvider> _providers;
+        private readonly Dictionary<String, IAiProvider> _providers;      // CLI connections
+        private readonly Dictionary<String, IAiProvider> _apiProviders;   // API connections
         private readonly IHostBridge _host;
         private readonly String _dataDirectory;
         private readonly String _settingsPath;
@@ -24,7 +25,9 @@ namespace QuickPrompt.Core
         private QuickPromptSettings _settings;
         private DateTime _settingsReadUtc;
 
-        public ChatManager(String dataDirectory, IHostBridge host, IEnumerable<IAiProvider> providers = null)
+        /// <param name="providers">CLI providers (tests pass fakes here).</param>
+        /// <param name="apiProviders">API providers (tests pass fakes here).</param>
+        public ChatManager(String dataDirectory, IHostBridge host, IEnumerable<IAiProvider> providers = null, IEnumerable<IAiProvider> apiProviders = null)
         {
             this._dataDirectory = dataDirectory;
             this._host = host;
@@ -41,6 +44,12 @@ namespace QuickPrompt.Core
                 new CodexCliProvider(() => this.Settings, workspace),
             };
             this._providers = list.ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
+            var apiList = apiProviders?.ToList() ?? new List<IAiProvider>
+            {
+                new AnthropicApiProvider(() => this.Settings, () => host.GetSecret(AnthropicApiProvider.SecretName)),
+                new OpenAiApiProvider(() => this.Settings, () => host.GetSecret(OpenAiApiProvider.SecretName)),
+            };
+            this._apiProviders = apiList.ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
 
             this._server = new UiServer(this);
             this.Launcher = new WindowLauncher(() => this.Settings, Path.Combine(dataDirectory, "browser-profile"), host);
@@ -79,18 +88,39 @@ namespace QuickPrompt.Core
             _ = Task.Run(() => CliLocator.GetEnrichedPath());
         }
 
-        public IAiProvider GetProvider(String id) =>
-            this._providers.TryGetValue(id ?? "", out var provider) ? provider : this._providers.Values.First();
+        public IAiProvider GetProvider(String id) => this.GetProvider(id, ConnectionModes.Default);
+
+        /// <summary>The provider for "claude"/"codex" over the given connection ("default" = from Settings).</summary>
+        public IAiProvider GetProvider(String id, String connection)
+        {
+            var resolved = this.ResolveConnection(id, connection);
+            var table = resolved == ConnectionModes.Api ? this._apiProviders : this._providers;
+            return table.TryGetValue(id ?? "", out var provider) ? provider : table.Values.First();
+        }
+
+        public String ResolveConnection(String providerId, String connection)
+        {
+            var normalized = ConnectionModes.Normalize(connection, ConnectionModes.Default);
+            if (normalized != ConnectionModes.Default)
+            {
+                return normalized;
+            }
+
+            var settings = this.Settings;
+            return String.Equals(providerId, ProviderIds.Codex, StringComparison.OrdinalIgnoreCase) ? settings.ChatGptConnection : settings.ClaudeConnection;
+        }
 
         public Boolean TryGetSession(String token, out ChatSession session) =>
             this._sessions.TryGetValue(token ?? "", out session);
 
-        public ChatSession CreateSession(String providerId, String title, String model)
+        public ChatSession CreateSession(String providerId, String title, String model, String connection = ConnectionModes.Default)
         {
-            var session = new ChatSession(this.GetProvider(providerId), () => this.Settings)
+            var resolved = this.ResolveConnection(providerId, connection);
+            var session = new ChatSession(this.GetProvider(providerId, resolved), () => this.Settings)
             {
                 Title = title ?? "",
                 Model = model ?? "",
+                Connection = resolved,
             };
             this._sessions[session.Token] = session;
             return session;
@@ -101,6 +131,81 @@ namespace QuickPrompt.Core
 
         public void OpenWindow(ChatSession session) =>
             this.Launcher.Open(appWindow => this.GetSessionUrl(session, appWindow));
+
+        /// <summary>Opens the popup on the Settings view (keys, connections, models).</summary>
+        public void OpenSettings()
+        {
+            var session = this.CreateSession(ProviderIds.Claude, "Settings", "");
+            session.ShowSettings = true;
+            this.OpenWindow(session);
+        }
+
+        /// <summary>Settings as shown in the popup. API keys are never returned, only whether one is set.</summary>
+        public String GetSettingsJson()
+        {
+            var s = this.Settings;
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                claude = new
+                {
+                    connection = s.ClaudeConnection,
+                    model = s.ClaudeApiModel,
+                    effort = s.ClaudeApiEffort,
+                    keyHint = KeyHint(this._host.GetSecret(AnthropicApiProvider.SecretName)),
+                },
+                chatgpt = new
+                {
+                    connection = s.ChatGptConnection,
+                    model = s.OpenAiApiModel,
+                    keyHint = KeyHint(this._host.GetSecret(OpenAiApiProvider.SecretName)),
+                },
+            });
+        }
+
+        /// <summary>
+        /// Saves settings from the popup. Keys: an empty value keeps the stored key, "-" removes it.
+        /// </summary>
+        public void SaveSettings(IReadOnlyDictionary<String, String> values)
+        {
+            String Get(String name) => values.TryGetValue(name, out var v) ? (v ?? "").Trim() : null;
+
+            var s = this.Settings;
+            s.ClaudeConnection = ConnectionModes.Normalize(Get("claudeConnection"), s.ClaudeConnection);
+            s.ChatGptConnection = ConnectionModes.Normalize(Get("chatgptConnection"), s.ChatGptConnection);
+            if (!String.IsNullOrEmpty(Get("claudeModel")))
+            {
+                s.ClaudeApiModel = Get("claudeModel");
+            }
+
+            if (!String.IsNullOrEmpty(Get("claudeEffort")))
+            {
+                s.ClaudeApiEffort = Get("claudeEffort");
+            }
+
+            if (!String.IsNullOrEmpty(Get("chatgptModel")))
+            {
+                s.OpenAiApiModel = Get("chatgptModel");
+            }
+
+            s.Save(this._settingsPath);
+            this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+
+            SaveKey(AnthropicApiProvider.SecretName, Get("claudeKey"));
+            SaveKey(OpenAiApiProvider.SecretName, Get("chatgptKey"));
+
+            void SaveKey(String name, String value)
+            {
+                if (String.IsNullOrEmpty(value))
+                {
+                    return;
+                }
+
+                this._host.SetSecret(name, value == "-" ? null : value);
+            }
+        }
+
+        private static String KeyHint(String key) =>
+            String.IsNullOrWhiteSpace(key) ? "" : "••••" + key.Trim().Substring(Math.Max(0, key.Trim().Length - 4));
 
         /// <summary>Runs one Actions Ring preset. Never throws.</summary>
         public async Task ExecutePresetAsync(Preset preset)
@@ -124,7 +229,7 @@ namespace QuickPrompt.Core
             // "Paste in popup": nothing to read; open an empty popup that applies the preset prompt on Enter.
             if (preset.Input == InputModes.Popup)
             {
-                var pasteSession = this.CreateSession(preset.ProviderId, preset.Title, preset.Model);
+                var pasteSession = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
                 if (instruction.Trim().Length > 0)
                 {
                     pasteSession.PresetInstruction = instruction;
@@ -144,7 +249,7 @@ namespace QuickPrompt.Core
 
             if (flow == FlowModes.Edit || nothingToSend || selectionMissing)
             {
-                var draft = this.CreateSession(preset.ProviderId, preset.Title, preset.Model);
+                var draft = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
                 draft.DraftInstruction = instruction;
                 draft.DraftContext = context;
                 if (selectionMissing && flow != FlowModes.Edit)
@@ -158,14 +263,14 @@ namespace QuickPrompt.Core
 
             if (flow == FlowModes.Send)
             {
-                var session = this.CreateSession(preset.ProviderId, preset.Title, preset.Model);
+                var session = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
                 session.StartTurn(instruction, context);
                 this.OpenWindow(session);
                 return;
             }
 
             // Background flows: no window unless something goes wrong.
-            var background = this.CreateSession(preset.ProviderId, preset.Title, preset.Model);
+            var background = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
             var providerName = background.Provider.DisplayName;
             this._host.Notify(providerName, $"{(String.IsNullOrWhiteSpace(preset.Title) ? "Request" : preset.Title)} sent…", false);
             background.StartTurn(instruction, context);

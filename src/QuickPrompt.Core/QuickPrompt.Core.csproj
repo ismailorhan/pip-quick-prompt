@@ -6,5 +6,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>QuickPrompt.Core</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="13.3.0" />
+  </ItemGroup>
 
 </Project>

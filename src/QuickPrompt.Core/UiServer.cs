@@ -133,6 +133,11 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(session.ToJson(request.Query("tab") != "1"));
             }
 
+            if (request.Method == "GET" && action == "settings")
+            {
+                return HttpResponse.Json(this._manager.GetSettingsJson());
+            }
+
             if (request.Method == "POST" && action == "closed")
             {
                 // navigator.sendBeacon cannot set custom headers; cancelling is harmless.
@@ -148,6 +153,10 @@ namespace QuickPrompt.Core
             var body = ParseJson(request.Body);
             switch (action)
             {
+                case "settings":
+                    this._manager.SaveSettings(body);
+                    return HttpResponse.Json(this._manager.GetSettingsJson());
+
                 case "send":
                     var started = session.StartTurnFromPopup(GetString(body, "instruction"), GetString(body, "context"));
                     return started ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);

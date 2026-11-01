@@ -18,6 +18,7 @@ namespace Loupedeck.QuickPromptPlugin
         internal const String ControlIcon = "icon";
         internal const String ControlColor = "color";
         internal const String ControlModel = "model";
+        internal const String ControlConnection = "connection";
 
         private readonly String _providerId;
         private readonly String _defaultColor;
@@ -45,6 +46,7 @@ namespace Loupedeck.QuickPromptPlugin
 
             this.ActionEditor.AddControlEx(new ActionEditorListbox(ControlInput, "Input", "Which text goes into the prompt"));
             this.ActionEditor.AddControlEx(new ActionEditorListbox(ControlFlow, "Behavior", "Where the answer goes"));
+            this.ActionEditor.AddControlEx(new ActionEditorListbox(ControlConnection, "Connection", "CLI uses your subscription; API uses your API key (faster). Keys: Quick Prompt Settings"));
             this.ActionEditor.AddControlEx(new ActionEditorListbox(ControlIcon, "Icon"));
             this.ActionEditor.AddControlEx(new ActionEditorListbox(ControlColor, "Color"));
             this.ActionEditor.AddControlEx(
@@ -72,6 +74,7 @@ namespace Loupedeck.QuickPromptPlugin
                 Input = actionParameters.GetString(ControlInput, InputModes.Selection),
                 Flow = actionParameters.GetString(ControlFlow, FlowModes.Send),
                 Model = actionParameters.GetString(ControlModel, ""),
+                Connection = actionParameters.GetString(ControlConnection, ConnectionModes.Default),
             };
 
             // Never block the plugin service: the CLI call can take many seconds.
@@ -90,7 +93,7 @@ namespace Loupedeck.QuickPromptPlugin
             try
             {
                 var svg = IconCatalog.BuildSvg(
-                    actionParameters.GetString(ControlIcon, "sparkle"),
+                    actionParameters.GetString(ControlIcon, IconCatalog.AppIconId),
                     actionParameters.GetString(ControlColor, this._defaultColor),
                     this._defaultColor,
                     actionParameters.GetString(ControlTitle, this._defaultDisplayName),
@@ -123,6 +126,13 @@ namespace Loupedeck.QuickPromptPlugin
                 e.AddItem(FlowModes.Copy, "Copy to clipboard (no popup)", "The answer is copied when ready");
                 SelectDefault(e, FlowModes.Send);
             }
+            else if (e.ControlName.EqualsNoCase(ControlConnection))
+            {
+                e.AddItem(ConnectionModes.Default, "Default (from Settings)", "Uses the connection chosen in Quick Prompt Settings");
+                e.AddItem(ConnectionModes.Cli, "CLI (subscription)", "Claude Code / Codex CLI with your Claude or ChatGPT plan");
+                e.AddItem(ConnectionModes.Api, "API (API key)", "Faster; billed per use on your API account");
+                SelectDefault(e, ConnectionModes.Default);
+            }
             else if (e.ControlName.EqualsNoCase(ControlIcon))
             {
                 foreach (var icon in IconCatalog.Icons)
@@ -130,7 +140,7 @@ namespace Loupedeck.QuickPromptPlugin
                     e.AddItem(icon.Id, icon.Name, null);
                 }
 
-                SelectDefault(e, "sparkle");
+                SelectDefault(e, IconCatalog.AppIconId);
             }
             else if (e.ControlName.EqualsNoCase(ControlColor))
             {

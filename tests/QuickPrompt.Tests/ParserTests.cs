@@ -194,7 +194,7 @@ namespace QuickPrompt.Tests
                     var svg = IconCatalog.BuildSvg(icon.Id, color.Id, "orange", "Write <email> & send", 80, 80);
                     var doc = XDocument.Parse(svg);
                     Assert.Equal("svg", doc.Root.Name.LocalName);
-                    Assert.Contains(color.Hex, svg);
+                    Assert.Contains(icon.Id == IconCatalog.AppIconId ? "qpMark" : color.Hex, svg);
                 }
             }
         }
@@ -202,9 +202,12 @@ namespace QuickPrompt.Tests
         [Fact]
         public void Unknown_ids_fall_back()
         {
+            // Unknown icon -> the app icon (full color); unknown color -> the fallback color.
             var svg = IconCatalog.BuildSvg("nope", "nope", "green", "x", 0, 0);
-            Assert.Contains("#10A37F", svg);
+            Assert.Contains("qpMark", svg);
             Assert.Contains("width=\"80\"", svg);
+            Assert.Contains("#10A37F", IconCatalog.BuildSvg("chat", "nope", "green", "x", 0, 0));
+            Assert.Equal(IconCatalog.AppIconId, IconCatalog.Icons[0].Id);
         }
 
         [Theory]

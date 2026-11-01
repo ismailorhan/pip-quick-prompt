@@ -6,6 +6,9 @@
 - [x] Selection capture that never sends a stale clipboard
 - [x] macOS native popup with Liquid Glass (vibrancy fallback)
 - [x] CI: tests, Windows build, macOS package, rolling "Latest build" release
+- [x] CLI or API per provider and per preset; Settings view with encrypted API keys
+- [x] "Paste in popup" input
+- [x] Quick Prompt app icon (default preset icon)
 
 ## Next
 
@@ -13,7 +16,8 @@
 - [ ] Verify the Windows plugin on a real device: clipboard, Ctrl+C/V, CLI discovery (`claude.exe`, `codex.cmd`).
 - [ ] Popup polish: dragging, keeping the position, light/dark accent per provider.
 - [ ] Busy feedback for the no-popup behaviors (replace / copy).
-- [ ] Settings UI inside the plugin (CLI paths, system prompt) instead of editing `settings.json`.
+- [ ] More settings in the Settings view (CLI paths, system prompt, effort) instead of editing `settings.json`.
+- [ ] Verify the OpenAI default model name and the API connections with real keys.
 
 ## Before the Logi Marketplace
 
