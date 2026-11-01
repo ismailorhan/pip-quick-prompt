@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Logi Actions SDK plugin. Output layout (bin/plugin/<Configuration>/) is the package layout:
+       bin/       plugin assemblies
+       metadata/  LoupedeckPackage.yaml, icon
+       mac/       QuickPromptPopup (macOS popup helper, built by native/macos/build.sh) -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Loupedeck.QuickPromptPlugin</RootNamespace>
+    <AssemblyName>QuickPromptPlugin</AssemblyName>
+
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <PluginDir Condition="$(OS) == 'Windows_NT'">$(LocalAppData)\Logi\LogiPluginService\Plugins\</PluginDir>
+    <PluginDir Condition="$(OS) != 'Windows_NT'">$(HOME)/Library/Application Support/Logi/LogiPluginService/Plugins/</PluginDir>
+
+    <BaseOutputPath>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../bin/plugin/'))</BaseOutputPath>
+    <OutputPath>$(BaseOutputPath)$(Configuration)/bin/</OutputPath>
+    <PackageRoot>$(BaseOutputPath)$(Configuration)/</PackageRoot>
+
+    <PluginShortName>QuickPrompt</PluginShortName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LogiPluginApi" Version="6.*" ExcludeAssets="runtime;native" />
+    <ProjectReference Include="../QuickPrompt.Core/QuickPrompt.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="CopyPackage" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <PackageFiles Include="package/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PackageFiles)" DestinationFolder="$(PackageRoot)%(RecursiveDir)" />
+  </Target>
+
+  <!-- Debug builds on a machine with Options+: link the output folder into Logi Plugin Service and reload.
+       Pass -p:SkipPluginLink=true (CI, packaging) to skip. -->
+  <Target Name="LinkPlugin" AfterTargets="CopyPackage" Condition="'$(SkipPluginLink)' != 'true' And '$(Configuration)' == 'Debug'">
+    <MakeDir Directories="$(PluginDir)" ContinueOnError="true" />
+    <WriteLinesToFile File="$(PluginDir)$(PluginShortName).link" Lines="$(PackageRoot)" Overwrite="true" ContinueOnError="true" />
+    <Exec Condition="$(OS) == 'Windows_NT'" Command="start loupedeck:plugin/$(PluginShortName)/reload" ContinueOnError="true" />
+    <Exec Condition="$(OS) != 'Windows_NT'" Command="open loupedeck:plugin/$(PluginShortName)/reload" ContinueOnError="true" />
+  </Target>
+
+  <Target Name="UnlinkPlugin">
+    <Delete Files="$(PluginDir)$(PluginShortName).link" />
+  </Target>
+
+</Project>

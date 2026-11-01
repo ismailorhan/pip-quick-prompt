@@ -1,0 +1,346 @@
+namespace QuickPrompt.Core
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Security.Cryptography;
+    using System.Text.Json;
+    using System.Threading;
+    using System.Threading.Tasks;
+
+    public sealed class ChatMessage
+    {
+        public String Role { get; set; } = "user";            // user | assistant
+
+        public String Text { get; set; } = "";                // assistant answer, or the user's instruction
+
+        public String Context { get; set; } = "";             // user message only: the captured text
+
+        public String State { get; set; } = "done";           // streaming | done | error
+    }
+
+    /// <summary>One conversation shown in one response window.</summary>
+    public sealed class ChatSession
+    {
+        private readonly Object _lock = new Object();
+        private readonly List<ChatMessage> _messages = new List<ChatMessage>();
+        private readonly Func<QuickPromptSettings> _settings;
+        private TaskCompletionSource<Boolean> _changed = NewTcs();
+        private CancellationTokenSource _turnCts;
+        private Int64 _version = 1;
+        private String _status = "";
+        private Boolean _busy;
+
+        public ChatSession(IAiProvider provider, Func<QuickPromptSettings> settings)
+        {
+            this.Provider = provider;
+            this._settings = settings;
+            this.Token = CreateToken();
+            this.LastActivityUtc = DateTime.UtcNow;
+        }
+
+        public String Token { get; }
+
+        public IAiProvider Provider { get; }
+
+        public String Title { get; set; } = "";
+
+        public String Model { get; set; } = "";
+
+        public String DraftInstruction { get; set; } = "";
+
+        public String DraftContext { get; set; } = "";
+
+        /// <summary>Hint shown above the input (e.g. "selection could not be read"). Cleared when a turn starts.</summary>
+        public String Notice { get; set; } = "";
+
+        public DateTime LastActivityUtc { get; private set; }
+
+        public Boolean IsBusy
+        {
+            get
+            {
+                lock (this._lock)
+                {
+                    return this._busy;
+                }
+            }
+        }
+
+        public Int64 Version
+        {
+            get
+            {
+                lock (this._lock)
+                {
+                    return this._version;
+                }
+            }
+        }
+
+        /// <summary>Completes when the turn that is running (if any) ends. Returns the answer or throws with the error text.</summary>
+        public Task<String> CurrentTurn { get; private set; } = Task.FromResult("");
+
+        public String LastAnswer
+        {
+            get
+            {
+                lock (this._lock)
+                {
+                    return this._messages.LastOrDefault(m => m.Role == "assistant" && m.State == "done")?.Text ?? "";
+                }
+            }
+        }
+
+        /// <summary>Starts a turn. Returns false when another turn is still running or there is nothing to send.</summary>
+        public Boolean StartTurn(String instruction, String context)
+        {
+            instruction = (instruction ?? "").Trim();
+            context = context ?? "";
+            if (instruction.Length == 0 && context.Trim().Length == 0)
+            {
+                return false;
+            }
+
+            ChatMessage answer;
+            String prompt;
+            CancellationTokenSource cts;
+            lock (this._lock)
+            {
+                if (this._busy)
+                {
+                    return false;
+                }
+
+                var history = this._messages
+                    .Where(m => m.State == "done" || m.Role == "user")
+                    .Select(m => new KeyValuePair<String, String>(m.Role, m.Role == "user" ? PromptBuilder.Build(m.Text, m.Context) : m.Text))
+                    .ToList();
+
+                // Drop user turns whose answer failed, so the history stays question/answer pairs.
+                history = PairUp(history);
+
+                prompt = PromptBuilder.BuildWithHistory(history, PromptBuilder.Build(instruction, context));
+                this._messages.Add(new ChatMessage { Role = "user", Text = instruction, Context = context.Trim() });
+                answer = new ChatMessage { Role = "assistant", State = "streaming" };
+                this._messages.Add(answer);
+                this._busy = true;
+                this._status = "Starting…";
+                this.DraftInstruction = "";
+                this.DraftContext = "";
+                this.Notice = "";
+                this._turnCts?.Dispose();
+                cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(10, this._settings().TimeoutSeconds)));
+                this._turnCts = cts;
+                this.TouchLocked();
+            }
+
+            var request = new AiRequest
+            {
+                Prompt = prompt,
+                Model = this.Model,
+                SystemPrompt = this._settings().SystemPrompt,
+            };
+
+            var turn = Task.Run(() => this.RunTurnAsync(request, answer, cts.Token));
+            // Window turns are not awaited by anyone; observe failures so they are not reported as unobserved.
+            _ = turn.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            this.CurrentTurn = turn;
+            return true;
+        }
+
+        public void Cancel()
+        {
+            lock (this._lock)
+            {
+                try
+                {
+                    this._turnCts?.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Turn already finished.
+                }
+            }
+        }
+
+        /// <summary>Waits until the session changes past <paramref name="sinceVersion"/> or the timeout passes.</summary>
+        public async Task WaitForChangeAsync(Int64 sinceVersion, TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            Task changed;
+            lock (this._lock)
+            {
+                if (this._version > sinceVersion)
+                {
+                    return;
+                }
+
+                changed = this._changed.Task;
+            }
+
+            await Task.WhenAny(changed, Task.Delay(timeout, cancellationToken)).ConfigureAwait(false);
+        }
+
+        public String ToJson(Boolean isAppWindow)
+        {
+            lock (this._lock)
+            {
+                var snapshot = new
+                {
+                    v = this._version,
+                    busy = this._busy,
+                    status = this._status,
+                    title = this.Title,
+                    provider = this.Provider.Id,
+                    providerName = this.Provider.DisplayName,
+                    model = this.Model,
+                    appWindow = isAppWindow,
+                    draft = new { instruction = this.DraftInstruction, context = this.DraftContext },
+                    notice = this.Notice,
+                    messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
+                };
+                return JsonSerializer.Serialize(snapshot);
+            }
+        }
+
+        /// <summary>Adds a finished error exchange (used when a background run fails and we show it in a window).</summary>
+        public void AddError(String instruction, String context, String error)
+        {
+            lock (this._lock)
+            {
+                this._messages.Add(new ChatMessage { Role = "user", Text = instruction ?? "", Context = (context ?? "").Trim() });
+                this._messages.Add(new ChatMessage { Role = "assistant", Text = error ?? "", State = "error" });
+                this.TouchLocked();
+            }
+        }
+
+        public void AddAnswer(String instruction, String context, String answer)
+        {
+            lock (this._lock)
+            {
+                this._messages.Add(new ChatMessage { Role = "user", Text = instruction ?? "", Context = (context ?? "").Trim() });
+                this._messages.Add(new ChatMessage { Role = "assistant", Text = answer ?? "", State = "done" });
+                this.TouchLocked();
+            }
+        }
+
+        private async Task<String> RunTurnAsync(AiRequest request, ChatMessage answer, CancellationToken cancellationToken)
+        {
+            String finalText = null;
+            String errorText = null;
+            try
+            {
+                await foreach (var ev in this.Provider.RunAsync(request, cancellationToken).ConfigureAwait(false))
+                {
+                    lock (this._lock)
+                    {
+                        switch (ev.Kind)
+                        {
+                            case AiEventKind.Status:
+                                this._status = ev.Text;
+                                break;
+                            case AiEventKind.Delta:
+                                answer.Text += ev.Text;
+                                this._status = "Writing…";
+                                break;
+                            case AiEventKind.Snapshot:
+                                answer.Text = ev.Text;
+                                this._status = "Writing…";
+                                break;
+                            case AiEventKind.Final:
+                                answer.Text = ev.Text.Length > 0 ? ev.Text : answer.Text;
+                                finalText = answer.Text;
+                                break;
+                            case AiEventKind.Error:
+                                errorText = ev.Text;
+                                break;
+                        }
+
+                        this.TouchLocked();
+                    }
+
+                    if (finalText != null || errorText != null)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                errorText = cancellationToken.IsCancellationRequested ? "Cancelled or timed out." : ex.Message;
+            }
+
+            if (finalText == null && errorText == null)
+            {
+                errorText = cancellationToken.IsCancellationRequested ? "Cancelled or timed out." : "No answer received.";
+            }
+
+            lock (this._lock)
+            {
+                if (errorText != null)
+                {
+                    // Keep any partial text, followed by the error.
+                    answer.Text = String.IsNullOrWhiteSpace(answer.Text) ? errorText : answer.Text + "\n\n---\n" + errorText;
+                    answer.State = "error";
+                }
+                else
+                {
+                    answer.State = "done";
+                }
+
+                this._busy = false;
+                this._status = "";
+                this.TouchLocked();
+            }
+
+            if (errorText != null)
+            {
+                throw new AiTurnException(errorText);
+            }
+
+            return finalText;
+        }
+
+        private static List<KeyValuePair<String, String>> PairUp(List<KeyValuePair<String, String>> items)
+        {
+            var result = new List<KeyValuePair<String, String>>();
+            for (var i = 0; i < items.Count; i++)
+            {
+                if (items[i].Key == "user" && i + 1 < items.Count && items[i + 1].Key == "assistant")
+                {
+                    result.Add(items[i]);
+                    result.Add(items[i + 1]);
+                    i++;
+                }
+            }
+
+            return result;
+        }
+
+        private void TouchLocked()
+        {
+            this._version++;
+            this.LastActivityUtc = DateTime.UtcNow;
+            var old = this._changed;
+            this._changed = NewTcs();
+            old.TrySetResult(true);
+        }
+
+        private static TaskCompletionSource<Boolean> NewTcs() =>
+            new TaskCompletionSource<Boolean>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private static String CreateToken()
+        {
+            var bytes = RandomNumberGenerator.GetBytes(18);
+            return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        }
+    }
+
+    public sealed class AiTurnException : Exception
+    {
+        public AiTurnException(String message)
+            : base(message)
+        {
+        }
+    }
+}

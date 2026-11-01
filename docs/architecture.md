@@ -1,0 +1,51 @@
+# Architecture
+
+```
+Actions Ring button (Options+ action editor preset)
+  └─ QuickPrompt.Plugin  (Logi Actions SDK, runs inside Logi Plugin Service)
+       │  HostBridge: clipboard, ⌘C/⌘V or Ctrl+C/V, notifications
+       └─ QuickPrompt.Core (no Logitech dependency)
+            ├─ ChatManager      runs a preset: read selection → start session → open popup / paste / copy
+            ├─ ChatSession      one popup = one conversation (history, streaming state, long-poll versioning)
+            ├─ ClaudeCliProvider  claude -p --output-format stream-json --tools "" …   (prompt on stdin)
+            ├─ CodexCliProvider   codex exec --sandbox read-only --json --ephemeral -  (prompt on stdin)
+            ├─ CliLocator       finds the CLIs (Homebrew, npm, nvm, ~/.local/bin, login-shell PATH)
+            ├─ UiServer         HTTP on 127.0.0.1, random port, per-session token
+            ├─ ChatPage         the popup page (HTML/CSS/JS, no external resources)
+            └─ WindowLauncher   macOS: native popup · otherwise: Edge/Chrome --app window
+                 └─ native/macos/QuickPromptPopup (Swift: NSPanel + WKWebView + NSGlassEffectView)
+```
+
+## Projects
+
+| Path | What |
+|---|---|
+| `src/QuickPrompt.Core` | Everything that does not need the Logitech SDK. Unit-tested. |
+| `src/QuickPrompt.Plugin` | The Logi plugin: `QuickPromptPlugin`, the two action-editor commands, `HostBridge`, package files. |
+| `src/QuickPrompt.DevHost` | Console app that runs Core and the popup without Options+. |
+| `native/macos` | Swift popup helper (`QuickPromptPopup`), built into the package. |
+| `tests/QuickPrompt.Tests` | xUnit tests for Core. |
+
+## Reading the selection
+
+The plugin presses ⌘C/Ctrl+C and watches the clipboard:
+
+1. If the clipboard holds text, it is first replaced with a unique marker, so even copying the same text is detected.
+2. It waits 250 ms for the ring to close and focus to return to the app, sends the shortcut, and polls for up to 1.5 s, retrying the shortcut once after 600 ms.
+3. It restores the previous clipboard text.
+4. If nothing was copied, the old clipboard is **not** used. The popup opens with an empty text box and a notice.
+
+## CLI calls
+
+- The prompt goes in on stdin, which avoids command-line quoting and length limits.
+- Claude: `--tools ""` (no tools), `--strict-mcp-config` (no MCP servers), `--no-session-persistence`, and `--append-system-prompt` for the instructions. Output is `stream-json` with partial messages, so the answer streams token by token.
+- Codex: `--sandbox read-only`, `--ephemeral`, `--json`, and `-o <file>` as a fallback for the final message. There is no system-prompt flag, so the instructions are put in front of the prompt.
+- Calls are stateless. Follow-up questions carry the earlier turns inside the prompt.
+- Each CLI runs in an empty `workspace/` folder in the plugin data directory, so no project context is picked up.
+
+## Popup
+
+- `UiServer` listens on `127.0.0.1` only. Every URL contains a random 144-bit session token. The `Host` header is checked against DNS rebinding, and state-changing requests need an `X-QuickPrompt` header to block cross-site posts. The page has a strict CSP and no external resources.
+- The page long-polls `/s/<token>/state?v=N`. Endpoints: `send`, `cancel`, `copy`, `paste`, `closed`.
+- **macOS:** `QuickPromptPopup` is a borderless, *non-activating* `NSPanel` at the mouse cursor, so the user's app stays frontmost and **Paste** goes straight into it. The page is transparent. It reports its height and the rectangles of its `.glass` elements through `window.webkit.messageHandlers.quickPrompt`, and the panel puts an `NSGlassEffectView` behind each one (looked up at runtime; `NSVisualEffectView` before macOS 26). One popup at a time: a new one tells older ones to close through a distributed notification.
+- **Other platforms:** the same page in an Edge/Chrome `--app` window with a separate profile, where CSS imitates the glass. The default browser is the last resort.

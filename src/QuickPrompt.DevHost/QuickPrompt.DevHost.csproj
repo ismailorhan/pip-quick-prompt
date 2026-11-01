@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Runs the popup and the CLI providers without Logi Options+ (trying things out, debugging). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>QuickPrompt.DevHost</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../QuickPrompt.Core/QuickPrompt.Core.csproj" />
+  </ItemGroup>
+
+</Project>

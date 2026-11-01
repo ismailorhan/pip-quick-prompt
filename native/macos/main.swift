@@ -1,0 +1,290 @@
+// QuickPromptPopup: a small floating panel at the mouse cursor that shows the Quick Prompt page.
+//
+// The plugin starts it with the page URL (http://127.0.0.1:<port>/s/<token>/).
+// The panel is transparent and non-activating: the app you were working in stays frontmost,
+// so "Paste" pastes straight back into it. The page reports its height and the rectangles
+// of its ".glass" shapes; behind each one we place a native Liquid Glass view
+// (NSGlassEffectView, macOS 26+) or a vibrancy view on older systems.
+//
+// Build: ./build.sh  (needs Xcode Command Line Tools: xcode-select --install)
+
+import AppKit
+import WebKit
+
+let popupWidth: CGFloat = 520
+// Looked up at runtime so the code also builds with older SDKs.
+let glassViewClass: NSView.Type? = NSClassFromString("NSGlassEffectView") as? NSView.Type
+let newPopupNotification = Notification.Name("app.quickprompt.popup.opened")
+
+final class PopupPanel: NSPanel {
+    var onClose: (() -> Void)?
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    // An accessory app has no Edit menu, so route the standard shortcuts ourselves.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        var action: Selector?
+        if flags == .command {
+            switch key {
+            case "c": action = #selector(NSText.copy(_:))
+            case "v": action = #selector(NSText.paste(_:))
+            case "x": action = #selector(NSText.cut(_:))
+            case "a": action = #selector(NSText.selectAll(_:))
+            case "z": action = Selector(("undo:"))
+            case "w":
+                onClose?()
+                return true
+            default: break
+            }
+        } else if flags == [.command, .shift], key == "z" {
+            action = Selector(("redo:"))
+        }
+        if let action = action, NSApp.sendAction(action, to: nil, from: self) {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    override func cancelOperation(_ sender: Any?) {
+        onClose?()
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    private let url: URL
+    private var panel: PopupPanel!
+    private var webView: WKWebView!
+    private var container: NSView!
+    private var glassViews: [NSView] = []
+    private var topLeft = NSPoint.zero
+    private var visibleArea = NSRect.zero
+    private var shown = false
+    private var closing = false
+
+    init(url: URL) {
+        self.url = url
+        super.init()
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // One popup at a time: tell older ones to close.
+        let me = String(ProcessInfo.processInfo.processIdentifier)
+        DistributedNotificationCenter.default().addObserver(forName: newPopupNotification, object: nil, queue: .main) { [weak self] note in
+            if let sender = note.object as? String, sender != me {
+                self?.close()
+            }
+        }
+        DistributedNotificationCenter.default().postNotificationName(newPopupNotification, object: me, userInfo: nil, deliverImmediately: true)
+
+        // Place the panel just below and to the right of the cursor, inside the visible screen area.
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
+        visibleArea = screen.visibleFrame
+        let initialHeight: CGFloat = 76
+        let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - popupWidth - 8)
+        let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
+        topLeft = NSPoint(x: x, y: top)
+
+        let frame = NSRect(x: topLeft.x, y: topLeft.y - initialHeight, width: popupWidth, height: initialHeight)
+        panel = PopupPanel(contentRect: frame,
+                           styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
+                           backing: .buffered,
+                           defer: false)
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.hidesOnDeactivate = false
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.delegate = self
+        panel.onClose = { [weak self] in self?.close() }
+
+        // Transparent container: glass views (behind) + the web page (on top).
+        container = NSView(frame: NSRect(origin: .zero, size: frame.size))
+        container.autoresizingMask = [.width, .height]
+
+        let config = WKWebViewConfiguration()
+        config.userContentController.add(self, name: "quickPrompt")
+        let glassKind = glassViewClass != nil ? "liquid" : "vibrancy"
+        config.userContentController.addUserScript(WKUserScript(
+            source: "window.__quickPromptNative = { glass: '\(glassKind)' };",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true))
+        webView = WKWebView(frame: container.bounds, configuration: config)
+        webView.autoresizingMask = [.width, .height]
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.underPageBackgroundColor = .clear
+        container.addSubview(webView)
+        panel.contentView = container
+
+        webView.load(URLRequest(url: url))
+
+        // Show when the page is ready (looks instant), or after a short fallback delay.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.show() }
+    }
+
+    private func show() {
+        guard !shown, !closing else { return }
+        shown = true
+        panel.makeKeyAndOrderFront(nil)   // becomes key without activating: the previous app stays frontmost
+        panel.makeFirstResponder(webView)
+    }
+
+    private func close() {
+        guard !closing else { return }
+        closing = true
+        panel?.orderOut(nil)
+        NSApp.terminate(nil)
+    }
+
+    private func setHeight(_ requested: CGFloat) {
+        let height = min(max(requested.rounded(.up), 40), visibleArea.height * 0.85)
+        var top = topLeft.y
+        if top - height < visibleArea.minY + 8 {
+            top = min(visibleArea.minY + 8 + height, visibleArea.maxY - 8)
+        }
+        panel.setFrame(NSRect(x: topLeft.x, y: top - height, width: popupWidth, height: height), display: true, animate: false)
+        container.layoutSubtreeIfNeeded()
+    }
+
+    /// Places one glass view behind each rectangle reported by the page (CSS pixels, top-left origin).
+    private func layoutGlass(_ rects: [[String: Any]]) {
+        let height = container.bounds.height
+        while glassViews.count < rects.count {
+            let view = makeGlassView()
+            container.addSubview(view, positioned: .below, relativeTo: webView)
+            glassViews.append(view)
+        }
+        for (index, view) in glassViews.enumerated() {
+            guard index < rects.count else {
+                view.isHidden = true
+                continue
+            }
+            let r = rects[index]
+            let x = CGFloat(r["x"] as? Double ?? 0)
+            let y = CGFloat(r["y"] as? Double ?? 0)
+            let w = CGFloat(r["w"] as? Double ?? 0)
+            let h = CGFloat(r["h"] as? Double ?? 0)
+            let radius = CGFloat(r["r"] as? Double ?? 0)
+            view.isHidden = false
+            view.frame = NSRect(x: x, y: height - y - h, width: w, height: h)
+            setCornerRadius(view, min(radius, min(w, h) / 2))
+        }
+        panel.invalidateShadow()
+    }
+
+    private func makeGlassView() -> NSView {
+        if let glassClass = glassViewClass {
+            return glassClass.init(frame: .zero)
+        }
+        let effect = NSVisualEffectView(frame: .zero)
+        effect.material = .hudWindow
+        effect.blendingMode = .behindWindow
+        effect.state = .active
+        return effect
+    }
+
+    private func setCornerRadius(_ view: NSView, _ radius: CGFloat) {
+        if view.responds(to: NSSelectorFromString("setCornerRadius:")) {
+            view.setValue(radius, forKey: "cornerRadius")
+        } else if let effect = view as? NSVisualEffectView {
+            effect.maskImage = AppDelegate.roundedMask(radius: radius)
+        } else {
+            view.wantsLayer = true
+            view.layer?.cornerRadius = radius
+            view.layer?.masksToBounds = true
+        }
+    }
+
+    private static func roundedMask(radius: CGFloat) -> NSImage {
+        let edge = max(radius * 2 + 1, 1)
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
+
+    // MARK: page → panel messages
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        switch type {
+        case "layout":
+            if let value = body["height"] as? Double {
+                setHeight(CGFloat(value))
+            }
+            if let rects = body["rects"] as? [[String: Any]] {
+                layoutGlass(rects)
+            }
+            show()
+        case "close":
+            close()
+        default:
+            break
+        }
+    }
+
+    // MARK: web view
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        show()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        let html = "<body style='font:13px -apple-system;margin:16px;color:#c00;background:transparent'>Could not connect to the Quick Prompt plugin: \(error.localizedDescription)<br>Press Esc to close.</body>"
+        webView.loadHTMLString(html, baseURL: nil)
+        show()
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        // Links in answers open in the default browser, not inside the popup.
+        if navigationAction.navigationType == .linkActivated, let target = navigationAction.request.url {
+            NSWorkspace.shared.open(target)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let target = navigationAction.request.url {
+            NSWorkspace.shared.open(target)
+        }
+        return nil
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        close()
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+    }
+}
+
+// MARK: entry point
+
+let arguments = CommandLine.arguments
+guard arguments.count > 1,
+      let url = URL(string: arguments[1]),
+      url.scheme == "http",
+      url.host == "127.0.0.1" || url.host == "localhost" else {
+    FileHandle.standardError.write("Usage: QuickPromptPopup http://127.0.0.1:<port>/s/<token>/\n".data(using: .utf8)!)
+    exit(2)
+}
+
+let app = NSApplication.shared
+app.setActivationPolicy(.accessory)
+let delegate = AppDelegate(url: url)
+app.delegate = delegate
+app.run()

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/QuickPrompt.Core/QuickPrompt.Core.csproj" />
+    <Project Path="src/QuickPrompt.Plugin/QuickPrompt.Plugin.csproj" />
+    <Project Path="src/QuickPrompt.DevHost/QuickPrompt.DevHost.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/QuickPrompt.Tests/QuickPrompt.Tests.csproj" />
+  </Folder>
+</Solution>

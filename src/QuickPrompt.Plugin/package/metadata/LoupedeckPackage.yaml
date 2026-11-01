@@ -1,0 +1,30 @@
+# Logi Plugin Service package manifest.
+# Reference: https://logitech.github.io/actions-sdk-docs/
+
+type: plugin4
+
+# Identifier. Changing it makes Options+ treat the plugin as a different one.
+name: QuickPrompt
+displayName: Quick Prompt
+description: Ask Claude or ChatGPT about the selected text from your Actions Ring. The answer streams into a small popup next to the cursor; nothing else comes to the front. Each ring button is its own preset with a prompt, icon and behavior.
+
+pluginFileName: QuickPromptPlugin.dll
+version: 0.2.0
+author: Sapcon
+copyright: Copyright © 2026 Sapcon. All rights reserved.
+
+# Plugin files live in bin/ on both platforms (package root also holds mac/QuickPromptPopup).
+pluginFolderWin: bin
+pluginFolderMac: bin
+
+supportedDevices:
+    # Loupedeck CT, Live and Live S
+    - LoupedeckCtFamily
+    # Logitech MX Creative Console family
+    - LoupedeckExtendedFamily
+
+minimumLoupedeckVersion: 6.4
+
+# Marketplace
+license: MIT
+licenseUrl: https://opensource.org/licenses/MIT

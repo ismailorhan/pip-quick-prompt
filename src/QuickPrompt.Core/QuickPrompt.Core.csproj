@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Platform-independent logic: CLI providers, sessions, local UI server, popup page, icons.
+       No dependency on the Logitech SDK, so it is tested and run without Logi Options+. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>QuickPrompt.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>
