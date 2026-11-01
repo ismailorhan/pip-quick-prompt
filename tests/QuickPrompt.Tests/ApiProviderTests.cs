@@ -326,6 +326,20 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public void Popup_size_is_saved_validated_and_reported()
+        {
+            var session = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            Assert.Equal("medium", JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("popupSize").GetString());
+
+            this._manager.SaveSettings(new Dictionary<string, string> { ["popupSize"] = "large" });
+            Assert.Equal("large", JsonDocument.Parse(session.ToJson(true)).RootElement.GetProperty("popupSize").GetString());
+            Assert.Equal("large", JsonDocument.Parse(this._manager.GetSettingsJson()).RootElement.GetProperty("popupSize").GetString());
+
+            this._manager.SaveSettings(new Dictionary<string, string> { ["popupSize"] = "huge" });
+            Assert.Equal("large", this._manager.Settings.PopupSize);
+        }
+
+        [Fact]
         public void Session_reports_its_connection()
         {
             var session = this._manager.CreateSession(ProviderIds.Claude, "", "", ConnectionModes.Api);

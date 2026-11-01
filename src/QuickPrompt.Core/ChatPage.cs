@@ -56,7 +56,7 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .notice { font-size: 12.5px; color: var(--accent); margin: 2px 0 4px; }
 
-.thread { overflow-y: auto; max-height: 360px; scrollbar-width: thin; margin-top: 2px; }
+.thread { overflow-y: auto; max-height: var(--thread-max, 380px); scrollbar-width: thin; margin-top: 2px; }
 .q { color: var(--muted); font-size: 12px; margin: 10px 0 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .q:first-child { margin-top: 2px; }
 .tok { background: var(--accent); color: var(--accent-text); border-radius: 5px; padding: 0 5px; font-size: 11px; }
@@ -122,6 +122,19 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 
 /* History view */
 .history { border-radius: 22px; padding: 10px 10px 12px; }
+
+/* Dragging (native popup) */
+html.native [data-drag] { cursor: grab; }
+html.native [data-drag] button, html.native [data-drag] textarea, html.native [data-drag] input, html.native [data-drag] select { cursor: auto; }
+.pinned { color: var(--accent) !important; }
+
+/* Collapsed (pinned) icon */
+#root.is-mini { padding: 8px; display: inline-flex; }
+.mini { position: relative; width: 56px; height: 56px; border-radius: 28px; display: grid; place-items: center; }
+.mini > button.open { width: 56px; height: 56px; border-radius: 28px; background: transparent; padding: 0; display: grid; place-items: center; cursor: grab; }
+.mini > button.miniX { position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; padding: 0; border-radius: 9px; font-size: 10px; line-height: 18px; background: var(--text); color: var(--card, #000); opacity: 0; transition: opacity .15s; }
+html:not([data-scheme]) .mini > button.miniX { color: #fff; background: rgba(0,0,0,.65); }
+.mini:hover > button.miniX { opacity: 1; }
 .history .meta { padding: 0 6px; }
 .hlist { max-height: 380px; overflow-y: auto; margin-top: 6px; scrollbar-width: thin; }
 .hitem { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: transparent; border-radius: 14px; padding: 8px 10px; }
@@ -143,11 +156,12 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 <body>
 <div id="root">
   <div class="card glass" id="card" hidden>
-    <div class="meta">
+    <div class="meta" data-drag>
       <span class="dot"></span>
       <span id="who"></span>
       <span class="title" id="title"></span>
       <span class="status" id="status"></span>
+      <button type="button" class="x" id="pinBtn" title="Pin: Esc and ✕ keep it as a small icon" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
       <button type="button" class="x" id="metaHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
       <button type="button" class="x" id="gear" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
@@ -161,7 +175,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     </div>
   </div>
   <div class="settings glass" id="settings" hidden>
-    <div class="meta">
+    <div class="meta" data-drag>
       <span class="dot"></span>
       <span class="title">Settings</span>
       <span class="status" id="setStatus"></span>
@@ -191,6 +205,10 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       </div>
     </div>
     <div class="sgroup">
+      <div class="srow"><span class="sname">Popup size</span>
+        <div class="seg" data-name="popupSize"><button type="button" data-v="small">Small</button><button type="button" data-v="medium">Medium</button><button type="button" data-v="large">Large</button></div></div>
+    </div>
+    <div class="sgroup">
       <div class="srow"><span class="sname">History</span>
         <div class="seg" data-name="saveHistory"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
       <div class="shint">Keeps your last 50 conversations on this computer so you can reopen and continue them (clock button). Turning it off deletes them.</div>
@@ -199,7 +217,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     <div class="actions"><button type="button" class="primary" id="setSave">Save</button><button type="button" id="setBack">Cancel</button></div>
   </div>
   <div class="history glass" id="historyView" hidden>
-    <div class="meta">
+    <div class="meta" data-drag>
       <span class="dot"></span>
       <span class="title">Recent conversations</span>
       <span class="status"></span>
@@ -208,10 +226,15 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     <div class="hlist" id="hlist"></div>
     <div class="actions"><button type="button" id="histBack">Back</button><button type="button" id="histClear">Clear history</button></div>
   </div>
+  <div class="mini glass" id="mini" hidden>
+    <button type="button" class="open" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="34" height="34"><defs><linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient></defs><path d="M12 3.8L14.05 9.95L20.2 12L14.05 14.05L12 20.2L9.95 14.05L3.8 12L9.95 9.95Z" fill="url(#qpMini)"/><path d="M16.1 7.9L17.5 6.5M16.1 16.1L17.5 17.5M7.9 16.1L6.5 17.5M7.9 7.9L6.5 6.5" stroke="url(#qpMini)" stroke-width="1.25" stroke-linecap="round"/></svg></button>
+    <button type="button" class="miniX" id="miniClose" title="Close">✕</button>
+  </div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
-  <div class="bar glass" id="bar">
+  <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
+    <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as a small icon" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
     <button type="button" class="round gear" id="barGear" title="Settings"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
@@ -279,9 +302,19 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   }
 
   // ---------- native layout: panel height + glass shapes ----------
+  // Popup size (Settings): width of the panel and height of the answer area.
+  const SIZES = { small: { w: 440, h: 260 }, medium: { w: 520, h: 380 }, large: { w: 680, h: 540 } };
+  let size = SIZES.medium, sizeKnown = false, collapsed = false, pinned = false;
+  function applySize(name) {
+    size = SIZES[name] || SIZES.medium;
+    sizeKnown = true;
+    document.documentElement.style.setProperty("--thread-max", size.h + "px");
+    queueLayout();
+  }
+
   let layoutQueued = false, lastLayout = "";
   function queueLayout() {
-    if (!bridge || layoutQueued) return;
+    if (!bridge || layoutQueued || !sizeKnown) return;
     layoutQueued = true;
     requestAnimationFrame(() => {
       layoutQueued = false;
@@ -291,11 +324,13 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
           const r = el.getBoundingClientRect();
           return { x: r.left, y: r.top, w: r.width, h: r.height, r: parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0 };
         });
-      const height = Math.ceil(els.root.getBoundingClientRect().height);
-      const key = JSON.stringify([height, rects]);
+      const box = els.root.getBoundingClientRect();
+      const height = Math.ceil(box.height);
+      const width = collapsed ? Math.ceil(box.width) : size.w;
+      const key = JSON.stringify([width, height, rects]);
       if (key === lastLayout) return;
       lastLayout = key;
-      bridge.postMessage({ type: "layout", height, rects });
+      bridge.postMessage({ type: "layout", width, height, rects });
     });
   }
   if (bridge && window.ResizeObserver) {
@@ -439,6 +474,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       setSeg("claudeConnection", s.claude.connection);
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
+      setSeg("popupSize", s.popupSize || "medium");
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
       if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
@@ -469,9 +505,11 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
       claudeModel: set.claudeModel.value, chatgptModel: set.chatgptModel.value.trim(),
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
+      popupSize: segValues.popupSize,
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
+    try { applySize((await res.json()).popupSize); } catch (e) {}
     toast("Saved");
     closeSettings();
   }
@@ -481,7 +519,64 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   $("errSettings").addEventListener("click", () => openSettings(false));
   $("setSave").addEventListener("click", saveSettings);
   $("setBack").addEventListener("click", closeSettings);
-  $("setClose").addEventListener("click", closeWindow);
+  $("setClose").addEventListener("click", () => settingsOnly ? closeWindow() : dismiss());
+
+  // ---------- pin, collapse to an icon, drag (native popup only) ----------
+  const mini = $("mini");
+  function setPinned(value) {
+    pinned = value;
+    ["pinBtn", "barPin"].forEach(id => $(id).classList.toggle("pinned", pinned));
+    if (bridge) bridge.postMessage({ type: "pin", value: pinned });
+    toast(pinned ? "Pinned: Esc keeps it as an icon" : "Unpinned");
+  }
+
+  function collapse() {
+    collapsed = true;
+    [els.card, els.bar, els.ctxWrap, set.view, $("historyView")].forEach(el => el.hidden = true);
+    settingsOpen = false; historyOpen = false;
+    els.root.classList.add("is-mini");
+    mini.hidden = false;
+    lastLayout = "";
+    queueLayout();
+  }
+
+  function expand() {
+    collapsed = false;
+    mini.hidden = true;
+    els.root.classList.remove("is-mini");
+    els.bar.hidden = false;
+    lastKey = "";
+    lastLayout = "";
+    if (state) render();
+    queueLayout();
+    setTimeout(() => els.prompt.focus(), 0);
+  }
+
+  /// Esc / ✕: a pinned popup shrinks to an icon, otherwise it closes.
+  function dismiss() {
+    if (bridge && pinned) collapse(); else closeWindow();
+  }
+
+  $("pinBtn").addEventListener("click", () => setPinned(!pinned));
+  $("barPin").addEventListener("click", () => setPinned(!pinned));
+  $("miniClose").addEventListener("click", closeWindow);
+
+  // Drag: mouse down on a [data-drag] area (not on its controls) lets the panel follow the mouse.
+  let downAt = null;
+  document.addEventListener("mousedown", e => {
+    downAt = { x: e.screenX, y: e.screenY };
+    if (!bridge || e.button !== 0) return;
+    const onMini = e.target.closest("#miniOpen");
+    const area = e.target.closest("[data-drag]");
+    if (!onMini && (!area || e.target.closest("button, textarea, input, select, a, .seg"))) return;
+    if (!onMini) e.preventDefault();
+    bridge.postMessage({ type: "drag" });
+  });
+  // A click on the icon opens it again; a drag (the icon moved under the mouse) does not.
+  $("miniOpen").addEventListener("click", e => {
+    if (downAt && Math.abs(e.screenX - downAt.x) + Math.abs(e.screenY - downAt.y) > 4) return;
+    expand();
+  });
 
   // ---------- history ----------
   const hist = { view: $("historyView"), list: $("hlist") };
@@ -551,7 +646,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   $("barHistory").addEventListener("click", () => openHistory(false));
   $("metaHistory").addEventListener("click", () => openHistory(false));
   $("histBack").addEventListener("click", closeHistory);
-  $("histClose").addEventListener("click", closeWindow);
+  $("histClose").addEventListener("click", () => historyOnly ? closeWindow() : dismiss());
   $("histClear").addEventListener("click", async () => {
     renderHistory(await (await post("clearhistory")).json());
     toast("History cleared");
@@ -562,6 +657,8 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     const s = state;
     document.documentElement.dataset.provider = s.provider;
     els.who.textContent = s.providerName + (s.connection === "api" ? " · API" : "") + (s.model ? " · " + s.model : "");
+    if (!sizeKnown || SIZES[s.popupSize] !== size) applySize(s.popupSize);
+    if (collapsed) return;
     if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
     if (s.showHistory && !historyOpen && !draftApplied) { draftApplied = true; openHistory(true); return; }
     if (settingsOpen || historyOpen) return;
@@ -575,6 +672,8 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
     $("barGear").hidden = !els.card.hidden;
     $("barHistory").hidden = !els.card.hidden;
+    $("barPin").hidden = !bridge || !els.card.hidden;
+    $("pinBtn").hidden = !bridge;
     const last = s.messages[s.messages.length - 1];
     els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 
@@ -665,7 +764,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
     }
   }
 
-  $("close").addEventListener("click", closeWindow);
+  $("close").addEventListener("click", dismiss);
   $("copy").addEventListener("click", () => { const t = lastAnswer(); if (t != null) copyText(t); });
   $("paste").addEventListener("click", pasteAndClose);
   els.send.addEventListener("click", send);
@@ -680,9 +779,11 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") {
       e.preventDefault();
+      if (collapsed) return;
       if (settingsOpen && !settingsOnly) closeSettings();
       else if (historyOpen && !historyOnly) closeHistory();
-      else closeWindow();
+      else if (settingsOnly || historyOnly) closeWindow();
+      else dismiss();
       return;
     }
     if (historyOpen) return;
@@ -704,6 +805,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
         const res = await fetch(base + "state?v=" + version + (isTab ? "&tab=1" : ""), { cache: "no-store" });
         if (res.status === 404) {
           els.card.hidden = false;
+          if (!sizeKnown) applySize("medium");
           els.thread.innerHTML = '<div class="a error">This popup session has ended. Press Esc and try again.</div>';
           els.send.disabled = true;
           queueLayout();
@@ -714,6 +816,7 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
         render();
       } catch (e) {
         els.card.hidden = false;
+        if (!sizeKnown) applySize("medium");
         els.status.textContent = "No connection — is the plugin running?";
         queueLayout();
         await new Promise(r => setTimeout(r, 1500));

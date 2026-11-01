@@ -61,6 +61,9 @@ namespace QuickPrompt.Core
 
         public Int32 WindowHeight { get; set; } = 560;
 
+        /// <summary>Popup size: "small", "medium" or "large" (width and answer height).</summary>
+        public String PopupSize { get; set; } = "medium";
+
         /// <summary>Keep the last conversations on this computer so they can be reopened and continued.</summary>
         public Boolean SaveHistory { get; set; } = true;
 
@@ -115,6 +118,7 @@ namespace QuickPrompt.Core
             this.CodexPath ??= "";
             this.BrowserPath ??= "";
             this.PopupPath ??= "";
+            this.PopupSize = this.PopupSize?.Trim().ToLowerInvariant() is "small" or "large" ? this.PopupSize.Trim().ToLowerInvariant() : "medium";
             this.SystemPrompt ??= "";
             this.ClaudeConnection = ConnectionModes.Normalize(this.ClaudeConnection, ConnectionModes.Cli);
             this.ChatGptConnection = ConnectionModes.Normalize(this.ChatGptConnection, ConnectionModes.Cli);

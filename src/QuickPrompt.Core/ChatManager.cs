@@ -235,6 +235,7 @@ namespace QuickPrompt.Core
             {
                 version = AppVersion,
                 saveHistory = s.SaveHistory,
+                popupSize = s.PopupSize,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -274,6 +275,11 @@ namespace QuickPrompt.Core
             if (!String.IsNullOrEmpty(Get("chatgptModel")))
             {
                 s.OpenAiApiModel = Get("chatgptModel");
+            }
+
+            if (Get("popupSize") is "small" or "medium" or "large")
+            {
+                s.PopupSize = Get("popupSize");
             }
 
             if (Get("saveHistory") is "true" or "false")

@@ -11,7 +11,7 @@
 import AppKit
 import WebKit
 
-let popupWidth: CGFloat = 520
+let defaultPopupWidth: CGFloat = 520
 // Looked up at runtime so the code also builds with older SDKs.
 let glassViewClass: NSView.Type? = NSClassFromString("NSGlassEffectView") as? NSView.Type
 let newPopupNotification = Notification.Name("app.quickprompt.popup.opened")
@@ -63,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     private var visibleArea = NSRect.zero
     private var shown = false
     private var closing = false
+    private var popupWidth: CGFloat = defaultPopupWidth
+    /// Pinned popups survive new popups (and collapse to an icon instead of closing; the page handles that).
+    private var pinned = false
+    private var dragTimer: Timer?
 
     init(url: URL) {
         self.url = url
@@ -73,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         // One popup at a time: tell older ones to close.
         let me = String(ProcessInfo.processInfo.processIdentifier)
         DistributedNotificationCenter.default().addObserver(forName: newPopupNotification, object: nil, queue: .main) { [weak self] note in
-            if let sender = note.object as? String, sender != me {
+            if let sender = note.object as? String, sender != me, self?.pinned == false {
                 self?.close()
             }
         }
@@ -84,11 +88,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
         visibleArea = screen.visibleFrame
         let initialHeight: CGFloat = 76
-        let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - popupWidth - 8)
+        let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
         topLeft = NSPoint(x: x, y: top)
 
-        let frame = NSRect(x: topLeft.x, y: topLeft.y - initialHeight, width: popupWidth, height: initialHeight)
+        let frame = NSRect(x: topLeft.x, y: topLeft.y - initialHeight, width: defaultPopupWidth, height: initialHeight)
         panel = PopupPanel(contentRect: frame,
                            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
                            backing: .buffered,
@@ -143,14 +147,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         NSApp.terminate(nil)
     }
 
-    private func setHeight(_ requested: CGFloat) {
+    /// Resizes the panel keeping its top-left corner (the page reports its own size), inside the screen.
+    private func setSize(width requestedWidth: CGFloat?, height requested: CGFloat) {
+        if let w = requestedWidth {
+            popupWidth = min(max(w.rounded(.up), 56), visibleArea.width - 16)
+        }
         let height = min(max(requested.rounded(.up), 40), visibleArea.height * 0.85)
         var top = topLeft.y
         if top - height < visibleArea.minY + 8 {
             top = min(visibleArea.minY + 8 + height, visibleArea.maxY - 8)
         }
-        panel.setFrame(NSRect(x: topLeft.x, y: top - height, width: popupWidth, height: height), display: true, animate: false)
+        let x = min(max(topLeft.x, visibleArea.minX + 8), visibleArea.maxX - popupWidth - 8)
+        topLeft = NSPoint(x: x, y: top)
+        panel.setFrame(NSRect(x: x, y: top - height, width: popupWidth, height: height), display: true, animate: false)
         container.layoutSubtreeIfNeeded()
+    }
+
+    /// Moves the panel with the mouse until the button is released (started by the page on mouse down).
+    private func startDrag() {
+        let start = NSEvent.mouseLocation
+        let origin = panel.frame.origin
+        dragTimer?.invalidate()
+        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            if NSEvent.pressedMouseButtons & 1 == 0 {
+                timer.invalidate()
+                self.dragTimer = nil
+                return
+            }
+            let now = NSEvent.mouseLocation
+            self.panel.setFrameOrigin(NSPoint(x: origin.x + now.x - start.x, y: origin.y + now.y - start.y))
+        }
+        // .common so it also runs while the web view is tracking the mouse.
+        RunLoop.main.add(timer, forMode: .common)
+        dragTimer = timer
     }
 
     /// Places one glass view behind each rectangle reported by the page (CSS pixels, top-left origin).
@@ -221,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         switch type {
         case "layout":
             if let value = body["height"] as? Double {
-                setHeight(CGFloat(value))
+                setSize(width: (body["width"] as? Double).map { CGFloat($0) }, height: CGFloat(value))
             }
             if let rects = body["rects"] as? [[String: Any]] {
                 layoutGlass(rects)
@@ -229,6 +262,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             show()
         case "close":
             close()
+        case "drag":
+            startDrag()
+        case "pin":
+            pinned = (body["value"] as? Bool) ?? false
         default:
             break
         }
@@ -269,6 +306,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
 
     func windowDidMove(_ notification: Notification) {
         topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+        if let screen = panel.screen {
+            visibleArea = screen.visibleFrame
+        }
     }
 }
 
