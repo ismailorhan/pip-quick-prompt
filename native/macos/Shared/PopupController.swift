@@ -564,6 +564,12 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         return nil
     }
 
+    /// The page's process crashed or was stopped by macOS: load it again instead of leaving an empty panel.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard !closing else { return }
+        webView.load(URLRequest(url: url))
+    }
+
     func webViewDidClose(_ webView: WKWebView) {
         close()
     }

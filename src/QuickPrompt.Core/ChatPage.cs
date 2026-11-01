@@ -79,8 +79,12 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .notice { font-size: 12.5px; color: var(--accent); margin: 2px 0 4px; }
 
-.thread { overflow-y: auto; max-height: var(--thread-max, 380px); scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; }
-.thread::-webkit-scrollbar { display: none; }
+/* The conversation never scrolls as a whole (each bubble has native glass behind it, which cannot follow
+   a scroll smoothly): the newest bubbles that fit are shown, older ones are a click away, and an answer
+   too long for the popup scrolls inside its own bubble. */
+.thread { display: flex; flex-direction: column; gap: 8px; }
+.a.scroll { overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
+.pager { align-self: center; font-size: 11.5px; padding: 3px 12px; border-radius: 999px; color: var(--muted); }
 .thread:empty { display: none; }
 .q { color: var(--muted); font-size: 12px; margin: 10px 0 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .q:first-child { margin-top: 2px; }
@@ -283,7 +287,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
     </div>
     <div class="notice glass" id="notice" hidden></div>
+    <button type="button" class="pager glass" id="earlier" hidden></button>
     <div class="thread" id="thread"></div>
+    <button type="button" class="pager glass" id="newer" hidden></button>
     <div class="actions" id="errActions" hidden><button type="button" id="errSettings">Open settings</button></div>
     <div class="actions" id="actions" hidden>
       <button type="button" id="copy">Copy</button>
@@ -474,6 +480,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     size = { w: Math.round(400 + v * 4.2), h: Math.round(220 + v * 4) };
     sizeKnown = true;
     document.documentElement.style.setProperty("--thread-max", size.h + "px");
+    if (els.thread.children.length) fitThread();
     queueLayout();
   }
 
@@ -1459,7 +1466,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         lastBubble.appendChild(els.errActions);
       }
       if (bridge && window.ResizeObserver) els.thread.querySelectorAll(".glass").forEach(el => threadObserver.observe(el));
-      if (stick) els.thread.scrollTop = els.thread.scrollHeight;
+      fitThread();
     }
     queueLayout();
   }
@@ -1514,11 +1521,60 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.send.classList.toggle("idle", !!state && !state.busy && empty);
   }
 
-  els.thread.addEventListener("scroll", () => {
-    const t = els.thread;
-    stick = t.scrollHeight - t.scrollTop - t.clientHeight < 30;
+  // Show the newest bubbles that fit (or an earlier page of them).
+  let pageEnd = null;   // index of the last bubble shown; null = the newest
+  function fitThread() {
+    const items = [...els.thread.children];
+    for (const el of items) {
+      el.hidden = false;
+      const a = el.querySelector(".a");
+      if (a) { a.style.maxHeight = ""; a.classList.remove("scroll"); }
+    }
+    const last = items.length - 1;
+    const end = pageEnd == null ? last : Math.min(pageEnd, last);
+    if (pageEnd != null && pageEnd >= last) pageEnd = null;
+    let used = 0, start = end;
+    for (let i = end; i >= 0; i--) {
+      const h = items[i].offsetHeight + 8;
+      if (i < end && used + h > size.h) break;
+      used += h; start = i;
+    }
+    items.forEach((el, i) => { el.hidden = i < start || i > end; });
+    // One bubble taller than the popup: its text scrolls inside it; the bubble (and its glass) stay put.
+    const big = items[end];
+    if (big && start === end && big.offsetHeight > size.h) {
+      const a = big.querySelector(".a");
+      if (a) {
+        a.style.maxHeight = Math.max(80, size.h - (big.offsetHeight - a.offsetHeight)) + "px";
+        a.classList.add("scroll");
+        if (stick) a.scrollTop = a.scrollHeight;
+      }
+    }
+    const earlier = $("earlier"), newer = $("newer");
+    earlier.hidden = start <= 0;
+    earlier.textContent = "↑ " + start + " earlier";
+    newer.hidden = end >= last;
+    newer.textContent = "↓ " + (last - end) + " newer";
     queueLayout();
+  }
+  $("earlier").addEventListener("click", () => {
+    const items = [...els.thread.children];
+    const firstShown = items.findIndex(el => !el.hidden);
+    if (firstShown > 0) { pageEnd = firstShown - 1; stick = false; fitThread(); }
   });
+  $("newer").addEventListener("click", () => {
+    const items = [...els.thread.children];
+    const shown = items.filter(el => !el.hidden).length;
+    const lastShown = items.length - 1 - [...items].reverse().findIndex(el => !el.hidden);
+    pageEnd = lastShown + Math.max(1, shown) >= items.length - 1 ? null : lastShown + Math.max(1, shown);
+    stick = pageEnd == null;
+    fitThread();
+  });
+  // Scrolling inside a long answer: follow new text only while at its end.
+  els.thread.addEventListener("scroll", e => {
+    const a = e.target;
+    if (a instanceof HTMLElement && a.classList.contains("scroll")) stick = a.scrollHeight - a.scrollTop - a.clientHeight < 30;
+  }, true);
   els.thread.addEventListener("click", e => {
     const t = e.target;
     if (t instanceof HTMLElement && t.hasAttribute("data-copy")) copyText(t.parentElement.querySelector("code").textContent);
@@ -1554,7 +1610,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const res = await post("send", { instruction, context, fields: fields ? JSON.stringify(fields.values) : "" });
     els.send.disabled = false;
     if (res.ok) {
-      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); autoGrow(); stick = true;
+      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); autoGrow(); stick = true; pageEnd = null;
     } else {
       toast(fields ? "Paste the text first" : "Could not send");
       if (fields) els.prompt.focus();
