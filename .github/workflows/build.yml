@@ -75,6 +75,7 @@ jobs:
             dist/QuickPrompt.lplug4
             dist/QuickPrompt-mac.zip
             dist/QuickPrompt-mac.json
+            dist/QuickPrompt.dmg
           if-no-files-found: error
 
   publish:
@@ -102,9 +103,9 @@ jobs:
           else
             gh release create latest --prerelease --title "Latest build" --notes "$notes"
           fi
-          gh release upload latest dist/QuickPrompt.lplug4 dist/QuickPrompt-mac.zip dist/QuickPrompt-mac.json --clobber
+          gh release upload latest dist/QuickPrompt.dmg dist/QuickPrompt.lplug4 dist/QuickPrompt-mac.zip dist/QuickPrompt-mac.json --clobber
       - name: Versioned release (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/QuickPrompt.lplug4 dist/QuickPrompt-mac.zip --title "Quick Prompt $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/QuickPrompt.dmg dist/QuickPrompt.lplug4 dist/QuickPrompt-mac.zip --title "Quick Prompt $GITHUB_REF_NAME" --generate-notes

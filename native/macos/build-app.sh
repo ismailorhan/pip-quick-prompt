@@ -106,13 +106,46 @@ if [[ -n "$identity" && -n "${ASC_KEY_P8:-}" && -n "${ASC_KEY_ID:-}" && -n "${AS
     echo "Notarization failed: $status" >&2
     exit 1
   fi
-  rm -f "$key"
+  # Kept for the disk image below; removed at the end.
   # Staple the ticket so the app opens without a network check, then zip it again.
   xcrun stapler staple "$app"
   rm -f "$zip"
   ditto -c -k --keepParent "$app" "$zip"
   spctl --assess --type execute --verbose=2 "$app" || true
 fi
+
+# The disk image for first installs: Quick Prompt.app next to a shortcut to Applications, to drag across.
+echo "Making the disk image"
+staging="build/dmg"
+rm -rf "$staging" && mkdir -p "$staging"
+ditto "$app" "$staging/Quick Prompt.app"
+ln -s /Applications "$staging/Applications"
+dmg="$root/dist/QuickPrompt.dmg"
+rm -f "$dmg"
+# The mounted disk shows the Quick Prompt icon too (a read-write image first, to set the volume icon).
+cp "$app/Contents/Resources/AppIcon.icns" "$staging/.VolumeIcon.icns"
+rw="build/QuickPrompt-rw.dmg"
+rm -f "$rw"
+hdiutil create -volname "Quick Prompt" -srcfolder "$staging" -fs HFS+ -format UDRW -ov "$rw" >/dev/null
+mount="$(hdiutil attach "$rw" -nobrowse -noautoopen | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
+if [[ -n "$mount" ]]; then
+  SetFile -a C "$mount" 2>/dev/null || xattr -wx com.apple.FinderInfo "0000000000000000040000000000000000000000000000000000000000000000" "$mount" || true
+  sync
+  hdiutil detach "$mount" -quiet || hdiutil detach "$mount" -force -quiet
+fi
+hdiutil convert "$rw" -format UDZO -o "$dmg" >/dev/null
+rm -f "$rw"
+rm -rf "$staging"
+if [[ -n "$identity" ]]; then
+  codesign --force --timestamp --sign "$identity" "$dmg"
+  if [[ -n "${key:-}" && -f "${key:-}" ]]; then
+    echo "Notarizing the disk image"
+    xcrun notarytool submit "$dmg" --key "$key" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait --timeout 30m
+    xcrun stapler staple "$dmg"
+    spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg" || true
+  fi
+fi
+rm -f "${key:-/nonexistent}"
 # What the app's "Check for Updates…" reads (published next to the zip on the Latest build release).
 sha="$(shasum -a 256 "$zip" | awk '{ print $1 }')"
 printf '{ "version": "%s", "url": "https://github.com/ismailorhan/quick-prompt-for-logi-action-rings/releases/download/latest/QuickPrompt-mac.zip", "sha256": "%s" }\n' "$version" "$sha" > "$root/dist/QuickPrompt-mac.json"

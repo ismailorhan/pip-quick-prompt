@@ -21,11 +21,12 @@ Press a ring button and the selection, together with that button's prompt, is se
 
 ### Mac app (menu bar)
 
-1. Download `QuickPrompt-mac.zip` from the rolling **Latest build** pre-release, unzip it and move **Quick Prompt.app** to Applications.
-2. The first time, right-click the app → **Open** (the app is not notarized yet).
+1. Download `QuickPrompt.dmg` from the rolling **Latest build** pre-release, open it and drag **Quick Prompt** onto **Applications**.
+2. Open it from Applications. It is signed and notarized, so macOS only asks once whether to open an app downloaded from the internet.
 3. A ✨ icon appears in the menu bar. Quick Prompt keeps running in the background: closing a popup or the floating icon does not quit it. Use **Quit Quick Prompt** in that menu to quit.
 4. **⌥⇧Space** asks about the selected text in any app. The menu also has New Chat, Recent Chats, Settings… and Open at Login.
 5. To read the selection and paste answers, macOS asks once for *Accessibility* permission for Quick Prompt.
+6. Later versions: **Check for Updates…** in the menu bar menu downloads, checks and installs them, then restarts the app.
 
 API keys entered in the app are stored in the macOS Keychain.
 
