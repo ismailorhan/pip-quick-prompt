@@ -121,8 +121,10 @@ dmg="$root/dist/QuickPrompt.dmg"
 rm -f "$dmg"
 if python3 -m venv build/dmgvenv >/dev/null 2>&1 \
   && build/dmgvenv/bin/pip install --quiet "dmgbuild>=1.6,<2" \
+  && tiffutil -cathidpicheck dmg-background.png dmg-background@2x.png -out build/dmg-background.tiff >/dev/null \
   && build/dmgvenv/bin/python -m dmgbuild -s dmg-settings.py \
-       -D app="$app" -D icon="$app/Contents/Resources/AppIcon.icns" "Quick Prompt" "$dmg"; then
+       -D app="$app" -D icon="$app/Contents/Resources/AppIcon.icns" -D background="build/dmg-background.tiff" \
+       "Quick Prompt" "$dmg"; then
   echo "Disk image laid out"
 else
   echo "dmgbuild did not work; making a plain disk image" >&2

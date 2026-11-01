@@ -12,7 +12,7 @@ files = [app]
 symlinks = {"Applications": "/Applications"}
 icon = defines["icon"]  # noqa: F821  volume icon (shown on the desktop while mounted)
 
-background = "builtin-arrow"
+background = defines["background"]  # noqa: F821  a plain light picture with a thin arrow (1x + 2x TIFF)
 window_rect = ((200, 140), (560, 340))
 default_view = "icon-view"
 show_status_bar = False
@@ -22,4 +22,10 @@ show_pathbar = False
 show_sidebar = False
 icon_size = 112
 text_size = 13
-icon_locations = {appname: (140, 150), "Applications": (420, 150)}
+icon_locations = {
+    appname: (150, 150),
+    "Applications": (410, 150),
+    # Hidden files go far outside the window, so they stay out of sight even when Finder shows hidden files.
+    ".background.tiff": (150, 900),
+    ".VolumeIcon.icns": (410, 900),
+}
