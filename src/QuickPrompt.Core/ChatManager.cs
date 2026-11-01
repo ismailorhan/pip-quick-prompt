@@ -120,6 +120,20 @@ namespace QuickPrompt.Core
         {
             var instruction = preset.Instruction ?? "";
             var flow = preset.Flow ?? FlowModes.Send;
+
+            // "Paste in popup": nothing to read; open an empty popup that applies the preset prompt on Enter.
+            if (preset.Input == InputModes.Popup)
+            {
+                var pasteSession = this.CreateSession(preset.ProviderId, preset.Title, preset.Model);
+                if (instruction.Trim().Length > 0)
+                {
+                    pasteSession.PresetInstruction = instruction;
+                }
+
+                this.OpenWindow(pasteSession);
+                return;
+            }
+
             var capture = await this.CaptureInputAsync(preset.Input).ConfigureAwait(false);
             var context = capture.Text;
             var nothingToSend = instruction.Trim().Length == 0 && context.Trim().Length == 0;

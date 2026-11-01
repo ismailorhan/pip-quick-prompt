@@ -54,6 +54,12 @@ namespace QuickPrompt.Core
         /// <summary>Hint shown above the input (e.g. "selection could not be read"). Cleared when a turn starts.</summary>
         public String Notice { get; set; } = "";
 
+        /// <summary>
+        /// "Paste in popup" presets: the preset prompt is kept here and applied to the first message;
+        /// whatever the user pastes or types becomes the text. Cleared once the first turn starts.
+        /// </summary>
+        public String PresetInstruction { get; set; } = "";
+
         public DateTime LastActivityUtc { get; private set; }
 
         public Boolean IsBusy
@@ -93,6 +99,42 @@ namespace QuickPrompt.Core
         }
 
         /// <summary>Starts a turn. Returns false when another turn is still running or there is nothing to send.</summary>
+        /// <summary>
+        /// A message sent from the popup. When a preset prompt is pending ("Paste in popup"), the typed
+        /// text and any added text become the input of that prompt.
+        /// </summary>
+        public Boolean StartTurnFromPopup(String typed, String context)
+        {
+            String preset;
+            lock (this._lock)
+            {
+                preset = this.PresetInstruction;
+            }
+
+            if (String.IsNullOrWhiteSpace(preset))
+            {
+                return this.StartTurn(typed, context);
+            }
+
+            var text = String.Join("\n\n", new[] { context ?? "", typed ?? "" }.Where(t => t.Trim().Length > 0));
+            if (text.Trim().Length == 0)
+            {
+                return false;
+            }
+
+            var started = this.StartTurn(preset, text);
+            if (started)
+            {
+                lock (this._lock)
+                {
+                    this.PresetInstruction = "";
+                    this.TouchLocked();
+                }
+            }
+
+            return started;
+        }
+
         public Boolean StartTurn(String instruction, String context)
         {
             instruction = (instruction ?? "").Trim();
@@ -197,6 +239,7 @@ namespace QuickPrompt.Core
                     appWindow = isAppWindow,
                     draft = new { instruction = this.DraftInstruction, context = this.DraftContext },
                     notice = this.Notice,
+                    pasteMode = this.PresetInstruction.Trim().Length > 0,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);

@@ -10,6 +10,9 @@ namespace QuickPrompt.Core
         public const String Clipboard = "clipboard";
 
         public const String None = "none";
+
+        /// <summary>Open the popup with an empty box; the user pastes or types the text, Enter sends it with the preset prompt.</summary>
+        public const String Popup = "popup";
     }
 
     public static class FlowModes

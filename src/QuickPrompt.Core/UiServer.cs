@@ -149,7 +149,7 @@ namespace QuickPrompt.Core
             switch (action)
             {
                 case "send":
-                    var started = session.StartTurn(GetString(body, "instruction"), GetString(body, "context"));
+                    var started = session.StartTurnFromPopup(GetString(body, "instruction"), GetString(body, "context"));
                     return started ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
 
                 case "cancel":

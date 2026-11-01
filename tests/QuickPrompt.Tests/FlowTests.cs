@@ -115,6 +115,47 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task Paste_in_popup_applies_the_preset_prompt_to_the_pasted_text()
+        {
+            this._host.Clipboard = "clipboard is ignored";
+            this._host.Selection = "selection is ignored";
+            await this._manager.ExecutePresetAsync(new Preset { Title = "Translate", Instruction = "Translate to English: {text}", Input = InputModes.Popup, Flow = FlowModes.Replace });
+
+            // No copy, no request yet: just an empty popup waiting for text.
+            Assert.Equal(0, this._host.CopyCount);
+            Assert.Empty(this._claude.Requests);
+            var session = this.SingleSession();
+            using (var doc = JsonDocument.Parse(session.ToJson(true)))
+            {
+                Assert.True(doc.RootElement.GetProperty("pasteMode").GetBoolean());
+                Assert.Equal("", doc.RootElement.GetProperty("draft").GetProperty("instruction").GetString());
+            }
+
+            // The user pastes text into the capsule and presses Enter.
+            using var http = new HttpClient();
+            var res = await this.PostAsync(http, this._manager.GetSessionUrl(session, true) + "send", "{\"instruction\":\"Yarın toplantı var\",\"context\":\"\"}");
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            await session.CurrentTurn;
+            Assert.Equal("Translate to English: Yarın toplantı var", this._claude.Requests.Single().Prompt);
+
+            // Follow-ups are ordinary messages again.
+            Assert.True(session.StartTurnFromPopup("Shorter", ""));
+            await session.CurrentTurn;
+            Assert.EndsWith("Shorter", this._claude.Requests.Last().Prompt);
+            using var after = JsonDocument.Parse(session.ToJson(true));
+            Assert.False(after.RootElement.GetProperty("pasteMode").GetBoolean());
+        }
+
+        [Fact]
+        public void Paste_in_popup_ignores_an_empty_message()
+        {
+            var session = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            session.PresetInstruction = "Summarize: {text}";
+            Assert.False(session.StartTurnFromPopup("   ", ""));
+            Assert.Empty(this._claude.Requests);
+        }
+
+        [Fact]
         public async Task Edit_flow_only_prefills()
         {
             this._host.Selection = "some text";

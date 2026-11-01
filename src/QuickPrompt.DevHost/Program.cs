@@ -1,7 +1,7 @@
 // Quick Prompt DevHost: runs the popup and the CLI providers without Logi Options+.
 //
 //   dotnet run --project src/QuickPrompt.DevHost -- [--provider claude|codex] [--flow send|edit|replace|copy]
-//       [--prompt "..."] [--text "..."] [--title "..."] [--model "..."] [--no-open] [--data <dir>]
+//       [--input clipboard|popup|none] [--prompt "..."] [--text "..."] [--title "..."] [--model "..."] [--no-open] [--data <dir>]
 //   dotnet run --project src/QuickPrompt.DevHost -- --icons icons.html
 //
 // The "clipboard" is simply --text.
@@ -74,7 +74,7 @@ var preset = new Preset
     ProviderId = Opt("provider", ProviderIds.Claude),
     Title = Opt("title", "Test"),
     Instruction = Opt("prompt", ""),
-    Input = InputModes.Clipboard,
+    Input = Opt("input", InputModes.Clipboard),
     Flow = Opt("flow", FlowModes.Edit),
     Model = Opt("model", ""),
 };

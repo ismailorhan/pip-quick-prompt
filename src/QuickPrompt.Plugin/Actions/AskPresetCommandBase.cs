@@ -111,6 +111,7 @@ namespace Loupedeck.QuickPromptPlugin
             {
                 e.AddItem(InputModes.Selection, "Selected text", "Copies the selection with Ctrl/Cmd+C");
                 e.AddItem(InputModes.Clipboard, "Clipboard text", "Uses the clipboard, leaves the selection alone");
+                e.AddItem(InputModes.Popup, "Paste in popup", "Opens an empty popup; paste or type the text and press Enter. Sent with this prompt.");
                 e.AddItem(InputModes.None, "No input", "Only the prompt is sent");
                 SelectDefault(e, InputModes.Selection);
             }

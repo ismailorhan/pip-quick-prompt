@@ -98,6 +98,7 @@ button.x:hover { color: var(--text); }
 textarea { flex: 1; width: 100%; resize: none; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; padding: 9px 2px; max-height: 140px; min-height: 40px; }
 textarea::placeholder { color: var(--muted); }
 .bar textarea:focus-visible, .ctx textarea:focus-visible { outline: none; }
+.round[hidden] + textarea { padding-left: 12px; }
 
 .toast { position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--glass); padding: 4px 12px; border-radius: 999px; font-size: 12px; opacity: 0; transition: opacity .15s; pointer-events: none; }
 .toast.show { opacity: .92; }
@@ -340,7 +341,10 @@ textarea::placeholder { color: var(--muted); }
     $("paste").hidden = !s.appWindow;
     els.prompt.placeholder = s.messages.length
       ? "Follow up…"
-      : ("Ask " + s.providerName + (s.title ? " · " + s.title : "") + "…");
+      : s.pasteMode
+        ? "Paste text" + (s.title ? " · " + s.title : "") + " — Enter sends"
+        : ("Ask " + s.providerName + (s.title ? " · " + s.title : "") + "…");
+    els.ctxBtn.hidden = !!s.pasteMode && !s.messages.length;
     updateSendState();
 
     const key = JSON.stringify(s.messages) + s.busy;

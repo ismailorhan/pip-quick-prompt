@@ -31,10 +31,12 @@ On macOS, Options+ needs *Accessibility* permission to send ⌘C/⌘V. It usuall
 |---|---|
 | Title | Short name shown on the ring |
 | Prompt | `{text}` is replaced with the selected text. Without it, the text is appended. |
-| Input | Selected text (copied with ⌘C/Ctrl+C), clipboard text, or none |
+| Input | Selected text (copied with ⌘C/Ctrl+C), clipboard text, **paste in popup**, or none |
 | Behavior | Send now · Edit in popup first · Replace selection · Copy to clipboard |
 | Icon / Color | 18 line icons or the title's initials, in 10 colors. Options+'s own icon editor also works. |
 | Model | Optional, e.g. `sonnet`, `haiku`. Empty uses the CLI default. |
+
+**Paste in popup** opens an empty capsule. Paste or type the text and press Enter, and it is sent with the preset's prompt. Follow-ups after that are ordinary messages. With this input the answer always shows in the popup.
 
 If the selection cannot be read, the old clipboard is **never** sent. The popup opens with an empty text box instead.
 
@@ -46,6 +48,7 @@ Example presets:
 | Summarize | Claude | `Summarize the following in 3 bullet points:\n\n{text}` | Send now |
 | Fix | Claude | `Fix spelling and grammar. Reply with the corrected text only:\n\n{text}` | Replace selection |
 | Translate | ChatGPT | `Translate to English (or to Turkish if it is English). Reply with the translation only:\n\n{text}` | Replace selection |
+| Translate… | Claude | same prompt, Input: *Paste in popup* | Send now |
 
 ## Settings
 
