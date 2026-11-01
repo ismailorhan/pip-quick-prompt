@@ -46,8 +46,25 @@ html.native, html.native body { background: transparent; min-height: 0; }
 html.native .glass { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: transparent; }
 html.native.vibrancy .glass { border-color: var(--edge); }
 
-/* Answer card */
-.card { border-radius: 22px; padding: 10px 14px 12px; }
+/* Conversation: a header pill and one glass bubble per message, newest at the bottom */
+.card { display: flex; flex-direction: column; gap: 8px; }
+.head { border-radius: 999px; padding: 4px 10px 4px 14px; }
+.card > .notice { border-radius: 16px; padding: 8px 14px; margin: 0; }
+.msg { border-radius: 20px; padding: 9px 14px 11px; max-width: 100%; }
+.msg.user { align-self: flex-end; max-width: 82%; padding: 7px 13px 8px; font-size: 13px; }
+.msg.user .q { color: var(--text); margin: 0; -webkit-line-clamp: 4; font-size: 13px; }
+.msg.user .ctxinfo { color: var(--muted); font-size: 11.5px; }
+.msg.bot { align-self: stretch; }
+.mh { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
+.mh .ok { width: 15px; height: 15px; border-radius: 50%; background: #2fbf71; color: #fff; display: grid; place-items: center; font-size: 9.5px; flex: none; }
+.mh .ok.err { background: #e5533d; }
+.mh .spin { margin-right: 0; }
+.mh .live { background: linear-gradient(90deg, var(--muted) 0%, var(--text) 50%, var(--muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: qp-shimmer 1.6s linear infinite; }
+@keyframes qp-shimmer { to { background-position: -200% 0; } }
+.msg.bot.thinking { align-self: flex-start; border-radius: 999px; padding: 6px 14px; }
+.msg.bot.thinking .mh { margin: 0; }
+.msg.bot.thinking .a { display: none; }
+.msg .actions { margin-top: 8px; }
 .meta { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); min-height: 22px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
 .meta .title { font-weight: 600; color: var(--text); opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -56,7 +73,9 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .notice { font-size: 12.5px; color: var(--accent); margin: 2px 0 4px; }
 
-.thread { overflow-y: auto; max-height: var(--thread-max, 380px); scrollbar-width: thin; margin-top: 2px; }
+.thread { overflow-y: auto; max-height: var(--thread-max, 380px); scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; }
+.thread::-webkit-scrollbar { display: none; }
+.thread:empty { display: none; }
 .q { color: var(--muted); font-size: 12px; margin: 10px 0 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .q:first-child { margin-top: 2px; }
 .tok { background: var(--accent); color: var(--accent-text); border-radius: 5px; padding: 0 5px; font-size: 11px; }
@@ -146,14 +165,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .mascot:hover { background: transparent; transform: translateY(-1px); }
 .mascot svg { overflow: visible; }
 .mascot .rays, .mascot .star { transform-origin: 12px 12px; transform-box: view-box; }
-.mascot .rays { animation: qp-spin 14s linear infinite; }
+.mascot.busy .rays { animation: qp-spin 3s linear infinite; }
 .mascot.busy .star { animation: qp-beat 1.1s ease-in-out infinite; }
-.mascot.busy .rays { animation-duration: 3s; }
-.mascot:hover svg, .mascot.wiggle svg { animation: qp-wiggle .6s ease-in-out; }
+.mascot.wiggle svg { animation: qp-wiggle .6s ease-in-out; }
 @keyframes qp-spin { to { transform: rotate(360deg); } }
 @keyframes qp-beat { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.18); } 28% { transform: scale(.96); } 42% { transform: scale(1.12); } 70% { transform: scale(1); } }
 @keyframes qp-wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-9deg) scale(1.04); } 40% { transform: rotate(8deg) scale(1.06); } 60% { transform: rotate(-5deg) scale(1.03); } 80% { transform: rotate(3deg); } }
-@media (prefers-reduced-motion: reduce) { .mascot .rays, .mascot.busy .star, .mascot:hover svg { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .mascot .rays, .mascot.busy .star, .mascot.wiggle svg { animation: none !important; } }
 .minibar { display: flex; align-items: center; border-radius: 999px; padding: 3px; }
 .minibar button { background: transparent; color: var(--text); width: 32px; height: 28px; padding: 0; border-radius: 999px; display: grid; place-items: center; }
 .minibar button:hover { background: var(--faint); }
@@ -195,8 +213,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 </head>
 <body>
 <div id="root">
-  <div class="card glass" id="card" hidden>
-    <div class="meta" data-drag>
+  <div class="card" id="card" hidden>
+    <div class="meta head glass" data-drag>
       <span class="dot"></span>
       <span id="who"></span>
       <span class="title" id="title"></span>
@@ -206,7 +224,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" class="x" id="gear" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
     </div>
-    <div class="notice" id="notice" hidden></div>
+    <div class="notice glass" id="notice" hidden></div>
     <div class="thread" id="thread"></div>
     <div class="actions" id="errActions" hidden><button type="button" id="errSettings">Open settings</button></div>
     <div class="actions" id="actions" hidden>
@@ -277,8 +295,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <linearGradient id="qpGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
       </defs>
       <circle cx="12" cy="12" r="11.2" fill="url(#qpDisc)" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
-      <g class="rays"><path d="M16.1 7.9L17.5 6.5M16.1 16.1L17.5 17.5M7.9 16.1L6.5 17.5M7.9 7.9L6.5 6.5" stroke="url(#qpMini)" stroke-width="1.15" stroke-linecap="round"/></g>
-      <g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g>
+      <g class="rays" stroke="url(#qpMini)" stroke-width="1.15" stroke-linecap="round">
+        <g class="piece" data-cx="16.8" data-cy="7.2"><path d="M16.1 7.9L17.5 6.5"/></g>
+        <g class="piece" data-cx="16.8" data-cy="16.8"><path d="M16.1 16.1L17.5 17.5"/></g>
+        <g class="piece" data-cx="7.2" data-cy="16.8"><path d="M7.9 16.1L6.5 17.5"/></g>
+        <g class="piece" data-cx="7.2" data-cy="7.2"><path d="M7.9 7.9L6.5 6.5"/></g>
+      </g>
+      <g class="piece core" data-cx="12" data-cy="12"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
       <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
     </svg></button>
     <div class="minibar glass" id="minibar">
@@ -388,12 +411,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     layoutQueued = true;
     requestAnimationFrame(() => {
       layoutQueued = false;
+      const view = els.thread.getBoundingClientRect();
       const rects = [...document.querySelectorAll(".glass")]
         .filter(el => !el.hidden && el.offsetParent !== null)
         .map(el => {
           const r = el.getBoundingClientRect();
-          return { x: r.left, y: r.top, w: r.width, h: r.height, r: parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0 };
-        });
+          let top = r.top, bottom = r.bottom;
+          // Bubbles scroll inside the thread: only the visible part gets native glass.
+          if (els.thread.contains(el)) { top = Math.max(top, view.top); bottom = Math.min(bottom, view.bottom); }
+          return { x: r.left, y: top, w: r.width, h: Math.max(0, bottom - top), r: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.height / 2) };
+        })
+        .filter(r => r.h > 1);
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? 520 : size.w);
@@ -403,6 +431,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       bridge.postMessage({ type: "layout", width, height, rects });
     });
   }
+  const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;
   if (bridge && window.ResizeObserver) {
     const ro = new ResizeObserver(queueLayout);
     ro.observe(els.root);
@@ -623,6 +652,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   function collapse() {
     collapsed = true;
+    setTimeout(() => globe.start(), 0);
     bubble.hidden = true;
     $("presetList").hidden = true;
     if (bridge) bridge.postMessage({ type: "mode", value: "mini" });
@@ -727,7 +757,92 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   /// While collapsed: pulse while answering, then show a bubble with the start of the answer.
+  // ---------- the icon's "snow globe": asleep, its pieces drift around inside the disc; on hover (or
+  // while working) they gather quickly into the logo and shiver for a moment: "I'm awake, ready". ----------
+  const globe = (() => {
+    const button = $("miniOpen");
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pieces = [...button.querySelectorAll(".piece")].map(el => ({
+      el, cx: +el.dataset.cx, cy: +el.dataset.cy, core: el.classList.contains("core"),
+      x: 0, y: 0, r: 0, s: 1, vx: 0, vy: 0, vr: 0,
+    }));
+    let awake = false, hover = false, busy = false, shiverUntil = 0, sleepTimer = 0, running = false, last = 0;
+
+    function scatter() {
+      for (const p of pieces) {
+        const a = Math.random() * Math.PI * 2, d = p.core ? 1.5 : 2.5 + Math.random() * 2.5;
+        p.vx = Math.cos(a) * 0.9; p.vy = Math.sin(a) * 0.9;
+        p.vr = (Math.random() - 0.5) * (p.core ? 30 : 90);
+        if (!p.x && !p.y) { p.x = Math.cos(a) * d * 0.3; p.y = Math.sin(a) * d * 0.3; }
+      }
+    }
+    function setAwake(value) {
+      if (value === awake) return;
+      awake = value;
+      if (awake) shiverUntil = performance.now() + 900; else scatter();
+      start();
+    }
+    function update() {
+      clearTimeout(sleepTimer);
+      if (hover || busy) setAwake(true);
+      else sleepTimer = setTimeout(() => setAwake(false), 1600);
+    }
+    function frame(now) {
+      if (!collapsed || document.hidden) { running = false; return; }
+      const dt = Math.min(0.05, (now - (last || now)) / 1000);
+      last = now;
+      const shiver = awake && now < shiverUntil ? (shiverUntil - now) / 900 : 0;
+      for (const p of pieces) {
+        if (awake || reduce) {
+          // Snap home quickly (critically damped), then a small fading tremble.
+          const k = Math.min(1, dt * 14);
+          p.x += (0 - p.x) * k; p.y += (0 - p.y) * k; p.r += (0 - p.r) * k; p.s += (1 - p.s) * k;
+        } else {
+          // Drift like flakes in a snow globe: slow, a little random, bouncing off the glass.
+          p.vx += (Math.random() - 0.5) * dt * 2.2; p.vy += (Math.random() - 0.5) * dt * 2.2 + dt * 0.25;
+          const speed = Math.hypot(p.vx, p.vy), max = p.core ? 0.6 : 1.4;
+          if (speed > max) { p.vx *= max / speed; p.vy *= max / speed; }
+          p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+          const limit = p.core ? 1.6 : 6.2 - Math.hypot(p.cx - 12, p.cy - 12) * 0.25;
+          const dx = p.cx - 12 + p.x, dy = p.cy - 12 + p.y, dist = Math.hypot(dx, dy);
+          const room = p.core ? limit : 8.4;
+          if ((p.core && Math.hypot(p.x, p.y) > limit) || (!p.core && dist > room)) {
+            const nx = p.core ? p.x / Math.hypot(p.x, p.y) : dx / dist, ny = p.core ? p.y / Math.hypot(p.x, p.y) : dy / dist;
+            const dot = p.vx * nx + p.vy * ny;
+            if (dot > 0) { p.vx -= 2 * dot * nx; p.vy -= 2 * dot * ny; }
+            p.x -= nx * 0.05; p.y -= ny * 0.05;
+          }
+          const targetScale = p.core ? 0.62 : 0.85;
+          p.s += (targetScale - p.s) * Math.min(1, dt * 3);
+        }
+        const jx = shiver ? (Math.random() - 0.5) * 0.5 * shiver : 0, jy = shiver ? (Math.random() - 0.5) * 0.5 * shiver : 0;
+        p.el.setAttribute("transform",
+          `translate(${(p.x + jx).toFixed(3)} ${(p.y + jy).toFixed(3)}) translate(${p.cx} ${p.cy}) rotate(${p.r.toFixed(2)}) scale(${p.s.toFixed(3)}) translate(${-p.cx} ${-p.cy})`);
+      }
+      const settled = (awake || reduce) && !shiver && pieces.every(p => Math.abs(p.x) + Math.abs(p.y) + Math.abs(p.r) < 0.01);
+      if (settled) { running = false; return; }
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      if (running || !collapsed) return;
+      running = true; last = 0;
+      requestAnimationFrame(frame);
+    }
+    button.addEventListener("mouseenter", () => { hover = true; update(); });
+    button.addEventListener("mouseleave", () => { hover = false; update(); });
+    button.addEventListener("focus", () => { hover = true; update(); });
+    button.addEventListener("blur", () => { hover = false; update(); });
+    document.addEventListener("visibilitychange", start);
+    pieces.forEach(p => { p.x = (Math.random() - 0.5) * 4; p.y = (Math.random() - 0.5) * 4; p.r = Math.random() * 180; p.s = 0.8; });
+    scatter();
+    return {
+      setBusy(value) { busy = value; update(); },
+      start,
+    };
+  })();
+
   function updateMini(s) {
+    globe.setBusy(!!s.busy);
     $("miniOpen").classList.toggle("busy", !!s.busy);
     if (lastBusy && !s.busy) {
       const last = s.messages[s.messages.length - 1];
@@ -852,7 +967,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (settingsOpen || historyOpen) return;
     els.title.textContent = s.title || "";
     document.title = (s.title ? s.title + " — " : "") + s.providerName;
-    els.status.innerHTML = s.busy ? '<span class="spin"></span>' + esc(s.status || "Working…") : "";
+    els.status.textContent = "";
     els.send.innerHTML = s.busy ? ICON_STOP : ICON_SEND;
     els.send.title = s.busy ? "Stop" : "Send (Enter)";
     els.notice.hidden = !s.notice;
@@ -889,20 +1004,37 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.ctxBtn.hidden = !!s.pasteMode && !s.messages.length;
     updateSendState();
 
-    const key = JSON.stringify(s.messages) + s.busy;
+    const key = JSON.stringify(s.messages) + s.busy + (s.status || "");
     if (key !== lastKey) {
       lastKey = key;
-      els.thread.innerHTML = s.messages.map(m => {
+      // Keep the Copy / Paste row alive across re-renders (it moves into the last answer bubble).
+      els.card.appendChild(els.actions);
+      els.card.appendChild(els.errActions);
+      els.thread.innerHTML = s.messages.map((m, i) => {
         if (m.role === "user") {
           const q = m.text
             ? esc(m.text).replace(/\{(text|selection|input)\}/gi, '<span class="tok">selected text</span>')
             : '<span class="tok">selected text</span>';
-          const ctx = m.context ? ` · <span title="${esc(m.context.slice(0, 600))}">${m.context.length} characters</span>` : "";
-          return `<div class="q">${q}${ctx}</div>`;
+          const ctx = m.context ? `<div class="ctxinfo" title="${esc(m.context.slice(0, 600))}">+ ${m.context.length} characters</div>` : "";
+          return `<div class="msg user glass" data-drag><div class="q">${q}</div>${ctx}</div>`;
         }
-        if (m.state === "error") return `<div class="a error">${esc(m.text)}</div>`;
-        return `<div class="a">${m.text ? md(m.text) : ""}${m.state === "streaming" ? '<span class="cursor"></span>' : ""}</div>`;
+        const last = i === s.messages.length - 1;
+        if (m.state === "error") {
+          return `<div class="msg bot glass"><div class="mh" data-drag><span class="ok err">!</span>Something went wrong</div><div class="a error">${esc(m.text)}</div></div>`;
+        }
+        if (m.state === "streaming") {
+          const label = m.text ? "Writing…" : (last && s.status ? s.status : "Thinking…");
+          return `<div class="msg bot glass${m.text ? "" : " thinking"}"><div class="mh" data-drag><span class="spin"></span><span class="live">${esc(label)}</span></div>`
+            + `<div class="a">${m.text ? md(m.text) + '<span class="cursor"></span>' : ""}</div></div>`;
+        }
+        return `<div class="msg bot glass"><div class="mh" data-drag><span class="ok">✓</span>Answered</div><div class="a">${md(m.text || "")}</div></div>`;
       }).join("");
+      const lastBubble = els.thread.lastElementChild;
+      if (lastBubble && lastBubble.classList.contains("bot")) {
+        lastBubble.appendChild(els.actions);
+        lastBubble.appendChild(els.errActions);
+      }
+      if (bridge && window.ResizeObserver) els.thread.querySelectorAll(".glass").forEach(el => threadObserver.observe(el));
       if (stick) els.thread.scrollTop = els.thread.scrollHeight;
     }
     queueLayout();
@@ -916,6 +1048,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   els.thread.addEventListener("scroll", () => {
     const t = els.thread;
     stick = t.scrollHeight - t.scrollTop - t.clientHeight < 30;
+    queueLayout();
   });
   els.thread.addEventListener("click", e => {
     const t = e.target;
@@ -994,7 +1127,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         if (res.status === 404) {
           els.card.hidden = false;
           if (!sizeKnown) applySize(30);
-          els.thread.innerHTML = '<div class="a error">This popup session has ended. Press Esc and try again.</div>';
+          els.thread.innerHTML = '<div class="msg bot glass"><div class="a error">This popup session has ended. Press Esc and try again.</div></div>';
           els.send.disabled = true;
           queueLayout();
           return;

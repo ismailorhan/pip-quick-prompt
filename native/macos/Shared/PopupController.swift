@@ -8,6 +8,7 @@
 // the full popup and the floating icon, and show a context menu.
 
 import AppKit
+import ApplicationServices
 import QuartzCore
 import WebKit
 
@@ -62,6 +63,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private var glassViews: [NSView] = []
     private var topLeft = NSPoint.zero
     private var visibleArea = NSRect.zero
+    /// Where the Dock is (or slides in when auto-hidden) on the panel's screen; the panel stays off it.
+    private var dockArea: NSRect?
     private var shown = false
     private var closing = false
     private var popupWidth: CGFloat = defaultPopupWidth
@@ -85,7 +88,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         // Place the panel just below and to the right of the cursor, inside the visible screen area.
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
-        visibleArea = PopupController.usableFrame(of: screen)
+        updateArea(screen)
         let initialHeight: CGFloat = 76
         let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
@@ -101,7 +104,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // No window shadow: macOS traces it around the transparent panel's shapes, which shows up as a dark
+        // ring over light backgrounds (e.g. remote desktop windows). The glass and the page draw their own.
+        panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
         panel.onClose = { [weak self] in self?.close() }
@@ -156,14 +161,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         }
         let height = min(max(requested.rounded(.up), 40), visibleArea.height * 0.85)
         // The floating icon may sit right in a corner; the full popup keeps a small gap.
-        let edge: CGFloat = isMini ? 0 : 8
-        var top = min(topLeft.y, visibleArea.maxY - edge)
-        if top - height < visibleArea.minY + edge {
-            top = min(visibleArea.minY + edge + height, visibleArea.maxY - edge)
-        }
-        let x = min(max(topLeft.x, visibleArea.minX + edge), visibleArea.maxX - popupWidth - edge)
-        topLeft = NSPoint(x: x, y: top)
-        panel.setFrame(NSRect(x: x, y: top - height, width: popupWidth, height: height), display: true, animate: false)
+        let frame = fit(NSRect(x: topLeft.x, y: topLeft.y - height, width: popupWidth, height: height), edge: isMini ? 0 : 8)
+        topLeft = NSPoint(x: frame.minX, y: frame.maxY)
+        panel.setFrame(frame, display: true, animate: false)
         container.layoutSubtreeIfNeeded()
     }
 
@@ -194,30 +194,129 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         panel.setFrameOrigin(NSPoint(x: dragOrigin.x + now.x - dragStart.x, y: dragOrigin.y + now.y - dragStart.y))
     }
 
-    /// The screen area the popup may use: the visible frame, minus where an auto-hidden Dock appears
-    /// when it slides in (macOS counts that area as free, so the icon would sit under the Dock).
-    static func usableFrame(of screen: NSScreen) -> NSRect {
-        var area = screen.visibleFrame
-        let dock = UserDefaults(suiteName: "com.apple.dock")
-        guard dock?.bool(forKey: "autohide") == true else { return area }
-        let tile = CGFloat(dock?.double(forKey: "tilesize") ?? 0)
-        let reserve = (tile > 0 ? tile : 48) + 22
-        switch dock?.string(forKey: "orientation") ?? "bottom" {
-        case "left":
-            area.origin.x += reserve
-            area.size.width -= reserve
-        case "right":
-            area.size.width -= reserve
-        default:
-            area.origin.y += reserve
-            area.size.height -= reserve
+    /// The screen area the popup may use: the whole screen below the menu bar. The Dock is handled
+    /// separately (dockArea) so the icon can still go right into a corner beside it.
+    private func updateArea(_ screen: NSScreen) {
+        let (area, dock) = PopupController.placement(on: screen)
+        visibleArea = area
+        dockArea = dock
+    }
+
+    static func placement(on screen: NSScreen) -> (area: NSRect, dock: NSRect?) {
+        let full = screen.frame
+        let visible = screen.visibleFrame
+        let defaults = UserDefaults(suiteName: "com.apple.dock")
+        let orientation = defaults?.string(forKey: "orientation") ?? "bottom"
+        let autohide = defaults?.bool(forKey: "autohide") == true
+        var area = full
+        area.size.height = visible.maxY - full.minY   // below the menu bar
+
+        // The Dock's real size and place, read through Accessibility (the app has that permission).
+        if let tiles = dockTilesFrame() {
+            let pad: CGFloat = 10
+            var dock: NSRect
+            switch orientation {
+            case "left":
+                dock = NSRect(x: full.minX, y: tiles.minY - pad, width: tiles.width + 2 * pad, height: tiles.height + 2 * pad)
+            case "right":
+                dock = NSRect(x: full.maxX - tiles.width - 2 * pad, y: tiles.minY - pad, width: tiles.width + 2 * pad, height: tiles.height + 2 * pad)
+            default:
+                dock = NSRect(x: tiles.minX - pad, y: full.minY, width: tiles.width + 2 * pad, height: tiles.height + 2 * pad)
+            }
+            if !autohide {
+                // Use what macOS reserves when that is larger (it includes the Dock's margins).
+                switch orientation {
+                case "left": dock.size.width = max(dock.width, visible.minX - full.minX)
+                case "right": dock.origin.x = min(dock.minX, visible.maxX); dock.size.width = full.maxX - dock.minX
+                default: dock.size.height = max(dock.height, visible.minY - full.minY)
+                }
+            }
+            if dock.intersects(full) {
+                return (area, dock)
+            }
+            return (area, nil)
         }
-        return area
+
+        // No Accessibility: keep clear of the whole Dock edge (as macOS does for windows).
+        var dockEdge: NSRect?
+        if autohide {
+            let tile = CGFloat(defaults?.double(forKey: "tilesize") ?? 0)
+            let reserve = (tile > 0 ? tile : 48) + 22
+            switch orientation {
+            case "left": dockEdge = NSRect(x: full.minX, y: full.minY, width: reserve, height: full.height)
+            case "right": dockEdge = NSRect(x: full.maxX - reserve, y: full.minY, width: reserve, height: full.height)
+            default: dockEdge = NSRect(x: full.minX, y: full.minY, width: full.width, height: reserve)
+            }
+        } else if visible.minY > full.minY {
+            dockEdge = NSRect(x: full.minX, y: full.minY, width: full.width, height: visible.minY - full.minY)
+        } else if visible.minX > full.minX {
+            dockEdge = NSRect(x: full.minX, y: full.minY, width: visible.minX - full.minX, height: full.height)
+        } else if visible.maxX < full.maxX {
+            dockEdge = NSRect(x: visible.maxX, y: full.minY, width: full.maxX - visible.maxX, height: full.height)
+        }
+        return (area, dockEdge)
+    }
+
+    /// The frame of the Dock's icon row in Cocoa screen coordinates, or nil without Accessibility.
+    static func dockTilesFrame() -> NSRect? {
+        guard AXIsProcessTrusted(),
+              let dockApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { return nil }
+        let app = AXUIElementCreateApplication(dockApp.processIdentifier)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXChildrenAttribute as CFString, &value) == .success,
+              let children = value as? [AXUIElement] else { return nil }
+        for child in children {
+            var role: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &role) == .success,
+                  (role as? String) == (kAXListRole as String) else { continue }
+            var positionValue: CFTypeRef?
+            var sizeValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(child, kAXPositionAttribute as CFString, &positionValue) == .success,
+                  AXUIElementCopyAttributeValue(child, kAXSizeAttribute as CFString, &sizeValue) == .success,
+                  let positionRef = positionValue, let sizeRef = sizeValue,
+                  CFGetTypeID(positionRef) == AXValueGetTypeID(), CFGetTypeID(sizeRef) == AXValueGetTypeID() else { continue }
+            var position = CGPoint.zero
+            var size = CGSize.zero
+            AXValueGetValue(positionRef as! AXValue, .cgPoint, &position)
+            AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+            guard size.width > 0, size.height > 0 else { continue }
+            // Accessibility uses top-left coordinates from the primary screen.
+            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+            return NSRect(x: position.x, y: primaryHeight - position.y - size.height, width: size.width, height: size.height)
+        }
+        return nil
+    }
+
+    /// Moves a frame inside the usable area and off the Dock.
+    private func fit(_ frame: NSRect, edge: CGFloat) -> NSRect {
+        let area = visibleArea.insetBy(dx: edge, dy: edge)
+        var f = frame
+        func clamp() {
+            f.origin.x = min(max(f.minX, area.minX), area.maxX - f.width)
+            f.origin.y = min(max(f.minY, area.minY), area.maxY - f.height)
+        }
+        clamp()
+        if let dock = dockArea?.insetBy(dx: -edge, dy: -edge), f.intersects(dock) {
+            // Step out of the Dock the shortest way that stays on screen.
+            var options: [NSRect] = []
+            var up = f; up.origin.y = dock.maxY; options.append(up)
+            var left = f; left.origin.x = dock.minX - f.width; options.append(left)
+            var right = f; right.origin.x = dock.maxX; options.append(right)
+            var down = f; down.origin.y = dock.minY - f.height; options.append(down)
+            let valid = options.filter { area.contains($0) }
+            if let best = valid.min(by: { hypot($0.minX - f.minX, $0.minY - f.minY) < hypot($1.minX - f.minX, $1.minY - f.minY) }) {
+                f = best
+            } else {
+                f.origin.y = dock.maxY
+                clamp()
+            }
+        }
+        return f
     }
 
     private func finishDrag(_ samples: [(time: TimeInterval, point: NSPoint)]) {
-        let screen = PopupController.usableFrame(of: panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
-        visibleArea = screen
+        updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
+        let screen = visibleArea
         let frame = panel.frame
         let margin: CGFloat = 0
         var target = frame
@@ -238,9 +337,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             }
         }
 
-        // Always end fully on screen (and off the Dock).
-        target.origin.x = min(max(target.origin.x, screen.minX), screen.maxX - frame.width)
-        target.origin.y = min(max(target.origin.y, screen.minY), screen.maxY - frame.height)
+        // Always end fully on screen and off the Dock.
+        target = fit(target, edge: 0)
 
         if target.origin != frame.origin {
             NSAnimationContext.runAnimationGroup({ context in
@@ -421,8 +519,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         if isMini {
             miniTopLeft = topLeft
         }
-        if let screen = panel.screen {
-            visibleArea = PopupController.usableFrame(of: screen)
+        // Not while dragging (the Dock lookup is not free); finishDrag refreshes it.
+        if dragTimer == nil, let screen = panel.screen {
+            updateArea(screen)
         }
     }
 }
