@@ -47,7 +47,7 @@ The plugin presses ⌘C/Ctrl+C and watches the clipboard:
 
 ## CLI or API
 
-`ChatManager.GetProvider(id, connection)` picks the provider: the preset's **Connection** (`cli` / `api`), or for `default` the provider's connection in Settings (`ClaudeConnection`, `ChatGptConnection`). API keys go through `IHostBridge.GetSecret/SetSecret`. The plugin stores them in Logi Plugin Service's encrypted plugin settings (local only), never in `settings.json`. The popup's Settings view reads `GET /s/<token>/settings`, which returns only a masked key hint, and writes `POST /s/<token>/settings`.
+`ChatManager.GetProvider(id, connection)` picks the provider: the preset's **Connection** (`cli` / `api`), or for `default` the provider's connection in Settings (`ClaudeConnection`, `ChatGptConnection`). API keys go through `IHostBridge.GetSecret/SetSecret`. The plugin stores them in Logi Plugin Service's encrypted plugin settings (local only), never in `settings.json`. Options+ → *Plugin settings* lists each key as an account preference (`PluginPreferenceAccount`, the only preference type the SDK offers): "Add key" opens the Settings popup, "Remove key" deletes the key, and a stored key shows as signed in with its masked hint. The popup's Settings view reads `GET /s/<token>/settings`, which returns only a masked key hint, and writes `POST /s/<token>/settings`.
 
 - **Anthropic:** official C# SDK (`Anthropic` NuGet), beta Messages endpoint with `fallbacks: "default"` (`server-side-fallback-2026-07-01`), `output_config.effort` (default `low` for quick answers), streamed. `haiku`/`sonnet`/`opus` map to the current model ids.
 - **OpenAI:** `POST /v1/chat/completions` with `stream: true`, parsed by `OpenAiStreamParser`.

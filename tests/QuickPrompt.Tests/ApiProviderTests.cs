@@ -269,6 +269,21 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public void Key_changes_raise_SecretsChanged()
+        {
+            var raised = 0;
+            this._manager.SecretsChanged += () => raised++;
+            this._manager.SaveSettings(new Dictionary<string, string> { ["claudeConnection"] = "api" });
+            Assert.Equal(0, raised);
+            this._manager.SaveSettings(new Dictionary<string, string> { ["chatgptKey"] = "sk-abcd5678" });
+            Assert.Equal(1, raised);
+            Assert.Equal("••••5678", this._manager.GetKeyHint(OpenAiApiProvider.SecretName));
+            this._manager.RemoveKey(OpenAiApiProvider.SecretName);
+            Assert.Equal(2, raised);
+            Assert.Equal("", this._manager.GetKeyHint(OpenAiApiProvider.SecretName));
+        }
+
+        [Fact]
         public void Session_reports_its_connection()
         {
             var session = this._manager.CreateSession(ProviderIds.Claude, "", "", ConnectionModes.Api);
