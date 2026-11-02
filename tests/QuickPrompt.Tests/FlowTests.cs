@@ -214,6 +214,39 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task Pasted_pictures_go_with_the_message_stay_in_the_conversation_and_can_be_previewed()
+        {
+            var session = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            var url = this._manager.GetSessionUrl(session, true);
+            using var http = new HttpClient();
+            var png = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 1, 2, 3 });
+            var images = JsonSerializer.Serialize(new[] { new { mediaType = "image/png", data = png, thumb = "data:image/jpeg;base64,AA==" } });
+            var res = await this.PostAsync(http, url + "send", JsonSerializer.Serialize(new { instruction = "What is wrong here?", context = "", images }));
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            await session.CurrentTurn;
+            Assert.Equal(png, this._claude.Requests.Single().Images.Single().Data);
+
+            // The bubble gets the small preview; the large one comes from the server.
+            using (var doc = JsonDocument.Parse(session.ToJson(true)))
+            {
+                Assert.Equal("data:image/jpeg;base64,AA==", doc.RootElement.GetProperty("messages")[0].GetProperty("images")[0].GetString());
+            }
+
+            var picture = await http.GetAsync(url + "image?m=0&i=0");
+            Assert.Equal("image/png", picture.Content.Headers.ContentType.MediaType);
+            Assert.Equal(Convert.FromBase64String(png), await picture.Content.ReadAsByteArrayAsync());
+
+            // A follow-up still carries the picture of the first turn.
+            Assert.True(session.StartTurnFromPopup("And the second line?", ""));
+            await session.CurrentTurn;
+            Assert.Equal(png, this._claude.Requests.Last().HistoryImages[0].Single().Data);
+
+            // A picture alone is a message too.
+            var other = this._manager.CreateSession(ProviderIds.Claude, "", "");
+            Assert.True(other.StartTurnFromPopup("", "", null, new[] { new ImageAttachment { Data = png } }));
+        }
+
+        [Fact]
         public async Task Edit_flow_only_prefills()
         {
             this._host.Selection = "some text";

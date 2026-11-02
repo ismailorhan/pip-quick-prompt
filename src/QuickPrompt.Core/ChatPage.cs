@@ -213,6 +213,20 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px va
 .skey button { margin-bottom: 1px; }
 button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 
+/* Pictures: waiting ones above the input, sent ones in the bubble; click for a large preview */
+.attach { border-radius: 18px; padding: 8px; }
+.alist { display: flex; flex-wrap: wrap; gap: 8px; }
+.athumb { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--faint); cursor: zoom-in; }
+.athumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.athumb button { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; border-radius: 50%; font-size: 10px; line-height: 18px; background: rgba(0,0,0,.6); color: #fff; }
+.mimgs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+.mimgs img { width: 88px; height: 64px; object-fit: cover; border-radius: 9px; cursor: zoom-in; display: block; }
+.msg.user .q + .mimgs, .mimgs:first-child { margin-top: 2px; }
+.lightbox { position: relative; border-radius: 18px; padding: 10px; display: grid; place-items: center; }
+.lightbox img { max-width: 100%; max-height: calc(var(--view-max, 760px) - 60px); border-radius: 10px; display: block; cursor: zoom-out; }
+.lightbox .lclose { position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; }
+html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; border-radius: 22px; }
+
 /* Fields of a prompt template */
 .fields { border-radius: 20px; padding: 9px 14px 12px; }
 .ftitle { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
@@ -508,6 +522,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
   </div>
   <div class="fields glass" id="fieldsBox" hidden><div class="ftitle" id="fieldsTitle"></div><div class="flist" id="fieldList"></div></div>
+  <div class="attach glass" id="attachBox" hidden><div class="alist" id="attachList"></div></div>
+  <div class="lightbox glass" id="lightbox" hidden><img id="lightImg" alt=""><button type="button" class="x lclose" id="lightClose" title="Close (Esc)">✕</button></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
@@ -635,7 +651,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const side = mini.hidden ? 0 : Math.ceil(mini.getBoundingClientRect().width) + 10;
-      const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? settingsSize.w : actionsOpen ? 520 : size.w) + side;
+      const width = collapsed ? Math.ceil(box.width) : (previewOpen ? previewSize.w : settingsOpen ? settingsSize.w : actionsOpen ? 520 : size.w) + side;
       // Where the icon's middle will be in a panel of this width, so the panel can keep the icon still
       // on screen while things around it change (toolbar opening, conversation opening on either side).
       const icon = mini.hidden ? null : $("miniOpen").getBoundingClientRect();
@@ -1724,6 +1740,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
 
     buildFields(s);
+    renderAttachments();
     const hasAnswer = lastAnswer() != null && !s.busy;
     els.actions.hidden = !hasAnswer;
     $("paste").hidden = !s.appWindow;
@@ -1749,7 +1766,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             ? esc(m.text).replace(/\{(\$selected|text|selection|input)\}/gi, '<span class="tok">selected</span>').replace(/\{\$clipboard\}/gi, '<span class="tok">clipboard</span>')
             : '<span class="tok">selected text</span>';
           const ctx = m.context ? `<div class="ctxinfo" title="${esc(m.context.slice(0, 600))}">+ ${m.context.length} characters</div>` : "";
-          return `<div class="msg user glass" data-drag><div class="q">${q}</div>${ctx}</div>`;
+          const pics = (m.images || []).filter(Boolean).map((t, k) => `<img src="${esc(t)}" data-m="${i}" data-i="${k}" alt="Picture ${k + 1}">`).join("");
+          return `<div class="msg user glass" data-drag><div class="q">${q}</div>${ctx}${pics ? `<div class="mimgs">${pics}</div>` : ""}</div>`;
         }
         const last = i === s.messages.length - 1;
         if (m.state === "error") {
@@ -1819,7 +1837,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       els.send.classList.toggle("idle", !!state && !state.busy && !!collectFields().missing);
       return;
     }
-    const empty = !els.prompt.value.trim() && (els.ctxWrap.hidden || !els.ctx.value.trim());
+    const empty = !els.prompt.value.trim() && (els.ctxWrap.hidden || !els.ctx.value.trim())
+      && !pending.length && !((state && state.draft && state.draft.images) || []).length;
     els.send.classList.toggle("idle", !!state && !state.busy && empty);
   }
 
@@ -1835,7 +1854,120 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   els.thread.addEventListener("click", e => {
     const t = e.target;
     if (t instanceof HTMLElement && t.hasAttribute("data-copy")) copyText(t.parentElement.querySelector("code").textContent);
+    if (t instanceof HTMLImageElement && t.dataset.m != null) openPreview(base + "image?m=" + t.dataset.m + "&i=" + t.dataset.i, t.src);
   });
+
+  // ---------- pictures: paste (⌘V) or drop them; they go with the next message ----------
+  let pending = [];   // { mediaType, data, thumb } made here
+  const attachBox = $("attachBox"), attachList = $("attachList");
+  function renderAttachments() {
+    const waiting = (state && state.draft && state.draft.images) || [];   // from the clipboard / selection
+    const html = waiting.map((t, k) => `<div class="athumb" data-draft="${k}"><img src="${esc(t)}" alt=""><button type="button" data-drop-draft="${k}" title="Remove">✕</button></div>`)
+      .concat(pending.map((p, k) => `<div class="athumb" data-pending="${k}"><img src="${esc(p.thumb)}" alt=""><button type="button" data-drop="${k}" title="Remove">✕</button></div>`));
+    attachList.innerHTML = html.join("");
+    attachBox.hidden = html.length === 0 || collapsed;
+    updateSendState();
+    queueLayout();
+  }
+  attachList.addEventListener("click", async e => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (t.dataset.drop != null) { pending.splice(+t.dataset.drop, 1); renderAttachments(); return; }
+    if (t.dataset.dropDraft != null) { await post("dropimage", { i: t.dataset.dropDraft }); return; }
+    const box = t.closest(".athumb");
+    if (!box) return;
+    if (box.dataset.pending != null) openPreview("data:" + pending[+box.dataset.pending].mediaType + ";base64," + pending[+box.dataset.pending].data);
+    else openPreview(base + "image?m=-1&i=" + box.dataset.draft, box.querySelector("img").src);
+  });
+
+  // Scales a picture down for the AI (longest side 1568 px, what the models use) and makes a small preview.
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable")); };
+      img.src = url;
+    });
+  }
+  function draw(img, max, type, quality) {
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * k));
+    c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const g = c.getContext("2d");
+    if (type === "image/jpeg") { g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); }
+    g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL(type, quality);
+  }
+  async function addImageFile(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    if (pending.length >= 8) { toast("Up to 8 pictures"); return; }
+    try {
+      const img = await loadImage(file);
+      let url = draw(img, 1568, "image/png");
+      if (url.length > 2000000) url = draw(img, 1568, "image/jpeg", 0.88);   // large photos: JPEG
+      const comma = url.indexOf(",");
+      pending.push({ mediaType: url.slice(5, url.indexOf(";")), data: url.slice(comma + 1), thumb: draw(img, 320, "image/jpeg", 0.8) });
+      renderAttachments();
+      els.prompt.focus();
+    } catch (err) {
+      toast("Could not read that picture");
+    }
+  }
+  document.addEventListener("paste", e => {
+    if (collapsed || settingsOpen || historyOpen || actionsOpen) return;
+    const items = [...(e.clipboardData ? e.clipboardData.items : [])];
+    // Text wins when the clipboard has both (e.g. spreadsheet cells also come as a picture).
+    if (items.some(it => it.kind === "string" && it.type === "text/plain")) return;
+    const files = items.filter(it => it.kind === "file" && /^image\//.test(it.type)).map(it => it.getAsFile());
+    if (!files.length) return;
+    e.preventDefault();
+    files.forEach(addImageFile);
+  });
+  document.addEventListener("dragover", e => {
+    if (collapsed || !e.dataTransfer || ![...e.dataTransfer.items].some(it => it.kind === "file")) return;
+    e.preventDefault();
+    document.documentElement.classList.add("dropping");
+  });
+  document.addEventListener("dragleave", e => { if (!e.relatedTarget) document.documentElement.classList.remove("dropping"); });
+  document.addEventListener("drop", e => {
+    document.documentElement.classList.remove("dropping");
+    if (collapsed || !e.dataTransfer) return;
+    const files = [...e.dataTransfer.files].filter(f => /^image\//.test(f.type));
+    if (!files.length) return;
+    e.preventDefault();
+    files.forEach(addImageFile);
+  });
+
+  // ---------- large preview ----------
+  let previewOpen = false, previewSize = { w: 600, h: 400 };
+  const lightbox = $("lightbox"), lightImg = $("lightImg");
+  function openPreview(src, fallback) {
+    previewOpen = true;
+    lightImg.onerror = () => { if (fallback && lightImg.src !== fallback) lightImg.src = fallback; };
+    lightImg.onload = () => {
+      const maxW = Math.min(1100, Math.round(screen.availWidth * 0.8)), maxH = Math.max(240, Math.round((screen.availHeight || 900) * 0.8) - 60);
+      const k = Math.min(1, maxW / lightImg.naturalWidth, maxH / lightImg.naturalHeight);
+      previewSize = { w: Math.max(360, Math.round(lightImg.naturalWidth * k) + 20), h: Math.round(lightImg.naturalHeight * k) + 20 };
+      lastLayout = "";
+      queueLayout();
+    };
+    lightImg.src = src;
+    [els.card, els.bar, els.ctxWrap, attachBox, $("fieldsBox")].forEach(el => { el.dataset.wasHidden = el.hidden ? "1" : ""; el.hidden = true; });
+    lightbox.hidden = false;
+    queueLayout();
+  }
+  function closePreview() {
+    if (!previewOpen) return;
+    previewOpen = false;
+    lightbox.hidden = true;
+    lightImg.removeAttribute("src");
+    [els.card, els.bar, els.ctxWrap, attachBox, $("fieldsBox")].forEach(el => { el.hidden = el.dataset.wasHidden === "1"; });
+    lastLayout = "";
+    queueLayout();
+  }
+  lightbox.addEventListener("click", closePreview);
 
   function showCtx(show) {
     els.ctxWrap.hidden = !show;
@@ -1862,12 +1994,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       fields.missing.focus();
       return;
     }
-    if (!instruction && !context.trim() && !fields) { els.prompt.focus(); return; }
+    const waitingPictures = ((state.draft && state.draft.images) || []).length;
+    if (!instruction && !context.trim() && !fields && !pending.length && !waitingPictures) { els.prompt.focus(); return; }
     els.send.disabled = true;
-    const res = await post("send", { instruction, context, fields: fields ? JSON.stringify(fields.values) : "" });
+    const res = await post("send", { instruction, context, fields: fields ? JSON.stringify(fields.values) : "",
+      images: pending.length ? JSON.stringify(pending) : "" });
     els.send.disabled = false;
     if (res.ok) {
-      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); autoGrow(); stick = true;
+      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); pending = []; renderAttachments(); autoGrow(); stick = true;
     } else {
       toast(fields ? "Paste the text first" : "Could not send");
       if (fields) els.prompt.focus();
@@ -1890,6 +2024,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (e.key === "Escape") {
       e.preventDefault();
       if (collapsed) return;
+      if (previewOpen) { closePreview(); return; }
       if (actionsOpen) { if (!$("actForm").hidden) showActionList(); else if (actionsOnly) closeWindow(); else closeActions(); }
       else if (settingsOpen && !settingsOnly) closeSettings();
       else if (historyOpen && !historyOnly) closeHistory();

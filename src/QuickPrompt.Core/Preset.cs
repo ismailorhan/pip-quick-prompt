@@ -95,5 +95,9 @@ namespace QuickPrompt.Core
 
         /// <summary>Stores a secret; null or empty deletes it.</summary>
         void SetSecret(String name, String value);
+
+        /// <summary>The picture on the clipboard, scaled down and with a small preview; null when there is none
+        /// (or the host cannot read pictures).</summary>
+        ImageAttachment GetClipboardImage() => null;
     }
 }

@@ -190,6 +190,68 @@ namespace QuickPrompt.Tests
             Assert.Equal("and more formal?", messages[3].GetProperty("content").GetString());
         }
 
+        private static ImageAttachment Pic(string data) => new ImageAttachment { MediaType = "image/png", Data = data, Thumb = "data:image/jpeg;base64,AA==" };
+
+        private static AiRequest WithPictures()
+        {
+            var request = FollowUp();
+            request.HistoryImages = new IReadOnlyList<ImageAttachment>[] { new[] { Pic("AAAA") }, Array.Empty<ImageAttachment>() };
+            request.Images = new[] { Pic("BBBB") };
+            return request;
+        }
+
+        [Fact]
+        public async Task Anthropic_sends_pictures_as_image_blocks_before_the_text()
+        {
+            var sse = Sse(
+                ("message_start", new { type = "message_start", message = new { id = "m", type = "message", role = "assistant", model = "x", content = Array.Empty<object>(), stop_reason = (string)null, stop_sequence = (string)null, usage = new { input_tokens = 1, output_tokens = 0 } } }),
+                ("message_stop", new { type = "message_stop" }));
+            using var server = new FakeHttpServer(200, "text/event-stream", sse);
+            await RunAsync(new AnthropicApiProvider(Settings, () => "k", server.BaseUrl), WithPictures());
+
+            var (_, body) = await server.Request.Task;
+            var messages = JsonDocument.Parse(body).RootElement.GetProperty("messages").EnumerateArray().ToList();
+            var first = messages[0].GetProperty("content");
+            Assert.Equal("image", first[0].GetProperty("type").GetString());
+            Assert.Equal("AAAA", first[0].GetProperty("source").GetProperty("data").GetString());
+            Assert.Equal("image/png", first[0].GetProperty("source").GetProperty("media_type").GetString());
+            Assert.Equal("text", first[1].GetProperty("type").GetString());
+            var last = messages[2].GetProperty("content");
+            Assert.Equal("BBBB", last[0].GetProperty("source").GetProperty("data").GetString());
+            Assert.Equal("and more formal?", last[1].GetProperty("text").GetString());
+        }
+
+        [Fact]
+        public async Task OpenAi_sends_pictures_as_data_urls()
+        {
+            using var server = new FakeHttpServer(200, "text/event-stream", "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n");
+            await RunAsync(new OpenAiApiProvider(Settings, () => "k", server.BaseUrl), WithPictures());
+
+            var (_, body) = await server.Request.Task;
+            var messages = JsonDocument.Parse(body).RootElement.GetProperty("messages").EnumerateArray().ToList();
+            var last = messages[3].GetProperty("content");
+            Assert.Equal("image_url", last[0].GetProperty("type").GetString());
+            Assert.Equal("data:image/png;base64,BBBB", last[0].GetProperty("image_url").GetProperty("url").GetString());
+            Assert.Equal("and more formal?", last[1].GetProperty("text").GetString());
+            Assert.Equal("assistant", messages[2].GetProperty("role").GetString());
+            Assert.Equal("hello", messages[2].GetProperty("content").GetString());
+        }
+
+        [Fact]
+        public void Clis_take_pictures_on_stdin_or_as_files()
+        {
+            var line = ClaudeCliProvider.BuildImageMessage("What is this?", new[] { Pic("CCCC") });
+            using var doc = JsonDocument.Parse(line);
+            var content = doc.RootElement.GetProperty("message").GetProperty("content");
+            Assert.Equal("user", doc.RootElement.GetProperty("type").GetString());
+            Assert.Equal("CCCC", content[0].GetProperty("source").GetProperty("data").GetString());
+            Assert.Equal("What is this?", content[1].GetProperty("text").GetString());
+
+            var args = CodexCliProvider.BuildArguments(new AiRequest(), "/tmp/ws", "/tmp/ws/last.txt", null, new[] { "/tmp/ws/a.png" }).ToList();
+            Assert.Contains("--image=/tmp/ws/a.png", args);
+            Assert.Equal("-", args.Last());
+        }
+
         [Fact]
         public async Task Anthropic_rejected_key_is_a_readable_error()
         {

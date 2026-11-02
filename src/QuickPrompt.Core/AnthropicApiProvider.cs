@@ -58,20 +58,52 @@ namespace QuickPrompt.Core
             var messages = new List<BetaMessageParam>();
             if (String.IsNullOrEmpty(request.Message))
             {
-                messages.Add(new BetaUserMessageParam { Content = request.Prompt ?? "" });
+                messages.Add(new BetaUserMessageParam { Content = UserContent(request.Prompt ?? "", request.AllImages()) });
                 return messages;
             }
 
-            foreach (var turn in request.History ?? Array.Empty<KeyValuePair<String, String>>())
+            var history = request.History ?? Array.Empty<KeyValuePair<String, String>>();
+            for (var i = 0; i < history.Count; i++)
             {
+                var turn = history[i];
+                var images = request.HistoryImages != null && i < request.HistoryImages.Count ? request.HistoryImages[i] : null;
                 messages.Add(turn.Key == "assistant"
                     ? new BetaAssistantMessageParam { Content = turn.Value ?? "" }
-                    : new BetaUserMessageParam { Content = turn.Value ?? "" });
+                    : new BetaUserMessageParam { Content = UserContent(turn.Value ?? "", images) });
             }
 
-            messages.Add(new BetaUserMessageParam { Content = request.Message });
+            messages.Add(new BetaUserMessageParam { Content = UserContent(request.Message, request.Images) });
             return messages;
         }
+
+        /// <summary>Text alone, or the pictures followed by the text.</summary>
+        private static BetaMessageContentParam UserContent(String text, IReadOnlyList<ImageAttachment> images)
+        {
+            if (images == null || images.Count == 0)
+            {
+                return text;
+            }
+
+            var blocks = new List<BetaContentBlockParam>();
+            foreach (var image in images)
+            {
+                blocks.Add(new BetaImageBlockParam
+                {
+                    Source = new BetaBase64ImageSource { Data = image.Data, MediaType = MediaTypeOf(image.MediaType) },
+                });
+            }
+
+            blocks.Add(new BetaTextBlockParam { Text = String.IsNullOrWhiteSpace(text) ? "(see the image)" : text });
+            return blocks;
+        }
+
+        private static MediaType MediaTypeOf(String mediaType) => mediaType switch
+        {
+            "image/jpeg" => MediaType.ImageJpeg,
+            "image/gif" => MediaType.ImageGif,
+            "image/webp" => MediaType.ImageWebP,
+            _ => MediaType.ImagePng,
+        };
 
         public async IAsyncEnumerable<AiEvent> RunAsync(AiRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
         {

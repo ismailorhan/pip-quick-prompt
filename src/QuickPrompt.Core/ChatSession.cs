@@ -17,6 +17,8 @@ namespace QuickPrompt.Core
         public String Context { get; set; } = "";             // user message only: the captured text
 
         public String State { get; set; } = "done";           // streaming | done | error
+
+        public List<ImageAttachment> Images { get; set; } = new List<ImageAttachment>();   // user message only
     }
 
     /// <summary>One conversation shown in one response window.</summary>
@@ -58,6 +60,9 @@ namespace QuickPrompt.Core
         public String DraftInstruction { get; set; } = "";
 
         public String DraftContext { get; set; } = "";
+
+        /// <summary>Pictures waiting to go with the next message (from the clipboard or the selection).</summary>
+        public List<ImageAttachment> DraftImages { get; set; } = new List<ImageAttachment>();
 
         /// <summary>Hint shown above the input (e.g. "selection could not be read"). Cleared when a turn starts.</summary>
         public String Notice { get; set; } = "";
@@ -102,7 +107,7 @@ namespace QuickPrompt.Core
                     UpdatedUtc = DateTime.UtcNow,
                     Messages = this._messages
                         .Where(m => m.State != "streaming")
-                        .Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State })
+                        .Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State, Images = ForHistory(m.Images) })
                         .ToList(),
                 };
             }
@@ -152,6 +157,7 @@ namespace QuickPrompt.Core
                 this.PresetInstruction = "";
                 this.DraftInstruction = "";
                 this.DraftContext = "";
+                this.DraftImages = new List<ImageAttachment>();
                 this.Notice = "";
                 this._messages.Clear();
                 this.TouchLocked();
@@ -178,12 +184,13 @@ namespace QuickPrompt.Core
                 this.PresetInstruction = "";
                 this.DraftInstruction = "";
                 this.DraftContext = "";
+                this.DraftImages = new List<ImageAttachment>();
                 this.Notice = "";
                 this.ShowSettings = false;
                 this.ShowHistory = false;
                 this.ShowActions = false;
                 this._messages.Clear();
-                this._messages.AddRange(record.Messages.Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State }));
+                this._messages.AddRange(record.Messages.Select(m => new ChatMessage { Role = m.Role, Text = m.Text, Context = m.Context, State = m.State, Images = m.Images ?? new List<ImageAttachment>() }));
                 this.TouchLocked();
                 return true;
             }
@@ -232,8 +239,48 @@ namespace QuickPrompt.Core
         /// A message sent from the popup. When a preset prompt is pending ("Paste in popup"), the typed
         /// text and any added text become the input of that prompt.
         /// </summary>
-        public Boolean StartTurnFromPopup(String typed, String context, IReadOnlyDictionary<String, String> fields = null)
+        /// <summary>A picture of the conversation, for the large preview (message index, picture index).</summary>
+        /// <summary>Removes a waiting picture (its ✕ in the popup).</summary>
+        public void DropDraftImage(Int32 index)
         {
+            lock (this._lock)
+            {
+                if (index >= 0 && index < this.DraftImages.Count)
+                {
+                    this.DraftImages = this.DraftImages.Where((_, i) => i != index).ToList();
+                    this.TouchLocked();
+                }
+            }
+        }
+
+        public ImageAttachment GetImage(Int32 message, Int32 index)
+        {
+            lock (this._lock)
+            {
+                if (message == -1)
+                {
+                    return index >= 0 && index < this.DraftImages.Count ? this.DraftImages[index] : null;
+                }
+
+                if (message < 0 || message >= this._messages.Count)
+                {
+                    return null;
+                }
+
+                var images = this._messages[message].Images;
+                return images != null && index >= 0 && index < images.Count ? images[index] : null;
+            }
+        }
+
+        public Boolean StartTurnFromPopup(String typed, String context, IReadOnlyDictionary<String, String> fields = null, IReadOnlyList<ImageAttachment> images = null)
+        {
+            List<ImageAttachment> waiting;
+            lock (this._lock)
+            {
+                waiting = this.DraftImages;
+            }
+
+            IReadOnlyList<ImageAttachment> pictures = waiting.Concat(images ?? Array.Empty<ImageAttachment>()).ToList();
             String preset;
             lock (this._lock)
             {
@@ -242,7 +289,7 @@ namespace QuickPrompt.Core
 
             if (String.IsNullOrWhiteSpace(preset))
             {
-                return this.StartTurn(typed, context);
+                return this.StartTurn(typed, context, pictures);
             }
 
             var hasFields = PromptBuilder.GetParameters(preset).Count > 0;
@@ -251,12 +298,12 @@ namespace QuickPrompt.Core
 
             // Without fields the preset is applied to pasted text, so there must be some. With fields, the
             // filled-in prompt can stand on its own unless it has a {text} spot to fill.
-            if (text.Trim().Length == 0 && (!hasFields || PromptBuilder.HasToken(instruction)))
+            if (text.Trim().Length == 0 && pictures.Count == 0 && (!hasFields || PromptBuilder.HasToken(instruction)))
             {
                 return false;
             }
 
-            var started = this.StartTurn(instruction, text);
+            var started = this.StartTurn(instruction, text, pictures);
             if (started)
             {
                 lock (this._lock)
@@ -269,18 +316,25 @@ namespace QuickPrompt.Core
             return started;
         }
 
-        public Boolean StartTurn(String instruction, String context)
+        public Boolean StartTurn(String instruction, String context, IReadOnlyList<ImageAttachment> images = null)
         {
             instruction = (instruction ?? "").Trim();
             context = context ?? "";
-            if (instruction.Length == 0 && context.Trim().Length == 0)
+            var pictures = (images ?? Array.Empty<ImageAttachment>()).Where(i => i != null && i.Data.Length > 0).ToList();
+            if (instruction.Length == 0 && context.Trim().Length == 0 && pictures.Count == 0)
             {
                 return false;
+            }
+
+            if (instruction.Length == 0 && context.Trim().Length == 0)
+            {
+                instruction = pictures.Count == 1 ? "Look at this image." : "Look at these images.";
             }
 
             ChatMessage answer;
             String prompt;
             List<KeyValuePair<String, String>> history;
+            List<IReadOnlyList<ImageAttachment>> historyImages;
             var message = PromptBuilder.Build(instruction, context);
             CancellationTokenSource cts;
             lock (this._lock)
@@ -290,22 +344,26 @@ namespace QuickPrompt.Core
                     return false;
                 }
 
-                history = this._messages
+                var turns = this._messages
                     .Where(m => m.State == "done" || m.Role == "user")
-                    .Select(m => new KeyValuePair<String, String>(m.Role, m.Role == "user" ? PromptBuilder.Build(m.Text, m.Context) : m.Text))
                     .ToList();
 
                 // Drop user turns whose answer failed, so the history stays question/answer pairs.
-                history = PairUp(history);
+                turns = PairUp(turns);
+                history = turns
+                    .Select(m => new KeyValuePair<String, String>(m.Role, m.Role == "user" ? PromptBuilder.Build(m.Text, m.Context) : m.Text))
+                    .ToList();
+                historyImages = turns.Select(m => (IReadOnlyList<ImageAttachment>)(m.Images ?? new List<ImageAttachment>())).ToList();
 
                 prompt = PromptBuilder.BuildWithHistory(history, message);
-                this._messages.Add(new ChatMessage { Role = "user", Text = instruction, Context = context.Trim() });
+                this._messages.Add(new ChatMessage { Role = "user", Text = instruction, Context = context.Trim(), Images = pictures });
                 answer = new ChatMessage { Role = "assistant", State = "streaming" };
                 this._messages.Add(answer);
                 this._busy = true;
                 this._status = "Starting…";
                 this.DraftInstruction = "";
                 this.DraftContext = "";
+                this.DraftImages = new List<ImageAttachment>();
                 this.Notice = "";
                 this._turnCts?.Dispose();
                 cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(10, this._settings().TimeoutSeconds)));
@@ -321,6 +379,8 @@ namespace QuickPrompt.Core
                 Model = this.Model,
                 SystemPrompt = this._settings().SystemPrompt,
                 Setup = this.Setup,
+                Images = pictures,
+                HistoryImages = historyImages,
             };
 
             var turn = Task.Run(() => this.RunTurnAsync(request, answer, cts.Token));
@@ -376,7 +436,7 @@ namespace QuickPrompt.Core
                     providerName = this.Provider.DisplayName,
                     model = this.Model,
                     appWindow = isAppWindow,
-                    draft = new { instruction = this.DraftInstruction, context = this.DraftContext },
+                    draft = new { instruction = this.DraftInstruction, context = this.DraftContext, images = this.DraftImages.Select(i => i.Thumb).ToArray() },
                     notice = this.Notice,
                     pasteMode = this.PresetInstruction.Trim().Length > 0,
                     connection = this.Connection,
@@ -390,7 +450,11 @@ namespace QuickPrompt.Core
                     glassTint = this._settings().GlassTint,
                     keepPip = this._settings().KeepPip,
                     startCollapsed = this.StartCollapsed,
-                    messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
+                    messages = this._messages.Select(m => new
+                    {
+                        role = m.Role, text = m.Text, context = m.Context, state = m.State,
+                        images = (m.Images ?? new List<ImageAttachment>()).Select(i => i.Thumb).ToArray(),
+                    }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);
             }
@@ -503,12 +567,32 @@ namespace QuickPrompt.Core
             return finalText;
         }
 
-        private static List<KeyValuePair<String, String>> PairUp(List<KeyValuePair<String, String>> items)
+        /// <summary>
+        /// Pictures as kept in the history file: the full picture while it is small enough, otherwise the
+        /// preview stands in for it (so history files stay small; a reopened conversation sends the preview).
+        /// </summary>
+        private static List<ImageAttachment> ForHistory(List<ImageAttachment> images)
         {
-            var result = new List<KeyValuePair<String, String>>();
+            const Int32 MaxKept = 600 * 1024;
+            return (images ?? new List<ImageAttachment>()).Select(i =>
+            {
+                if (i.Data.Length <= MaxKept || !i.Thumb.StartsWith("data:image/", StringComparison.Ordinal))
+                {
+                    return i;
+                }
+
+                var comma = i.Thumb.IndexOf(',');
+                var mediaType = i.Thumb.Substring(5, i.Thumb.IndexOf(';') - 5);
+                return new ImageAttachment { MediaType = mediaType, Data = i.Thumb.Substring(comma + 1), Thumb = i.Thumb };
+            }).ToList();
+        }
+
+        private static List<ChatMessage> PairUp(List<ChatMessage> items)
+        {
+            var result = new List<ChatMessage>();
             for (var i = 0; i < items.Count; i++)
             {
-                if (items[i].Key == "user" && i + 1 < items.Count && items[i + 1].Key == "assistant")
+                if (items[i].Role == "user" && i + 1 < items.Count && items[i + 1].Role == "assistant")
                 {
                     result.Add(items[i]);
                     result.Add(items[i + 1]);

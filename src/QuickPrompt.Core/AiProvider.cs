@@ -2,6 +2,7 @@ namespace QuickPrompt.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
 
     public static class ProviderIds
@@ -43,6 +44,29 @@ namespace QuickPrompt.Core
         public override String ToString() => $"{this.Kind}: {this.Text}";
     }
 
+    /// <summary>A picture sent with a message (pasted, dropped, or from the clipboard).</summary>
+    public sealed class ImageAttachment
+    {
+        public String MediaType { get; set; } = "image/png";
+
+        /// <summary>Base64 picture sent to the AI (already scaled down by whoever made it).</summary>
+        public String Data { get; set; } = "";
+
+        /// <summary>Small preview as a data: URL, for the conversation and history.</summary>
+        public String Thumb { get; set; } = "";
+
+        public static Boolean IsSupported(String mediaType) =>
+            mediaType is "image/png" or "image/jpeg" or "image/gif" or "image/webp";
+
+        public static String Extension(String mediaType) => mediaType switch
+        {
+            "image/jpeg" => ".jpg",
+            "image/gif" => ".gif",
+            "image/webp" => ".webp",
+            _ => ".png",
+        };
+    }
+
     public sealed class AiRequest
     {
         /// <summary>
@@ -66,6 +90,19 @@ namespace QuickPrompt.Core
 
         /// <summary>CLI setup for this request (an action's own choice); null = the one in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
+
+        /// <summary>Pictures with the new message.</summary>
+        public IReadOnlyList<ImageAttachment> Images { get; set; } = Array.Empty<ImageAttachment>();
+
+        /// <summary>Pictures of the earlier turns, one list per History entry (same order).</summary>
+        public IReadOnlyList<IReadOnlyList<ImageAttachment>> HistoryImages { get; set; } = Array.Empty<IReadOnlyList<ImageAttachment>>();
+
+        /// <summary>Every picture in the conversation, oldest first (for the CLIs, which take one prompt).</summary>
+        public IReadOnlyList<ImageAttachment> AllImages() =>
+            (this.HistoryImages ?? Array.Empty<IReadOnlyList<ImageAttachment>>())
+                .SelectMany(list => list ?? Array.Empty<ImageAttachment>())
+                .Concat(this.Images ?? Array.Empty<ImageAttachment>())
+                .ToList();
     }
 
     public interface IAiProvider

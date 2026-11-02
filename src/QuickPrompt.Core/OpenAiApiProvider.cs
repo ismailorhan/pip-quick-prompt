@@ -34,6 +34,24 @@ namespace QuickPrompt.Core
 
         public String DisplayName => "ChatGPT";
 
+        /// <summary>Text alone, or a list of parts: the pictures (as data: URLs) and the text.</summary>
+        private static Object UserContent(String text, IReadOnlyList<ImageAttachment> images)
+        {
+            if (images == null || images.Count == 0)
+            {
+                return text;
+            }
+
+            var parts = new List<Object>();
+            foreach (var image in images)
+            {
+                parts.Add(new { type = "image_url", image_url = new { url = "data:" + image.MediaType + ";base64," + image.Data } });
+            }
+
+            parts.Add(new { type = "text", text = String.IsNullOrWhiteSpace(text) ? "(see the image)" : text });
+            return parts;
+        }
+
         public async IAsyncEnumerable<AiEvent> RunAsync(AiRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var key = this._apiKey();
@@ -52,16 +70,21 @@ namespace QuickPrompt.Core
 
             if (String.IsNullOrEmpty(request.Message))
             {
-                messages.Add(new { role = "user", content = request.Prompt ?? "" });
+                messages.Add(new { role = "user", content = UserContent(request.Prompt ?? "", request.AllImages()) });
             }
             else
             {
-                foreach (var turn in request.History ?? Array.Empty<KeyValuePair<String, String>>())
+                var history = request.History ?? Array.Empty<KeyValuePair<String, String>>();
+                for (var i = 0; i < history.Count; i++)
                 {
-                    messages.Add(new { role = turn.Key == "assistant" ? "assistant" : "user", content = turn.Value ?? "" });
+                    var turn = history[i];
+                    var images = request.HistoryImages != null && i < request.HistoryImages.Count ? request.HistoryImages[i] : null;
+                    messages.Add(turn.Key == "assistant"
+                        ? new { role = "assistant", content = (Object)(turn.Value ?? "") }
+                        : new { role = "user", content = UserContent(turn.Value ?? "", images) });
                 }
 
-                messages.Add(new { role = "user", content = request.Message });
+                messages.Add(new { role = "user", content = UserContent(request.Message, request.Images) });
             }
             var body = JsonSerializer.Serialize(new { model, stream = true, messages });
 

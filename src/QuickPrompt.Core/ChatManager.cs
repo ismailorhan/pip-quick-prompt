@@ -581,13 +581,33 @@ namespace QuickPrompt.Core
                 return;
             }
 
+            // {$clipboard} may be a picture (a screenshot): read it before ⌘C replaces the clipboard.
+            var images = new List<ImageAttachment>();
+            var clipboardImage = PromptBuilder.HasClipboard(instruction) ? this.SafeGetClipboardImage() : null;
+
             var capture = await this.CaptureInputAsync(preset.Input).ConfigureAwait(false);
             var context = capture.Text;
+
+            // {$selected} may be a picture too (an image selected and copied in its app).
+            if (capture.Image != null)
+            {
+                images.Add(capture.Image);
+            }
 
             // {$clipboard}: the clipboard as it was before the selection was copied (or the clipboard itself).
             if (PromptBuilder.HasClipboard(instruction))
             {
-                instruction = PromptBuilder.FillClipboard(instruction, capture.PreviousClipboard ?? context);
+                var clipboardText = preset.Input == InputModes.Clipboard ? context : capture.PreviousClipboard ?? "";
+                if (clipboardImage != null && (capture.Image == null || clipboardImage.Data != capture.Image.Data))
+                {
+                    images.Add(clipboardImage);
+                    if (clipboardText.Trim().Length == 0)
+                    {
+                        clipboardText = "(the attached image)";
+                    }
+                }
+
+                instruction = PromptBuilder.FillClipboard(instruction, clipboardText);
                 if (preset.Input == InputModes.Clipboard)
                 {
                     context = "";
@@ -600,7 +620,8 @@ namespace QuickPrompt.Core
                 var form = this.CreateSession(preset);
                 form.PresetInstruction = instruction;
                 form.DraftContext = context;
-                if (preset.Input == InputModes.Selection && !capture.Captured)
+                form.DraftImages = images;
+                if (preset.Input == InputModes.Selection && !capture.Captured && capture.Image == null)
                 {
                     form.Notice = "Could not read the selected text. Paste it below if the action needs it.";
                 }
@@ -609,17 +630,18 @@ namespace QuickPrompt.Core
                 return;
             }
 
-            var nothingToSend = instruction.Trim().Length == 0 && context.Trim().Length == 0;
+            var nothingToSend = instruction.Trim().Length == 0 && context.Trim().Length == 0 && images.Count == 0;
 
             // The preset needs the selection but none could be read: never send the stale clipboard.
             // Open the popup instead so the text can be pasted or typed.
-            var selectionMissing = preset.Input == InputModes.Selection && !capture.Captured;
+            var selectionMissing = preset.Input == InputModes.Selection && !capture.Captured && capture.Image == null;
 
             if (flow == FlowModes.Edit || nothingToSend || selectionMissing)
             {
                 var draft = this.CreateSession(preset);
                 draft.DraftInstruction = instruction;
                 draft.DraftContext = context;
+                draft.DraftImages = images;
                 if (selectionMissing && flow != FlowModes.Edit)
                 {
                     draft.Notice = "Could not read the selected text. Paste it below and send.";
@@ -632,7 +654,7 @@ namespace QuickPrompt.Core
             if (flow == FlowModes.Send)
             {
                 var session = this.CreateSession(preset);
-                session.StartTurn(instruction, context);
+                session.StartTurn(instruction, context, images);
                 this.OpenWindow(session);
                 return;
             }
@@ -641,7 +663,7 @@ namespace QuickPrompt.Core
             var background = this.CreateSession(preset);
             var providerName = background.Provider.DisplayName;
             this._host.Notify(providerName, $"{(String.IsNullOrWhiteSpace(preset.Title) ? "Request" : preset.Title)} sent…", false);
-            background.StartTurn(instruction, context);
+            background.StartTurn(instruction, context, images);
 
             String answer;
             try
@@ -676,6 +698,9 @@ namespace QuickPrompt.Core
 
             /// <summary>For selection mode: true when Ctrl/Cmd+C actually produced text.</summary>
             public Boolean Captured { get; set; }
+
+            /// <summary>For selection mode: the picture Ctrl/Cmd+C copied (a selected image), if no text came.</summary>
+            public ImageAttachment Image { get; set; }
         }
 
         /// <summary>
@@ -683,6 +708,20 @@ namespace QuickPrompt.Core
         /// text we first replace it with a unique marker, so a copy of the very same text is still detected
         /// and a failed copy is never mistaken for a selection. The old text is put back afterwards.
         /// </summary>
+        private ImageAttachment SafeGetClipboardImage()
+        {
+            try
+            {
+                var image = this._host.GetClipboardImage();
+                return image != null && ImageAttachment.IsSupported(image.MediaType) && image.Data.Length > 0 ? image : null;
+            }
+            catch (Exception ex)
+            {
+                this._host.Log("Could not read the clipboard picture", ex);
+                return null;
+            }
+        }
+
         public async Task<CaptureResult> CaptureInputAsync(String inputMode)
         {
             if (inputMode == InputModes.None)
@@ -701,6 +740,9 @@ namespace QuickPrompt.Core
             {
                 var before = this.SafeGetClipboard();
                 var marker = before.Length > 0 ? "\u2063quickprompt-" + Guid.NewGuid().ToString("N") : "";
+                // With no text on the clipboard there is no marker: note any picture already there, so an old
+                // picture is never taken for the selection.
+                var imageBefore = marker.Length == 0 ? this.SafeGetClipboardImage() : null;
                 if (marker.Length > 0)
                 {
                     this._host.SetClipboardText(marker);
@@ -737,12 +779,22 @@ namespace QuickPrompt.Core
                     this._host.SetClipboardText(before);
                 }
 
+                ImageAttachment image = null;
                 if (!captured)
                 {
-                    this._host.Log("Could not read the selection (Ctrl/Cmd+C did not change the clipboard).");
+                    // A selected picture: ⌘C put an image (and no text) on the clipboard.
+                    var after = this.SafeGetClipboardImage();
+                    if (after != null && (imageBefore == null || after.Data != imageBefore.Data))
+                    {
+                        image = after;
+                    }
+                    else
+                    {
+                        this._host.Log("Could not read the selection (Ctrl/Cmd+C did not change the clipboard).");
+                    }
                 }
 
-                return new CaptureResult { Text = text, PreviousClipboard = before, Captured = captured };
+                return new CaptureResult { Text = text, PreviousClipboard = before, Captured = captured, Image = image };
             }
             finally
             {

@@ -71,6 +71,14 @@ Example presets:
 | Translate | ChatGPT | `Translate to English (or to Turkish if it is English). Reply with the translation only:\n\n{text}` | Replace selection |
 | Translate… | Claude | same prompt, Input: *Paste in popup* | Send now |
 
+## Pictures
+
+Paste a picture (⌘V, e.g. a screenshot from Snagit) or drop one onto the popup: it waits above the input
+with a ✕, goes with your next message, and shows as a small picture in your bubble; click it for a large
+preview. In templates, `{$clipboard}` takes a picture from the clipboard too, and `{$selected}` a selected
+picture. Pictures are scaled to at most 1568 px (what the models use). They work with both CLIs and both
+APIs. The history keeps them (large ones as a smaller copy).
+
 ## Your CLI setup (plugins, MCP servers, skills)
 
 By default the CLIs run as plain question and answer: no tools, none of your MCP servers, fastest.

@@ -18,7 +18,7 @@ namespace QuickPrompt.Core
     public sealed class UiServer : IDisposable
     {
         private const Int32 MaxHeaderBytes = 32 * 1024;
-        private const Int32 MaxBodyBytes = 4 * 1024 * 1024;
+        private const Int32 MaxBodyBytes = 32 * 1024 * 1024;   // pictures come in as base64
 
         private readonly ChatManager _manager;
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
@@ -169,6 +169,20 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(this._manager.GetHistoryJson());
             }
 
+            if (request.Method == "GET" && action == "image")
+            {
+                // A picture of the conversation for the large preview: ?m=<message> (-1 = waiting) &i=<index>.
+                Int32.TryParse(request.Query("m"), out var m);
+                Int32.TryParse(request.Query("i"), out var i);
+                var image = session.GetImage(m, i);
+                if (image == null || !ImageAttachment.IsSupported(image.MediaType))
+                {
+                    return HttpResponse.Text(404, "No such picture");
+                }
+
+                return new HttpResponse { ContentType = image.MediaType, Body = Convert.FromBase64String(image.Data) };
+            }
+
             if (request.Method == "GET" && action == "settings")
             {
                 return HttpResponse.Json(this._manager.GetSettingsJson());
@@ -224,8 +238,13 @@ namespace QuickPrompt.Core
                 case "deleteaction":
                     return HttpResponse.Json(this._manager.DeleteAction(GetString(body, "id")));
 
+                case "dropimage":
+                    Int32.TryParse(GetString(body, "i"), out var drop);
+                    session.DropDraftImage(drop);
+                    return HttpResponse.Json("{\"ok\":true}");
+
                 case "send":
-                    var started = session.StartTurnFromPopup(GetString(body, "instruction"), GetString(body, "context"), ParseFields(GetString(body, "fields")));
+                    var started = session.StartTurnFromPopup(GetString(body, "instruction"), GetString(body, "context"), ParseFields(GetString(body, "fields")), ParseImages(GetString(body, "images")));
                     return started ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
 
                 case "cancel":
@@ -248,6 +267,49 @@ namespace QuickPrompt.Core
 
         private Boolean IsAllowedHost(String host) =>
             host == $"127.0.0.1:{this.Port}" || host == $"localhost:{this.Port}";
+
+        /// <summary>Pasted or dropped pictures, sent as a JSON array string of { mediaType, data, thumb }.</summary>
+        private static List<ImageAttachment> ParseImages(String json)
+        {
+            var result = new List<ImageAttachment>();
+            if (String.IsNullOrEmpty(json))
+            {
+                return result;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                foreach (var item in doc.RootElement.EnumerateArray())
+                {
+                    var mediaType = item.TryGetProperty("mediaType", out var mt) ? mt.GetString() : "";
+                    var data = item.TryGetProperty("data", out var d) ? d.GetString() ?? "" : "";
+                    var thumb = item.TryGetProperty("thumb", out var t) ? t.GetString() ?? "" : "";
+                    if (!ImageAttachment.IsSupported(mediaType) || data.Length == 0 || data.Length > 12 * 1024 * 1024)
+                    {
+                        continue;
+                    }
+
+                    Convert.FromBase64String(data);   // valid base64 only
+                    result.Add(new ImageAttachment
+                    {
+                        MediaType = mediaType,
+                        Data = data,
+                        Thumb = thumb.StartsWith("data:image/", StringComparison.Ordinal) && thumb.Length < 400_000 ? thumb : "",
+                    });
+                    if (result.Count == 8)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Unreadable pictures are left out.
+            }
+
+            return result;
+        }
 
         /// <summary>The filled-in prompt fields, sent as a JSON object string.</summary>
         private static Dictionary<String, String> ParseFields(String json) =>
@@ -404,7 +466,7 @@ namespace QuickPrompt.Core
                 .Append("Cache-Control: no-store\r\n")
                 .Append("X-Content-Type-Options: nosniff\r\n")
                 .Append("Referrer-Policy: no-referrer\r\n")
-                .Append("Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'\r\n")
+                .Append("Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data: blob: 'self'; base-uri 'none'; form-action 'none'\r\n")
                 .Append("Connection: close\r\n\r\n")
                 .ToString();
 

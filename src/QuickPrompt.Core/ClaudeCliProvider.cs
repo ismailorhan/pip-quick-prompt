@@ -2,6 +2,7 @@ namespace QuickPrompt.Core
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Text;
     using System.Text.Json;
 
@@ -35,10 +36,33 @@ namespace QuickPrompt.Core
             var setup = choice != null && choice.Enabled
                 ? CliSetup.ClaudeArguments(choice, CliSetup.DiscoverClaude(this.LocateExecutable()))
                 : null;
-            return new CliInvocation(BuildArguments(request, setup), request.Prompt ?? "", new ClaudeStreamParser());
+            var images = request.AllImages();
+            if (images.Count == 0)
+            {
+                return new CliInvocation(BuildArguments(request, setup), request.Prompt ?? "", new ClaudeStreamParser());
+            }
+
+            // With pictures: one stream-json user message (the pictures, then the prompt) on stdin.
+            var args = BuildArguments(request, setup).ToList();
+            args.Insert(1, "--input-format");
+            args.Insert(2, "stream-json");
+            return new CliInvocation(args, BuildImageMessage(request.Prompt ?? "", images), new ClaudeStreamParser());
         }
 
         /// <param name="setup">The tool / MCP flags for "use my setup"; null for plain question and answer.</param>
+        /// <summary>The stdin line for --input-format stream-json: a user message with image blocks and the text.</summary>
+        public static String BuildImageMessage(String prompt, IReadOnlyList<ImageAttachment> images)
+        {
+            var content = new List<Object>();
+            foreach (var image in images)
+            {
+                content.Add(new { type = "image", source = new { type = "base64", media_type = image.MediaType, data = image.Data } });
+            }
+
+            content.Add(new { type = "text", text = prompt });
+            return System.Text.Json.JsonSerializer.Serialize(new { type = "user", message = new { role = "user", content } }) + "\n";
+        }
+
         public static IReadOnlyList<String> BuildArguments(AiRequest request, IReadOnlyList<String> setup = null)
         {
             var args = new List<String>

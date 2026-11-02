@@ -37,12 +37,43 @@ namespace QuickPrompt.Core
         {
             var lastFile = Path.Combine(this.WorkingDirectory, $".codex-last-{Environment.ProcessId}-{Interlocked.Increment(ref _counter)}.txt");
             return new CliInvocation(
-                BuildArguments(request, this.WorkingDirectory, lastFile, CliSetup.CodexArguments(request.Setup ?? this.Settings.CodexSetup, CliSetup.DiscoverCodex())),
+                BuildArguments(request, this.WorkingDirectory, lastFile, CliSetup.CodexArguments(request.Setup ?? this.Settings.CodexSetup, CliSetup.DiscoverCodex()), this.WriteImages(request)),
                 BuildStdin(request),
                 new CodexStreamParser(() => ReadAndDelete(lastFile)));
         }
 
-        public static IReadOnlyList<String> BuildArguments(AiRequest request, String workingDirectory, String lastFile, IReadOnlyList<String> setup = null)
+        /// <summary>codex takes pictures as files (--image): written next to the run, removed after an hour.</summary>
+        private IReadOnlyList<String> WriteImages(AiRequest request)
+        {
+            var images = request.AllImages();
+            var files = new List<String>();
+            try
+            {
+                foreach (var old in Directory.GetFiles(this.WorkingDirectory, ".qp-img-*"))
+                {
+                    if (File.GetLastWriteTimeUtc(old) < DateTime.UtcNow.AddHours(-1))
+                    {
+                        File.Delete(old);
+                    }
+                }
+
+                var run = Interlocked.Increment(ref _counter);
+                for (var i = 0; i < images.Count; i++)
+                {
+                    var file = Path.Combine(this.WorkingDirectory, $".qp-img-{Environment.ProcessId}-{run}-{i}{ImageAttachment.Extension(images[i].MediaType)}");
+                    File.WriteAllBytes(file, Convert.FromBase64String(images[i].Data));
+                    files.Add(file);
+                }
+            }
+            catch (Exception)
+            {
+                // A picture that cannot be written is left out; the question still goes.
+            }
+
+            return files;
+        }
+
+        public static IReadOnlyList<String> BuildArguments(AiRequest request, String workingDirectory, String lastFile, IReadOnlyList<String> setup = null, IReadOnlyList<String> imageFiles = null)
         {
 
             var args = new List<String>
@@ -66,6 +97,11 @@ namespace QuickPrompt.Core
             if (setup != null)
             {
                 args.AddRange(setup);
+            }
+
+            foreach (var file in imageFiles ?? Array.Empty<String>())
+            {
+                args.Add("--image=" + file);   // "=" keeps each value to one file
             }
 
             args.Add("-");   // read the prompt from stdin
