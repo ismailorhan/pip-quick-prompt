@@ -95,6 +95,18 @@ html.native.vibrancy .glass { border-color: var(--edge); }
    too long for the popup scrolls inside its own bubble. */
 .thread { overflow-y: auto; max-height: var(--thread-max, 380px); scrollbar-width: none; display: flex; flex-direction: column; gap: 8px; }
 .thread::-webkit-scrollbar { display: none; }
+/* Stacked view: the earlier messages as the edges of cards behind the latest one */
+.stackhead { display: flex; flex-direction: column; align-items: center; gap: 0; cursor: pointer; margin-bottom: -9px; }
+.stackhead.open { margin-bottom: 0; }
+.stacklabel { font-size: 11.5px; color: var(--muted); padding: 2px 12px 6px; border-radius: 999px; }
+.stackhead:hover .stacklabel, .stackhead:focus-visible .stacklabel { color: var(--text); }
+/* Each card behind shows a strip of its top edge above the next one. */
+.stackcard { height: 22px; border-radius: 14px; margin-bottom: -13px; }
+.stackcard.s2 { width: 88%; opacity: .5; }
+.stackcard.s1 { width: 94%; opacity: .75; }
+.msg.bot.top { position: relative; }
+.mq { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html:not(.native) .stackcard { background: var(--glass); }
 /* While the conversation scrolls, the bubbles draw their own background (the native glass cannot
    follow a scroll smoothly); the glass comes back as soon as it stops. */
 html.native .thread.scrolling .msg { background: rgba(var(--tint-rgb), max(.62, var(--glass-tint, .3))); border-color: var(--edge); }
@@ -1852,7 +1864,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.ctxBtn.hidden = !!s.pasteMode && !s.messages.length;
     updateSendState();
 
-    const key = JSON.stringify(s.messages) + s.busy + (s.status || "");
+    const key = JSON.stringify(s.messages) + s.busy + (s.status || "") + (stacked ? "S" : "A");
     if (key !== lastKey) {
       lastKey = key;
       // Keep the Copy / Paste row alive across re-renders (it moves into the last answer bubble).
@@ -1878,6 +1890,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         }
         return `<div class="msg bot glass"><div class="mh" data-drag><span class="ok">✓</span>Answered</div><div class="a">${md(m.text || "")}</div></div>`;
       }).join("");
+      applyStack(s.messages);
       const lastBubble = els.thread.lastElementChild;
       if (lastBubble && lastBubble.classList.contains("bot")) {
         lastBubble.appendChild(els.actions);
@@ -1939,6 +1952,55 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       && !pending.length && !((state && state.draft && state.draft.images) || []).length;
     els.send.classList.toggle("idle", !!state && !state.busy && empty);
   }
+
+  // ---------- stacked view: only the latest question and answer; earlier ones sit behind as a deck ----------
+  let stacked = true;
+  function applyStack(messages) {
+    const bubbles = [...els.thread.querySelectorAll(":scope > .msg")];
+    let lastUser = -1;
+    messages.forEach((m, i) => { if (m.role === "user") lastUser = i; });
+    const earlier = Math.max(0, lastUser);
+    if (earlier === 0) return;
+    if (stacked) {
+      // The latest answer is the top card, titled with its question; the earlier ones peek out behind it.
+      const answer = bubbles[lastUser + 1];
+      bubbles.forEach((b, i) => { b.hidden = i < earlier || (i === lastUser && !!answer); });
+      if (answer) {
+        const q = bubbles[lastUser].querySelector(".q");
+        const title = document.createElement("div");
+        title.className = "mq";
+        title.textContent = q ? q.textContent : "";
+        answer.insertBefore(title, answer.firstChild);
+        answer.classList.add("top");
+      }
+      const head = document.createElement("div");
+      head.className = "stackhead";
+      head.setAttribute("role", "button");
+      head.tabIndex = 0;
+      head.title = "Show the whole conversation";
+      head.innerHTML = '<span class="stacklabel">' + earlier + (earlier === 1 ? " earlier message" : " earlier messages") + ' · Show all</span>'
+        + '<div class="stackcard glass s2"></div><div class="stackcard glass s1"></div>';
+      els.thread.insertBefore(head, answer || bubbles[lastUser]);
+    } else {
+      const head = document.createElement("div");
+      head.className = "stackhead open";
+      head.setAttribute("role", "button");
+      head.tabIndex = 0;
+      head.innerHTML = '<span class="stacklabel">Show latest only</span>';
+      els.thread.insertBefore(head, bubbles[0]);
+    }
+  }
+  els.thread.addEventListener("click", e => {
+    const head = e.target.closest(".stackhead");
+    if (!head) return;
+    stacked = !stacked;
+    stick = true;
+    lastKey = "";
+    if (state) render();
+  });
+  els.thread.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".stackhead")) { e.preventDefault(); e.target.click(); }
+  });
 
   // Scrolling: the bubbles switch to their own background until it stops, then the glass returns.
   let scrollIdle = 0;
