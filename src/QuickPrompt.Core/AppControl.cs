@@ -114,6 +114,11 @@ namespace QuickPrompt.Core
                     manager.OpenHistory();
                     return (200, "{\"ok\":true}");
 
+                case ("POST", "pip"):
+                    // At start (only if "Keep Pip on screen" is on), or from the menu bar (show=true turns it on).
+                    var shown = manager.ShowPip(Get("show") == "true");
+                    return (200, shown ? "{\"ok\":true}" : "{\"ok\":false}");
+
                 case ("POST", "actions"):
                     manager.OpenActions();
                     return (200, "{\"ok\":true}");
@@ -130,7 +135,8 @@ namespace QuickPrompt.Core
                     return ok ? (200, "{\"ok\":true}") : (404, "{\"ok\":false}");
 
                 case ("GET", "status"):
-                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port }));
+                    var hotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.Hotkey) ? manager.Settings.Hotkey : QuickPromptSettings.DefaultHotkey;
+                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey }));
             }
 
             return (404, "{\"error\":\"unknown\"}");

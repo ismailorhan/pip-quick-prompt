@@ -85,6 +85,20 @@ namespace QuickPrompt.Core
         /// <summary>Restore the previous clipboard text after reading the selection or pasting an answer.</summary>
         public Boolean RestoreClipboard { get; set; } = true;
 
+        /// <summary>Keep Pip (the floating icon) on screen: closing a conversation leaves Pip, and Pip shows at start.</summary>
+        public Boolean KeepPip { get; set; } = true;
+
+        /// <summary>The global shortcut that asks about the selection: modifiers and a key code, e.g. "alt+shift+Space".</summary>
+        public String Hotkey { get; set; } = DefaultHotkey;
+
+        public const String DefaultHotkey = "alt+shift+Space";
+
+        /// <summary>"cmd|ctrl|alt|shift" (at least one of cmd, ctrl, alt) + a key code like KeyK, Digit1, Space, F5.</summary>
+        public static Boolean IsValidHotkey(String value) =>
+            !String.IsNullOrEmpty(value)
+            && System.Text.RegularExpressions.Regex.IsMatch(value, @"^((cmd|ctrl|alt|shift)\+)+[A-Za-z0-9]+$")
+            && System.Text.RegularExpressions.Regex.IsMatch(value, @"(^|\+)(cmd|ctrl|alt)\+");
+
         /// <summary>Use the user's Claude Code plugins / MCP servers / skills in CLI calls (off: plain Q&amp;A).</summary>
         public CliSetupChoice ClaudeSetup { get; set; } = new CliSetupChoice();
 

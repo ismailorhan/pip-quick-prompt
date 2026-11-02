@@ -24,7 +24,7 @@ Press a ring button and the selection, together with that button's prompt, is se
 1. Download `QuickPrompt.dmg` from the rolling **Latest build** pre-release, open it and drag **Quick Prompt** onto **Applications**.
 2. Open it from Applications. It is signed and notarized, so macOS only asks once whether to open an app downloaded from the internet.
 3. A ✨ icon appears in the menu bar. Quick Prompt keeps running in the background: closing a popup or Pip does not quit it. Use **Quit Quick Prompt** in that menu to quit.
-4. **⌥⇧Space** asks about the selected text in any app. The menu also has New Chat, Recent Chats, Settings… and Open at Login.
+4. **⌥⇧Space** (change it in Settings → General → Shortcut) asks about the selected text in any app. The menu also has New Chat, Recent Chats, Settings… and Open at Login.
 5. To read the selection and paste answers, macOS asks once for *Accessibility* permission for Quick Prompt.
 6. Later versions: **Check for Updates…** in the menu bar menu downloads, checks and installs them, then restarts the app.
 

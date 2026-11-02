@@ -290,6 +290,27 @@ namespace QuickPrompt.Core
             return this.GetActionsJson();
         }
 
+        /// <summary>Shows Pip on its own (at start, or from the menu bar). show = also turn "Keep Pip on screen" on.</summary>
+        public Boolean ShowPip(Boolean show)
+        {
+            if (show && !this.Settings.KeepPip)
+            {
+                this.Settings.KeepPip = true;
+                this.Settings.Save(this._settingsPath);
+                this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+            }
+
+            if (!this.Settings.KeepPip)
+            {
+                return false;
+            }
+
+            var session = this.CreateSession(ProviderIds.Claude, "", "");
+            session.StartCollapsed = true;
+            this.OpenWindow(session);
+            return true;
+        }
+
         /// <summary>Opens the popup on the Prompt templates editor.</summary>
         public void OpenActions()
         {
@@ -353,6 +374,8 @@ namespace QuickPrompt.Core
                 popupScale = s.PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                 iconScale = s.IconScale,
                 glassTint = s.GlassTint,
+                keepPip = s.KeepPip,
+                hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -464,6 +487,18 @@ namespace QuickPrompt.Core
             if (Int32.TryParse(Get("popupScale"), out var scale))
             {
                 s.PopupScale = Math.Clamp(scale, 0, 100);
+            }
+
+            var hotkey = Get("hotkey");
+            if (QuickPromptSettings.IsValidHotkey(hotkey) && hotkey != s.Hotkey)
+            {
+                s.Hotkey = hotkey;
+                this.Control?.Publish(new { type = "hotkey", value = hotkey });   // the app registers it right away
+            }
+
+            if (Get("keepPip") is "true" or "false")
+            {
+                s.KeepPip = Get("keepPip") == "true";
             }
 
             if (Int32.TryParse(Get("glassTint"), out var glassTint))

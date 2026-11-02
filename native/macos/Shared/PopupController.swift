@@ -397,6 +397,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         }
         // Dropped on the other half of the screen: the conversation moves to the icon's other side.
         updateSide()
+        // Remember where Pip was left, for the next start.
+        if let x = iconScreenX, let y = iconScreenY {
+            UserDefaults.standard.set([Double(x), Double(y)], forKey: "pipPosition")
+        }
     }
 
     /// Puts the icon on the side away from the nearer screen edge (the page lays itself out mirrored).
@@ -537,6 +541,18 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             let mini = (body["value"] as? String) == "mini"
             isMini = mini
             watchHover(mini)
+            updateSide()
+        case "home":
+            // Pip on its own (at start / Show Pip): where it was last left, or near the bottom-right corner.
+            updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
+            if let saved = UserDefaults.standard.array(forKey: "pipPosition") as? [Double], saved.count == 2,
+               NSScreen.screens.contains(where: { NSMouseInRect(NSPoint(x: saved[0], y: saved[1]), $0.frame, false) }) {
+                iconScreenX = CGFloat(saved[0])
+                iconScreenY = CGFloat(saved[1])
+            } else {
+                iconScreenX = visibleArea.maxX - 70
+                iconScreenY = visibleArea.minY + 150
+            }
             updateSide()
         case "reveal":
             // The conversation slides out of (or back into) the icon: move the glass with it.

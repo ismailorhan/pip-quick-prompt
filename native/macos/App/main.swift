@@ -68,8 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let ask = NSMenuItem(title: "Ask About Selection", action: #selector(askAboutSelection), keyEquivalent: " ")
         ask.keyEquivalentModifierMask = [.option, .shift]
         menu.addItem(ask)
+        askItem = ask
         menu.addItem(NSMenuItem(title: "New Chat", action: #selector(newChat), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Recent Chats", action: #selector(recentChats), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Show Pip", action: #selector(showPip), keyEquivalent: ""))
         let actionsItem = NSMenuItem(title: "Prompt Templates", action: nil, keyEquivalent: "")
         actionsItem.submenu = actionsMenu
         menu.addItem(actionsItem)
@@ -145,6 +147,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func newChat() { send("new") }
 
+    /// Brings Pip back (and turns "Keep Pip on screen" on again after "Never Show Pip").
+    @objc private func showPip() { send("pip", ["show": "true"]) }
+
     @objc private func recentChats() { send("history") }
 
     @objc private func openSettings() { send("settings") }
@@ -187,20 +192,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: global shortcut (⌥⇧Space)
 
-    private func registerHotKey() {
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, userData -> OSStatus in
-            guard let userData = userData else { return noErr }
-            let me = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
-            DispatchQueue.main.async { me.send("hotkey") }
-            return noErr
-        }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), nil)
+    private var hotKeyHandlerInstalled = false
+    private var askItem: NSMenuItem?
 
-        let id = EventHotKeyID(signature: OSType(0x5150_524D), id: 1) // "QPRM"
-        let status = RegisterEventHotKey(UInt32(kVK_Space), UInt32(optionKey | shiftKey), id, GetApplicationEventTarget(), 0, &hotKeyRef)
-        if status != noErr {
-            NSLog("Quick Prompt: could not register ⌥⇧Space (\(status)); another app may be using it.")
+    /// Registers the global shortcut. spec: Settings' format, e.g. "alt+shift+Space" (modifiers + a key code).
+    private func registerHotKey(_ spec: String = "alt+shift+Space") {
+        if !hotKeyHandlerInstalled {
+            hotKeyHandlerInstalled = true
+            var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+            InstallEventHandler(GetApplicationEventTarget(), { _, _, userData -> OSStatus in
+                guard let userData = userData else { return noErr }
+                let me = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async { me.send("hotkey") }
+                return noErr
+            }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), nil)
         }
+        if let old = hotKeyRef {
+            UnregisterEventHotKey(old)
+            hotKeyRef = nil
+        }
+        guard let parsed = AppDelegate.parseHotkey(spec) else {
+            NSLog("Quick Prompt: unknown shortcut \(spec)")
+            return
+        }
+        let id = EventHotKeyID(signature: OSType(0x5150_524D), id: 1) // "QPRM"
+        let (keyCode, carbonModifiers, menuKey, menuModifiers) = parsed
+        let status = RegisterEventHotKey(keyCode, carbonModifiers, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+        if status != noErr {
+            NSLog("Quick Prompt: could not register the shortcut \(spec) (\(status)); another app may be using it.")
+        }
+        // Show it in the menu next to Ask About Selection.
+        askItem?.keyEquivalent = menuKey
+        askItem?.keyEquivalentModifierMask = menuModifiers
+    }
+
+    private static let keyCodes: [String: Int] = [
+        "KeyA": kVK_ANSI_A, "KeyB": kVK_ANSI_B, "KeyC": kVK_ANSI_C, "KeyD": kVK_ANSI_D, "KeyE": kVK_ANSI_E,
+        "KeyF": kVK_ANSI_F, "KeyG": kVK_ANSI_G, "KeyH": kVK_ANSI_H, "KeyI": kVK_ANSI_I, "KeyJ": kVK_ANSI_J,
+        "KeyK": kVK_ANSI_K, "KeyL": kVK_ANSI_L, "KeyM": kVK_ANSI_M, "KeyN": kVK_ANSI_N, "KeyO": kVK_ANSI_O,
+        "KeyP": kVK_ANSI_P, "KeyQ": kVK_ANSI_Q, "KeyR": kVK_ANSI_R, "KeyS": kVK_ANSI_S, "KeyT": kVK_ANSI_T,
+        "KeyU": kVK_ANSI_U, "KeyV": kVK_ANSI_V, "KeyW": kVK_ANSI_W, "KeyX": kVK_ANSI_X, "KeyY": kVK_ANSI_Y,
+        "KeyZ": kVK_ANSI_Z,
+        "Digit0": kVK_ANSI_0, "Digit1": kVK_ANSI_1, "Digit2": kVK_ANSI_2, "Digit3": kVK_ANSI_3, "Digit4": kVK_ANSI_4,
+        "Digit5": kVK_ANSI_5, "Digit6": kVK_ANSI_6, "Digit7": kVK_ANSI_7, "Digit8": kVK_ANSI_8, "Digit9": kVK_ANSI_9,
+        "Space": kVK_Space, "Enter": kVK_Return, "Tab": kVK_Tab, "Backquote": kVK_ANSI_Grave,
+        "Minus": kVK_ANSI_Minus, "Equal": kVK_ANSI_Equal, "BracketLeft": kVK_ANSI_LeftBracket,
+        "BracketRight": kVK_ANSI_RightBracket, "Backslash": kVK_ANSI_Backslash, "Semicolon": kVK_ANSI_Semicolon,
+        "Quote": kVK_ANSI_Quote, "Comma": kVK_ANSI_Comma, "Period": kVK_ANSI_Period, "Slash": kVK_ANSI_Slash,
+        "ArrowUp": kVK_UpArrow, "ArrowDown": kVK_DownArrow, "ArrowLeft": kVK_LeftArrow, "ArrowRight": kVK_RightArrow,
+        "F1": kVK_F1, "F2": kVK_F2, "F3": kVK_F3, "F4": kVK_F4, "F5": kVK_F5, "F6": kVK_F6, "F7": kVK_F7,
+        "F8": kVK_F8, "F9": kVK_F9, "F10": kVK_F10, "F11": kVK_F11, "F12": kVK_F12, "F13": kVK_F13,
+        "F14": kVK_F14, "F15": kVK_F15, "F16": kVK_F16, "F17": kVK_F17, "F18": kVK_F18, "F19": kVK_F19,
+    ]
+
+    /// "alt+shift+Space" → (key code, Carbon modifiers, menu key equivalent, menu modifiers).
+    static func parseHotkey(_ spec: String) -> (UInt32, UInt32, String, NSEvent.ModifierFlags)? {
+        var parts = spec.split(separator: "+").map(String.init)
+        guard let code = parts.popLast(), let keyCode = keyCodes[code] else { return nil }
+        var carbon = 0
+        var flags: NSEvent.ModifierFlags = []
+        for part in parts {
+            switch part {
+            case "cmd": carbon |= cmdKey; flags.insert(.command)
+            case "ctrl": carbon |= controlKey; flags.insert(.control)
+            case "alt": carbon |= optionKey; flags.insert(.option)
+            case "shift": carbon |= shiftKey; flags.insert(.shift)
+            default: return nil
+            }
+        }
+        guard carbon & (cmdKey | controlKey | optionKey) != 0 else { return nil }
+        var menuKey = ""
+        if code.hasPrefix("Key") { menuKey = String(code.dropFirst(3)).lowercased() }
+        else if code.hasPrefix("Digit") { menuKey = String(code.dropFirst(5)) }
+        else if code == "Space" { menuKey = " " }
+        return (UInt32(keyCode), UInt32(carbon), menuKey, menuKey.isEmpty ? [] : flags)
+    }
+
+    /// Asks the engine for the shortcut in Settings (at start).
+    private func loadHotkey() {
+        guard let request = request("status", method: "GET") else { return }
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let spec = json["hotkey"] as? String else { return }
+            DispatchQueue.main.async { self?.registerHotKey(spec) }
+        }.resume()
     }
 
     // MARK: engine process
@@ -280,6 +356,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 lastEventId = 0
                 pollEvents(port: value)
                 refreshActions()
+                send("pip")   // shows Pip when "Keep Pip on screen" is on
+                loadHotkey()
                 let queued = pendingActions
                 pendingActions.removeAll()
                 for (action, body) in queued {
@@ -371,6 +449,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         case "keys":
             pressKeys(event["action"] as? String ?? "")
+        case "hotkey":
+            // Changed in Settings: use it right away.
+            if let spec = event["value"] as? String {
+                registerHotKey(spec)
+            }
         default:
             break
         }
@@ -379,8 +462,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: popups
 
     private func openPopup(_ url: URL) {
-        // One popup at a time; pinned ones (and floating icons) stay.
-        for popup in popups where !popup.pinned {
+        // One popup (and so one Pip) at a time: the new one takes the place of the old.
+        for popup in popups {
             popup.close()
         }
         let popup = PopupController(url: url)

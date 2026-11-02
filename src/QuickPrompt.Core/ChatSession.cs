@@ -80,6 +80,9 @@ namespace QuickPrompt.Core
         /// <summary>The CLI setup this conversation uses (from its action); null = as in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
 
+        /// <summary>Open as Pip only (no conversation showing).</summary>
+        public Boolean StartCollapsed { get; set; }
+
         /// <summary>Open on the Prompt templates editor.</summary>
         public Boolean ShowActions { get; set; }
 
@@ -385,6 +388,8 @@ namespace QuickPrompt.Core
                     popupScale = this._settings().PopupScale ?? QuickPromptSettings.DefaultPopupScale,
                     iconScale = this._settings().IconScale,
                     glassTint = this._settings().GlassTint,
+                    keepPip = this._settings().KeepPip,
+                    startCollapsed = this.StartCollapsed,
                     messages = this._messages.Select(m => new { role = m.Role, text = m.Text, context = m.Context, state = m.State }).ToArray(),
                 };
                 return JsonSerializer.Serialize(snapshot);

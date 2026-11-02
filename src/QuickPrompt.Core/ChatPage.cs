@@ -174,6 +174,8 @@ textarea::placeholder { color: var(--muted); }
 .stemplates { margin-top: 8px; }
 .stemplates .hlist { max-height: none; }
 .stemplates #actBack { display: none; }
+.hotkey { font: 600 13px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: .04em; min-width: 120px; padding: 6px 14px; border-radius: 9px; background: var(--faint); }
+.hotkey.recording { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--muted); }
 .sfoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px 12px 18px; border-top: 1px solid var(--faint); }
 .sfoot .status { font-size: 11.5px; color: var(--muted); }
 .sfoot-hint { flex: 1; font-size: 11.5px; color: var(--muted); text-align: right; padding-right: 4px; }
@@ -365,7 +367,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div class="seg" data-name="saveHistory"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div>
           </div>
           <div class="sline">
-            <div><div class="sl-t">Ask about the selection</div><div class="sl-d">⌥⇧Space in any app opens Quick Prompt with the selected text. The menu bar icon (✨) has New Chat, Recent Chats, Prompt Templates and Settings.</div></div>
+            <div><div class="sl-t">Keep Pip on screen</div><div class="sl-d">Pip, the little floating icon, stays above your apps. Closing a conversation tucks it into Pip instead of closing it, and Pip shows when Quick Prompt starts. Off: popups close completely.</div></div>
+            <div class="seg" data-name="keepPip"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div>
+          </div>
+          <div class="sline">
+            <div><div class="sl-t">Shortcut</div><div class="sl-d">Opens Quick Prompt with the selected text, in any app. Click, then press the new keys (with ⌘, ⌃ or ⌥). The menu bar icon has the rest.</div></div>
+            <button type="button" class="hotkey" id="hotkeyBtn" title="Click, then press the keys">⌥⇧Space</button>
           </div>
         </section>
         <section class="spane" data-pane="appearance">
@@ -557,7 +564,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // ---------- native layout: panel height + glass shapes ----------
   // Popup size (Settings slider, 0 = smallest … 100 = largest): panel width and answer height.
   let lastStateScale = null, lastStateIcon = null;
-  let scale = -1, size = { w: 520, h: 380 }, sizeKnown = false, collapsed = false, pinned = false;
+  let scale = -1, size = { w: 520, h: 380 }, sizeKnown = false, collapsed = false, pinned = false, startedAsPip = false;
   function applySize(value) {
     const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 30));
     scale = v;
@@ -777,6 +784,36 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   glassSlider.addEventListener("input", () => applyGlass(glassSlider.value));   // live preview
   [sizeSlider, iconSlider, glassSlider].forEach(sl => sl.addEventListener("input", () => sl.style.setProperty("--fill", sl.value + "%")));
 
+  // ---------- Shortcut recorder: click, then press the keys ----------
+  let hotkeyValue = "alt+shift+Space", recording = false;
+  const hotkeyBtn = $("hotkeyBtn");
+  const MOD_SYMBOL = { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘" };
+  function keyLabel(code) {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    return ({ Space: "Space", Enter: "↩", Tab: "⇥", Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
+      Backslash: "\\", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", ArrowUp: "↑", ArrowDown: "↓",
+      ArrowLeft: "←", ArrowRight: "→" })[code] || code;
+  }
+  function hotkeyText(spec) {
+    const parts = spec.split("+"), code = parts.pop();
+    return ["ctrl", "alt", "shift", "cmd"].filter(m => parts.includes(m)).map(m => MOD_SYMBOL[m]).join("") + keyLabel(code);
+  }
+  function setHotkey(spec) { hotkeyValue = spec; hotkeyBtn.textContent = hotkeyText(spec); hotkeyBtn.classList.remove("recording"); recording = false; }
+  hotkeyBtn.addEventListener("click", () => { recording = true; hotkeyBtn.textContent = "Press keys…"; hotkeyBtn.classList.add("recording"); });
+  hotkeyBtn.addEventListener("blur", () => { if (recording) setHotkey(hotkeyValue); });
+  hotkeyBtn.addEventListener("keydown", e => {
+    if (!recording) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === "Escape") { setHotkey(hotkeyValue); return; }
+    if (["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"].includes(e.key)) return;   // wait for the actual key
+    const supported = /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-9])|Space|Enter|Tab|Backquote|Minus|Equal|BracketLeft|BracketRight|Backslash|Semicolon|Quote|Comma|Period|Slash|Arrow(Up|Down|Left|Right))$/;
+    if (!(e.metaKey || e.ctrlKey || e.altKey)) { hotkeyBtn.textContent = "Add ⌘, ⌃ or ⌥"; return; }
+    if (!supported.test(e.code)) { hotkeyBtn.textContent = "Try another key"; return; }
+    const mods = [e.metaKey && "cmd", e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift"].filter(Boolean);
+    setHotkey(mods.join("+") + "+" + e.code);
+  });
+
   // Sections: the sidebar picks one; the last one used is remembered on this computer.
   let currentPane = "general";
   try { currentPane = localStorage.getItem("qp.settingsPane") || "general"; } catch (e) {}
@@ -809,6 +846,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("claudeConnection", s.claude.connection);
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
+      setSeg("keepPip", s.keepPip === false ? "false" : "true");
+      setHotkey(s.hotkey || "alt+shift+Space");
       setSlider(s.popupScale);
       setIconSlider(s.iconScale);
       savedGlass = s.glassTint; setGlassSlider(s.glassTint);
@@ -943,6 +982,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       claudeModel: set.claudeModel.value, chatgptModel: set.chatgptModel.value.trim(),
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
+      keepPip: segValues.keepPip,
+      hotkey: hotkeyValue,
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
       glassTint: String(glassSlider.value),
@@ -951,6 +992,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
     try { const saved = await res.json(); savedScale = saved.popupScale; applySize(savedScale); applyIconScale(saved.iconScale); savedGlass = saved.glassTint; applyGlass(savedGlass); } catch (e) {}
+    setPinned(segValues.keepPip !== "false");
     toast("Saved");
     closeSettings();
   }
@@ -964,11 +1006,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   // ---------- pin, collapse to an icon, drag (native popup only) ----------
   const mini = $("mini");
+  // "Keep Pip on screen" (Settings → General): closing the conversation leaves Pip; Pip stays above other apps.
   function setPinned(value) {
     pinned = value;
-    ["pinBtn", "barPin"].forEach(id => $(id).classList.toggle("pinned", pinned));
     if (bridge) bridge.postMessage({ type: "pin", value: pinned });
-    toast(pinned ? "Pinned: Esc keeps it as Pip" : "Unpinned");
   }
 
   const bubble = $("bubble");
@@ -1034,13 +1075,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     setTimeout(() => { $("main").classList.remove("reveal-out"); collapse(); }, 210);
   }
 
-  /// Esc / ✕: a pinned popup shrinks to an icon, otherwise it closes.
+  /// Esc / ✕: with "Keep Pip on screen" the conversation tucks into Pip, otherwise the popup closes.
   function dismiss() {
     if (bridge && pinned) collapseAnimated(); else closeWindow();
   }
 
-  $("pinBtn").addEventListener("click", () => setPinned(!pinned));
-  $("barPin").addEventListener("click", () => setPinned(!pinned));
+
   bubble.addEventListener("click", expand);
 
   // Toolbar under the icon: tucks into a thin line after a few seconds; hover or click brings it back.
@@ -1098,10 +1138,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       { id: "recent", title: "Recent Chats" },
       { id: "actions", title: "Prompt Templates…" },
       { separator: true },
-      { id: "pin", title: "Pin", checked: pinned },
       { id: "settings", title: "Settings…" },
       { separator: true },
-      { id: "close", title: "Close" },
+      { id: "hide", title: "Hide Pip" },
+      { id: "never", title: "Never Show Pip" },
     ];
   }
   document.addEventListener("contextmenu", e => {
@@ -1118,8 +1158,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     else if (id === "recent") { expand(); openHistory(false); }
     else if (id === "settings") { expand(); openSettings(false); }
     else if (id === "actions") { expand(); openActions(false); }
-    else if (id === "pin") setPinned(!pinned);
-    else if (id === "close") closeWindow();
+    else if (id === "hide") closeWindow();
+    else if (id === "never") {
+      // Turns "Keep Pip on screen" off; the menu bar's Show Pip turns it back on.
+      try { await post("settings", { keepPip: "false" }); } catch (e) {}
+      closeWindow();
+    }
   };
   // Which side of the conversation the icon sits on (the native panel decides from the screen position).
   window.__quickPromptSide = side => {
@@ -1550,6 +1594,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (s.glassTint !== lastStateGlass && !settingsOpen) { applyGlass(s.glassTint); savedGlass = s.glassTint; }
     lastStateGlass = s.glassTint;
     lastStateScale = s.popupScale; lastStateIcon = s.iconScale;
+    if (!!s.keepPip !== pinned) setPinned(!!s.keepPip);
+    if (s.startCollapsed && !startedAsPip && bridge) {
+      // Shown as Pip on its own (at start / Show Pip): go to Pip's usual place and tuck in.
+      startedAsPip = true; draftApplied = true;
+      bridge.postMessage({ type: "home" });
+      collapse();
+      updateMini(s);
+      return;
+    }
     if (collapsed) { updateMini(s); return; }
     lastBusy = !!s.busy;
     if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
@@ -1566,8 +1619,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
     $("barGear").hidden = !els.card.hidden;
     $("barHistory").hidden = !els.card.hidden;
-    $("barPin").hidden = !bridge || !els.card.hidden;
-    $("pinBtn").hidden = !bridge;
+    $("barPin").hidden = true;
+    $("pinBtn").hidden = true;
     const last = s.messages[s.messages.length - 1];
     els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 

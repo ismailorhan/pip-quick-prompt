@@ -17,10 +17,10 @@ final class HelperDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // One popup at a time: tell older ones to close (pinned ones stay).
+        // One popup at a time: tell older ones to close.
         let me = String(ProcessInfo.processInfo.processIdentifier)
         DistributedNotificationCenter.default().addObserver(forName: newPopupNotification, object: nil, queue: .main) { [weak self] note in
-            if let sender = note.object as? String, sender != me, self?.popup.pinned == false {
+            if let sender = note.object as? String, sender != me {
                 self?.popup.close()
             }
         }
