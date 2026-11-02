@@ -54,6 +54,12 @@ final class PopupPanel: NSPanel {
     }
 }
 
+/// The first click counts even while another app is in front: one click on Pip opens it (or starts a drag),
+/// instead of the first click only bringing the panel forward.
+final class ClickThroughWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     let url: URL
     /// Called once the popup has closed (the app forgets it; the helper quits).
@@ -138,7 +144,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             source: "window.__quickPromptNative = { glass: '\(glassKind)', side: '\(side)' };",
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true))
-        webView = WKWebView(frame: container.bounds, configuration: config)
+        webView = ClickThroughWebView(frame: container.bounds, configuration: config)
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
         webView.uiDelegate = self
