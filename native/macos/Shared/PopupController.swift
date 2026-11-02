@@ -103,14 +103,33 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     /// Creates the panel near the mouse cursor and loads the page.
-    func open() {
-        // Place the panel just below and to the right of the cursor, inside the visible screen area.
+    /// Where Pip is on screen (its middle), once the page has laid itself out.
+    var iconPoint: NSPoint? {
+        guard let x = iconScreenX, let y = iconScreenY, lastAnchorX != nil else { return nil }
+        return NSPoint(x: x, y: y)
+    }
+
+    /// Where Pip was last left (dragged or closed), if that is still on a screen.
+    static func savedPipPoint() -> NSPoint? {
+        guard let saved = UserDefaults.standard.array(forKey: "pipPosition") as? [Double], saved.count == 2 else { return nil }
+        let point = NSPoint(x: saved[0], y: saved[1])
+        return NSScreen.screens.contains(where: { NSMouseInRect(point, $0.frame, false) }) ? point : nil
+    }
+
+    /// anchor: where Pip goes (the conversation opens beside it); nil = at the mouse (the Logi popup helper),
+    /// or, with bottomCenter, the middle of the bottom of the screen the mouse is on.
+    func open(at anchor: NSPoint? = nil, bottomCenter: Bool = false) {
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
+        let reference = anchor ?? mouse
+        let screen = NSScreen.screens.first(where: { NSMouseInRect(reference, $0.frame, false) }) ?? NSScreen.main ?? NSScreen.screens[0]
         updateArea(screen)
-        side = mouse.x > visibleArea.midX ? "right" : "left"
-        iconScreenX = mouse.x
-        iconScreenY = mouse.y
+        var point = reference
+        if anchor == nil && bottomCenter {
+            point = NSPoint(x: visibleArea.midX, y: visibleArea.minY + 90)
+        }
+        side = point.x > visibleArea.midX ? "right" : "left"
+        iconScreenX = point.x
+        iconScreenY = point.y
         let initialHeight: CGFloat = 76
         let x = min(max(mouse.x - 24, visibleArea.minX + 8), visibleArea.maxX - defaultPopupWidth - 8)
         let top = min(max(mouse.y - 12, visibleArea.minY + initialHeight + 8), visibleArea.maxY - 8)
@@ -169,6 +188,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     func close() {
         guard !closing else { return }
         closing = true
+        // Remember where Pip was, for the next popup when Pip is not on screen.
+        if let point = iconPoint {
+            UserDefaults.standard.set([Double(point.x), Double(point.y)], forKey: "pipPosition")
+        }
         dragTimer?.invalidate()
         hoverTimer?.invalidate()
         panel?.orderOut(nil)
@@ -410,6 +433,39 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         }
     }
 
+    /// Middle click on Pip: glide to the nearest screen edge (left, right, top or bottom), staying off the Dock.
+    private func snapToNearestEdge() {
+        updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
+        let frame = panel.frame
+        var target = frame
+        let distances: [(CGFloat, Int)] = [
+            (frame.minX - visibleArea.minX, 0), (visibleArea.maxX - frame.maxX, 1),
+            (frame.minY - visibleArea.minY, 2), (visibleArea.maxY - frame.maxY, 3),
+        ]
+        switch distances.min(by: { $0.0 < $1.0 })?.1 ?? 0 {
+        case 0: target.origin.x = visibleArea.minX
+        case 1: target.origin.x = visibleArea.maxX - frame.width
+        case 2: target.origin.y = visibleArea.minY
+        default: target.origin.y = visibleArea.maxY - frame.height
+        }
+        target = fit(target, edge: 0)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.28
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            self.panel.animator().setFrame(target, display: true)
+        }, completionHandler: { [weak self] in
+            guard let self = self else { return }
+            self.topLeft = NSPoint(x: self.panel.frame.minX, y: self.panel.frame.maxY)
+            if let anchor = self.lastAnchorX { self.iconScreenX = self.panel.frame.minX + anchor }
+            if let anchorY = self.lastAnchorY { self.iconScreenY = self.panel.frame.maxY - anchorY }
+            if self.isMini { self.miniTopLeft = self.topLeft }
+            self.updateSide()
+            if let point = self.iconPoint {
+                UserDefaults.standard.set([Double(point.x), Double(point.y)], forKey: "pipPosition")
+            }
+        })
+    }
+
     /// Puts the icon on the side away from the nearer screen edge (the page lays itself out mirrored).
     private func updateSide() {
         let x = iconScreenX ?? panel.frame.midX
@@ -549,6 +605,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             isMini = mini
             watchHover(mini)
             updateSide()
+        case "snap":
+            snapToNearestEdge()
         case "saveFile":
             // Export: the standard Save dialog; the page gets told whether it was saved.
             guard let content = body["content"] as? String else { break }

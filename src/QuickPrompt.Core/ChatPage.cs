@@ -304,7 +304,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 @keyframes qp-wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-9deg) scale(1.04); } 40% { transform: rotate(8deg) scale(1.06); } 60% { transform: rotate(-5deg) scale(1.03); } 80% { transform: rotate(3deg); } }
 @media (prefers-reduced-motion: reduce) { .mascot .rays, .mascot.busy .star, .mascot.wiggle svg { animation: none !important; } }
 .minibar { display: flex; align-items: center; border-radius: 999px; padding: 3px; }
-.minibar button { background: transparent; color: var(--text); width: 32px; height: 28px; padding: 0; border-radius: 999px; display: grid; place-items: center; }
+.minibar button { background: transparent; color: var(--text); width: 38px; height: 32px; padding: 0; border-radius: 999px; display: grid; place-items: center; }
+.minibar button svg { width: 19px; height: 19px; }
+/* Copy / Paste under an answer: small icons */
+.iconbtn { width: 28px; height: 26px; padding: 0; border-radius: 8px; display: inline-grid; place-items: center; background: transparent; color: var(--muted); }
+.iconbtn:hover { background: var(--faint); color: var(--text); }
+.msg .actions { gap: 2px; margin-top: 6px; }
 .minibar button:hover { background: var(--faint); }
 .minibar .sep { width: 1px; height: 16px; background: var(--faint); }
 .minibar { transition: padding .25s ease, width .25s ease, height .25s ease; overflow: hidden; }
@@ -392,8 +397,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     <div class="thread" id="thread"></div>
     <div class="actions" id="errActions" hidden><button type="button" id="errSettings">Open settings</button></div>
     <div class="actions" id="actions" hidden>
-      <button type="button" id="copy">Copy</button>
-      <button type="button" id="paste" title="Closes the popup and pastes the answer into the app you were using">Paste<kbd id="pasteKey">⌘↵</kbd></button>
+      <button type="button" class="iconbtn" id="copy" title="Copy the answer" aria-label="Copy"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/></svg></button>
+      <button type="button" class="iconbtn" id="paste" title="Paste the answer into the app you were using (⌘↵)" aria-label="Paste"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4.5h6M9 4.5a1.5 1.5 0 0 0-1.5 1.5v.5h9V6A1.5 1.5 0 0 0 15 4.5M7.5 6H6.5A2.5 2.5 0 0 0 4 8.5v10A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-10A2.5 2.5 0 0 0 17.5 6h-1M12 10v7M9 14l3 3 3-3"/></svg><kbd id="pasteKey" hidden>⌘↵</kbd></button>
     </div>
   </div>
   <div class="settings glass" id="settings" hidden>
@@ -631,7 +636,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   function pasteAndClose() {
     const text = lastAnswer();
     if (text == null || !state.appWindow) return;
-    post("paste", { text }).finally(closeWindow);
+    // With "Keep Pip on screen" the conversation tucks into Pip after pasting; otherwise the popup closes.
+    post("paste", { text }).finally(() => { if (bridge && pinned) collapse(); else closeWindow(); });
   }
 
   // ---------- native layout: panel height + glass shapes ----------
@@ -1523,6 +1529,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (!onMini) e.preventDefault();
     bridge.postMessage({ type: "drag" });
   });
+  // Middle click (the wheel) on Pip: it glides to the nearest screen edge.
+  $("miniOpen").addEventListener("mousedown", e => {
+    if (e.button !== 1 || !bridge) return;
+    e.preventDefault();
+    bridge.postMessage({ type: "snap" });
+  });
+  $("miniOpen").addEventListener("auxclick", e => { if (e.button === 1) e.preventDefault(); });
+
   // A click on the icon opens it again; a drag (the icon moved under the mouse) does not.
   $("miniOpen").addEventListener("click", e => {
     if (downAt && Math.abs(e.screenX - downAt.x) + Math.abs(e.screenY - downAt.y) > 4) return;

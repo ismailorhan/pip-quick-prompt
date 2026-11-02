@@ -98,11 +98,13 @@ namespace QuickPrompt.Core
 
                 case ("POST", "hotkey"):
                     // Global shortcut: take the selection if there is one and open the popup to ask about it.
+                    // canCopy=false: the app has no Accessibility permission, so ⌘C cannot work; do not wait for it.
                     _ = Task.Run(() => manager.ExecutePresetAsync(new Preset
                     {
                         ProviderId = String.IsNullOrEmpty(Get("provider")) ? ProviderIds.Claude : Get("provider"),
-                        Input = InputModes.Selection,
+                        Input = Get("canCopy") == "false" ? InputModes.Popup : InputModes.Selection,
                         Flow = FlowModes.Edit,
+                        Quick = true,
                     }));
                     return (200, "{\"ok\":true}");
 

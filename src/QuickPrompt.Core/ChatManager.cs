@@ -659,7 +659,7 @@ namespace QuickPrompt.Core
             var images = new List<ImageAttachment>();
             var clipboardImage = PromptBuilder.HasClipboard(instruction) ? this.SafeGetClipboardImage() : null;
 
-            var capture = await this.CaptureInputAsync(preset.Input).ConfigureAwait(false);
+            var capture = await this.CaptureInputAsync(preset.Input, preset.Quick).ConfigureAwait(false);
             var context = capture.Text;
 
             // {$selected} may be a picture too (an image selected and copied in its app).
@@ -796,7 +796,7 @@ namespace QuickPrompt.Core
             }
         }
 
-        public async Task<CaptureResult> CaptureInputAsync(String inputMode)
+        public async Task<CaptureResult> CaptureInputAsync(String inputMode, Boolean quick = false)
         {
             if (inputMode == InputModes.None)
             {
@@ -815,21 +815,27 @@ namespace QuickPrompt.Core
                 var before = this.SafeGetClipboard();
                 var marker = before.Length > 0 ? "\u2063quickprompt-" + Guid.NewGuid().ToString("N") : "";
                 // With no text on the clipboard there is no marker: note any picture already there, so an old
-                // picture is never taken for the selection.
-                var imageBefore = marker.Length == 0 ? this.SafeGetClipboardImage() : null;
+                // picture is never taken for the selection. (Not for the quick shortcut: reading a picture takes a moment.)
+                var imageBefore = marker.Length == 0 && !quick ? this.SafeGetClipboardImage() : null;
                 if (marker.Length > 0)
                 {
                     this._host.SetClipboardText(marker);
                 }
 
                 // Let the Actions Ring overlay close and focus return to the app.
-                await Task.Delay(this.CopyDelayMs).ConfigureAwait(false);
+                if (!quick)
+                {
+                    await Task.Delay(this.CopyDelayMs).ConfigureAwait(false);
+                }
                 this._host.SendCopyShortcut();
 
                 var started = DateTime.UtcNow;
                 var retried = false;
                 var text = "";
-                while ((DateTime.UtcNow - started).TotalMilliseconds < 1500)
+                var maxWait = quick ? 700 : 1500;
+                var retryAt = quick ? 300 : 600;
+                var stillMarker = false;
+                while ((DateTime.UtcNow - started).TotalMilliseconds < maxWait)
                 {
                     await Task.Delay(40).ConfigureAwait(false);
                     var current = this.SafeGetClipboard();
@@ -840,7 +846,8 @@ namespace QuickPrompt.Core
                     }
 
                     // Focus may not have been back yet: press Ctrl/Cmd+C once more.
-                    if (!retried && (DateTime.UtcNow - started).TotalMilliseconds > 600)
+                    stillMarker = marker.Length > 0 && String.Equals(current, marker, StringComparison.Ordinal);
+                    if (!retried && (DateTime.UtcNow - started).TotalMilliseconds > retryAt)
                     {
                         retried = true;
                         this._host.SendCopyShortcut();
@@ -856,8 +863,10 @@ namespace QuickPrompt.Core
                 ImageAttachment image = null;
                 if (!captured)
                 {
-                    // A selected picture: ⌘C put an image (and no text) on the clipboard.
-                    var after = this.SafeGetClipboardImage();
+                    // A selected picture: ⌘C put an image (and no text) on the clipboard. Only worth reading when the
+                    // clipboard did change (our marker is gone) or there was no marker to tell.
+                    var mayHavePicture = marker.Length > 0 ? !stillMarker : !quick;
+                    var after = mayHavePicture ? this.SafeGetClipboardImage() : null;
                     if (after != null && (imageBefore == null || after.Data != imageBefore.Data))
                     {
                         image = after;

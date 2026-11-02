@@ -73,6 +73,12 @@ namespace QuickPrompt.Core
 
         /// <summary>The action's own CLI setup (plugins, MCP servers, skills); null = as in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
+
+        /// <summary>
+        /// From the app's shortcut: no ring overlay has to close first, so the selection is copied right away
+        /// and waited for only briefly (a selection shows up on the clipboard within a few hundred ms).
+        /// </summary>
+        public Boolean Quick { get; set; }
     }
 
     /// <summary>OS-specific operations the plugin host provides (clipboard, keystrokes, notifications).</summary>

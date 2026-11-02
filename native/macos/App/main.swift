@@ -143,7 +143,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func askAboutSelection() {
         // The menu has just closed; give the previous app a moment to get its focus back before ⌘C.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.send("hotkey") }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.runShortcut() }
+    }
+
+    /// The shortcut: tell the engine whether ⌘C can work at all, so it never waits for a copy that cannot happen.
+    func runShortcut() {
+        let canCopy = AXIsProcessTrusted()
+        send("hotkey", ["canCopy": canCopy ? "true" : "false"])
+        if !canCopy && !askedForAccessibility {
+            askedForAccessibility = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.explainAccessibility() }
+        }
     }
 
     @objc private func newChat() { send("new") }
@@ -204,7 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             InstallEventHandler(GetApplicationEventTarget(), { _, _, userData -> OSStatus in
                 guard let userData = userData else { return noErr }
                 let me = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { me.send("hotkey") }
+                DispatchQueue.main.async { me.runShortcut() }
                 return noErr
             }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), nil)
         }
@@ -463,7 +473,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: popups
 
     private func openPopup(_ url: URL) {
-        // One popup (and so one Pip) at a time: the new one takes the place of the old.
+        // One popup (and so one Pip) at a time: the new one takes the place of the old, right where Pip is;
+        // with no Pip on screen, where Pip was last left, else at the bottom middle of the screen.
+        let anchor = popups.last?.iconPoint ?? PopupController.savedPipPoint()
         for popup in popups {
             popup.close()
         }
@@ -472,7 +484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.popups.removeAll { $0 === closed }
         }
         popups.append(popup)
-        popup.open()
+        popup.open(at: anchor, bottomCenter: true)
     }
 
     // MARK: ⌘C / ⌘V in the front app
