@@ -308,6 +308,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .pitem .pname { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pitem .pmeta { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .bubble { max-width: 300px; border-radius: 18px; padding: 9px 14px 10px; text-align: left; margin-top: 10px; cursor: pointer; }
+.bubble { position: relative; }
+.bclose { position: absolute; top: -6px; left: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 10px; line-height: 20px;
+  background: rgba(40,40,46,.92); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); opacity: 0; transition: opacity .12s; }
+#root.side-right .bclose { left: auto; right: -6px; }
+.bubble:hover .bclose, #root.hovering .bclose, .bclose:focus-visible { opacity: 1; }
 .bubble .bt { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
 .bubble .bt .ok { width: 16px; height: 16px; border-radius: 50%; background: #2fbf71; color: #fff; display: grid; place-items: center; font-size: 10px; }
 .bubble .bt .ok.err { background: #e5533d; }
@@ -552,7 +557,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   </div>
   </div>
   <div class="plist glass" id="presetList" hidden><div class="ptitle">Prompt templates</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit templates…</span></button></div>
-  <div class="bubble glass" id="bubble" hidden><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
+  <div class="bubble glass" id="bubble" hidden><button type="button" class="bclose" id="bubbleClose" title="Dismiss">✕</button><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1202,6 +1207,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
 
   bubble.addEventListener("click", expand);
+  $("bubbleClose").addEventListener("click", e => {
+    e.stopPropagation();
+    bubble.hidden = true;
+    lastLayout = "";
+    queueLayout();
+  });
 
   // Toolbar under the icon: tucks into a thin line after a few seconds; hover or click brings it back.
   const minibar = $("minibar");
@@ -1466,6 +1477,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   window.__quickPromptHover = inside => {
     if (!collapsed) return;
     globe.setHover(inside);
+    els.root.classList.toggle("hovering", inside);   // shows the bubble's ✕ while another app is in front
     if (inside) untuck(); else scheduleTuck();
   };
 
