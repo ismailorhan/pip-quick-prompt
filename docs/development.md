@@ -31,6 +31,27 @@ dotnet run --project src/QuickPrompt.DevHost -- --icons icons.html
 
 On macOS, DevHost uses `native/macos/build/QuickPromptPopup` if it has been built (`bash native/macos/build.sh`); otherwise it opens a browser window. `--no-open` only prints the popup URL.
 
+## Mac app locally
+
+```bash
+bash native/macos/build-app.sh          # → native/macos/build/Quick Prompt.app, dist/QuickPrompt.dmg (ad hoc signed)
+open "native/macos/build/Quick Prompt.app"
+```
+
+Without the signing secrets in the environment the app is signed ad hoc: macOS treats it as a different app
+from the released one (Accessibility must be granted again). Quit the released app first.
+
+## Previewing the popup page
+
+The page is plain HTML/JS, so it can be rendered without the app: extract the string from `ChatPage.cs`,
+serve it with Playwright, mock `/state` (and `/settings`, `/actions`, … as needed), and screenshot.
+A fake `window.webkit.messageHandlers.quickPrompt` makes the page behave as in the native popup.
+
+## Branches
+
+Work on `dev`. Pushing `main` builds and publishes the Latest build release, so `main` only moves (fast-forward
+from `dev`) when a build is wanted.
+
 ## CI and releases
 
 `.github/workflows/build.yml`:

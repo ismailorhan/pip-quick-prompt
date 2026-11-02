@@ -1,0 +1,284 @@
+<title>Quick Prompt Icon Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a bench of specimens (large + real size, dark + light glass) above a short row of tuning sliders. */
+:root {
+  --bg: #eceaf2; --fg: #1d1b26; --muted: #66627a; --panel: #ffffff; --line: #d9d6e3;
+  --accent: #4c8df6; --stage-dark: #1b1a24; --stage-light: #e9e6ef;
+  --font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121118; --fg: #ecebf3; --muted: #9a96ad; --panel: #1c1b25; --line: #2c2a38; --accent: #7aa8ff; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #121118; --fg: #ecebf3; --muted: #9a96ad; --panel: #1c1b25; --line: #2c2a38; --accent: #7aa8ff; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.lede { color: var(--muted); margin: 4px 0 0; font-size: 14px; max-width: 62ch; }
+.bench { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.stage { border-radius: 16px; min-height: 220px; display: grid; place-items: center; position: relative; border: 1px solid var(--line); }
+.stage.dark { background: radial-gradient(120% 90% at 30% 20%, #2b2838, var(--stage-dark)); }
+.stage.light { background: radial-gradient(120% 90% at 30% 20%, #ffffff, var(--stage-light)); }
+.stage .tag { position: absolute; left: 12px; bottom: 10px; font: 11px var(--mono); color: #8f8aa3; letter-spacing: .04em; text-transform: uppercase; }
+.mascot { background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 50%; filter: drop-shadow(0 6px 12px rgba(0,0,0,.35)); }
+.mascot:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.mascot svg { display: block; overflow: visible; }
+.controls { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; }
+.ctl { display: grid; gap: 4px; font-size: 13px; }
+.ctl span { display: flex; justify-content: space-between; }
+.ctl output { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ctl input { width: 100%; accent-color: var(--accent); }
+.hint { font-size: 12.5px; color: var(--muted); }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=JetBrains+Mono&display=swap">
+
+<div class="wrap">
+  <div>
+    <h1>Quick Prompt icon</h1>
+    <p class="lede">Hover an icon (or tab to it). Asleep, the pieces are loose thoughts: each ray drifts in its own quarter between the star's arms, links form between the ones that come close, and small signals run along the links, making the ray they reach swell for a moment. Awake, the thoughts become one idea: the rays settle into place and the star flashes once.</p>
+  </div>
+  <div class="bench">
+    <div class="stage dark"><span class="tag">Large · dark</span><div data-icon="200"></div></div>
+    <div class="stage dark"><span class="tag">Real size · dark</span><div data-icon="56"></div></div>
+    <div class="stage light"><span class="tag">Real size · light</span><div data-icon="56"></div></div>
+  </div>
+  <div class="controls">
+    <label class="ctl" for="gather"><span>Gather time <output id="gatherOut"></output></span><input id="gather" type="range" min="0.3" max="2" step="0.1" value="0.9"></label>
+    <label class="ctl" for="drift"><span>Drift speed <output id="driftOut"></output></span><input id="drift" type="range" min="0.2" max="3" step="0.1" value="2"></label>
+    <label class="ctl" for="link"><span>Link strength <output id="linkOut"></output></span><input id="link" type="range" min="0" max="1" step="0.05" value="0.45"></label>
+    <label class="ctl" for="signals"><span>Signals <output id="signalsOut"></output></span><input id="signals" type="range" min="0" max="3" step="0.1" value="1"></label>
+    <label class="ctl" for="spring"><span>Spring bounce <output id="springOut"></output></span><input id="spring" type="range" min="0" max="0.8" step="0.05" value="0.35"></label>
+    <label class="ctl" for="star"><span>Star size asleep <output id="starOut"></output></span><input id="star" type="range" min="0.6" max="1" step="0.02" value="0.86"></label>
+  </div>
+  <p class="hint">Tell me the numbers you like and I will put them into the app.</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const tune = { gather: 0.9, drift: 2, link: 0.45, star: 0.86, signals: 1, spring: 0.35 };
+  for (const key of Object.keys(tune)) {
+    const input = document.getElementById(key), out = document.getElementById(key + "Out");
+    const show = () => { tune[key] = +input.value; out.textContent = key === "gather" ? input.value + " s" : (+input.value).toFixed(2); };
+    input.addEventListener("input", show); show();
+  }
+
+  const SVG = size => `
+<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">
+  <defs>
+    <linearGradient id="g${size}" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
+    <radialGradient id="d${size}" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
+    <linearGradient id="s${size}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <circle cx="12" cy="12" r="11.2" fill="url(#d${size})" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
+  <g class="links" stroke="url(#g${size})" stroke-linecap="round" fill="none"></g>
+  <g stroke-width="1.15" stroke-linecap="round">
+    <g class="piece" data-cx="16.8" data-cy="7.2"><path class="sleep" d="M16.1 7.9L17.5 6.5"/><path class="awake" d="M16.1 7.9L17.5 6.5"/></g>
+    <g class="piece" data-cx="16.8" data-cy="16.8"><path class="sleep" d="M16.1 16.1L17.5 17.5"/><path class="awake" d="M16.1 16.1L17.5 17.5"/></g>
+    <g class="piece" data-cx="7.2" data-cy="16.8"><path class="sleep" d="M7.9 16.1L6.5 17.5"/><path class="awake" d="M7.9 16.1L6.5 17.5"/></g>
+    <g class="piece" data-cx="7.2" data-cy="7.2"><path class="sleep" d="M7.9 7.9L6.5 6.5"/><path class="awake" d="M7.9 7.9L6.5 6.5"/></g>
+  </g>
+  <g class="signals"></g>
+  <g class="core"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#g${size})"/></g>
+  <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#s${size})" pointer-events="none"/>
+</svg>`;
+
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function makeIcon(host) {
+    const size = +host.dataset.icon;
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "mascot"; button.title = "Hover to wake";
+    button.innerHTML = SVG(size);
+    host.replaceWith(button);
+
+    const NS = "http://www.w3.org/2000/svg";
+    const rays = [...button.querySelectorAll(".piece")].map(el => {
+      const sleep = el.querySelector(".sleep"), wakePath = el.querySelector(".awake");
+      sleep.setAttribute("stroke", `url(#g${size})`);         // the logo colors, asleep and awake
+      wakePath.setAttribute("stroke", `url(#g${size})`);       // awake: the logo gradient
+      return { el, sleep, wakePath, cx: +el.dataset.cx, cy: +el.dataset.cy, x: 0, y: 0, r: 0, vx: 0, vy: 0, vr: 0 };
+    });
+    const core = button.querySelector(".core");
+    const linkGroup = button.querySelector(".links");
+    // Four rays, each drifting in its own quarter.
+    // Faint "neural" links: between any two pieces (and to the star) that come close.
+    const pairs = [];
+    for (let i = 0; i < rays.length; i++) {
+      for (let j = i + 1; j < rays.length; j++) pairs.push([rays[i], rays[j]]);
+      pairs.push([rays[i], null]);
+    }
+    const lines = pairs.map(() => { const l = document.createElementNS(NS, "line"); linkGroup.appendChild(l); return l; });
+    // Thoughts: a signal now and then runs along a link; the piece it reaches lights up for a moment.
+    const signalGroup = button.querySelector(".signals");
+    const signals = [];
+    let nextSignal = 0.4, flashT = -1, flashed = false;
+    function spawnSignal(linkStrength) {
+      const candidates = pairs.map((pair, i) => ({ pair, w: linkStrength[i] })).filter(c => c.w > 0.25);
+      if (!candidates.length) return;
+      const pick = candidates[Math.floor(Math.random() * candidates.length)].pair;
+      const forward = Math.random() < 0.5 || !pick[1];
+      const dot = document.createElementNS(NS, "circle");
+      const halo = document.createElementNS(NS, "circle");
+      halo.setAttribute("r", size > 100 ? ".55" : ".8"); halo.setAttribute("fill", "#dfe7ff"); halo.setAttribute("opacity", ".22");
+      dot.setAttribute("r", size > 100 ? ".22" : ".32"); dot.setAttribute("fill", "#f2f5ff");
+      signalGroup.append(halo, dot);
+      signals.push({ from: forward ? pick[0] : pick[1], to: forward ? pick[1] : pick[0], t: 0, dur: 0.45 + Math.random() * 0.35, dot, halo });
+    }
+
+    let awake = false, wake = 0, starScale = tune.star, springT = -1, sprung = false, springWait = 0, last = 0, t = 0;
+    for (const p of rays) {
+      p.glow = 0;
+      const a = Math.random() * Math.PI * 2;
+      p.x = Math.cos(a) * 1.2; p.y = Math.sin(a) * 1.2; p.r = (Math.random() - .5) * 120;
+      p.vx = (Math.random() - .5) * 1.4; p.vy = (Math.random() - .5) * 1.4; p.vr = (Math.random() - .5) * 40;
+    }
+
+    // In a quarter, with u and v the distances from the two axes, the star's edge runs from the arm tip
+    // (0, 7.4) to the inner corner (1.85, 1.85) and on to the other tip: outside it means u >= (7.4 - v) / 3
+    // and v >= (7.4 - u) / 3 (scaled with the star). The piece keeps its reach (0.6) clear of that edge.
+    function keepInQuarter(p) {
+      const sx = Math.sign(p.cx - 12), sy = Math.sign(p.cy - 12), m = 1.05;
+      let u = (p.cx + p.x - 12) * sx, v = (p.cy + p.y - 12) * sy;
+      let vu = p.vx * sx, vv = p.vy * sy;
+      const tip = 7.4 * starScale;
+      const minU = Math.max(m, (tip - v) / 3 + m), minV = Math.max(m, (tip - u) / 3 + m);
+      if (u < minU) { u = minU; if (vu < 0) vu = -vu; }
+      if (v < minV) { v = minV; if (vv < 0) vv = -vv; }
+      const room = 8.6, d = Math.hypot(u, v);
+      if (d > room) { u *= room / d; v *= room / d; const dot = (vu * u + vv * v) / room; if (dot > 0) { vu -= 2 * dot * u / room; vv -= 2 * dot * v / room; } }
+      p.x = u * sx + 12 - p.cx; p.y = v * sy + 12 - p.cy; p.vx = vu * sx; p.vy = vv * sy;
+    }
+
+    function setAwake(value) {
+      if (value === awake) return;
+      awake = value;
+      if (!awake) for (const p of rays) { const a = Math.random() * Math.PI * 2; p.vx = Math.cos(a) * .9; p.vy = Math.sin(a) * .9; p.vr = (Math.random() - .5) * 40; }
+    }
+    button.addEventListener("mouseenter", () => setAwake(true));
+    button.addEventListener("mouseleave", () => setAwake(false));
+    button.addEventListener("focus", () => setAwake(true));
+    button.addEventListener("blur", () => setAwake(false));
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - (last || now)) / 1000);
+      last = now; t += dt;
+      // wake: 0 asleep … 1 awake, eased over the gather time (gentle, not a snap).
+      wake += ((awake || reduce ? 1 : 0) - wake) * Math.min(1, dt * (3.2 / tune.gather));
+      const k = Math.min(1, dt * (3.6 / tune.gather));
+      for (const p of rays) {
+        if (awake || reduce) {
+          p.x += -p.x * k; p.y += -p.y * k; p.r += -p.r * k;
+        } else {
+          const s = tune.drift;
+          p.vx += (Math.random() - .5) * dt * 1.6 * s; p.vy += (Math.random() - .5) * dt * 1.6 * s;
+          const speed = Math.hypot(p.vx, p.vy), max = 1.1 * s;
+          if (speed > max) { p.vx *= max / speed; p.vy *= max / speed; }
+          p.x += p.vx * dt * s; p.y += p.vy * dt * s; p.r += p.vr * dt * s;
+          // Stay inside the glass: bounce off a circle around the middle.
+          const dx = p.cx - 12 + p.x, dy = p.cy - 12 + p.y, dist = Math.hypot(dx, dy), room = 8.6;
+          if (dist > room) {
+            const nx = dx / dist, ny = dy / dist, dot = p.vx * nx + p.vy * ny;
+            if (dot > 0) { p.vx -= 2 * dot * nx; p.vy -= 2 * dot * ny; }
+            p.x -= nx * (dist - room); p.y -= ny * (dist - room);
+          }
+        }
+      }
+      // Asleep, pieces bump into each other and into the star's body instead of passing through.
+      if (!awake && !reduce) {
+        const R = 0.62;                              // a half-ray's reach
+        for (let i = 0; i < rays.length; i++) {
+          const a = rays[i];
+          for (let j = i + 1; j < rays.length; j++) {
+            const b = rays[j];
+            let dx = (b.cx + b.x) - (a.cx + a.x), dy = (b.cy + b.y) - (a.cy + a.y);
+            const d = Math.hypot(dx, dy) || 0.001;
+            if (d < 2 * R) {
+              dx /= d; dy /= d;
+              const push = (2 * R - d) / 2;
+              a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push;
+              const rel = (b.vx - a.vx) * dx + (b.vy - a.vy) * dy;
+              if (rel < 0) { a.vx += rel * dx; a.vy += rel * dy; b.vx -= rel * dx; b.vy -= rel * dy; a.vr = -a.vr; b.vr = -b.vr; }
+            }
+          }
+        }
+      }
+      // Each piece stays in its own quarter: between two arms of the star and inside the glass.
+      if (!awake && !reduce) for (const p of rays) keepInQuarter(p);
+      // Once together, the rays bounce in place like little springs ("I'm here"): along their own
+      // direction, out and back, fading out, each a touch out of step with the others.
+      if (!awake) springT = -1;
+      else if (springT < 0 && wake > 0.9 && !sprung) { springT = 0; sprung = true; }
+      if (!awake) sprung = false;
+      // While the mouse stays on it, the bounce comes again every 1-2 seconds.
+      if (springT >= 0) { springT += dt; if (springT > 1.1) { springT = -1; springWait = 1 + Math.random(); } }
+      else if (awake && sprung) { springWait -= dt; if (springWait <= 0) springT = 0; }
+      rays.forEach((p, i) => {
+        let jx = 0, jy = 0, jr = 0;
+        if (springT >= 0 && !reduce) {
+          const tt = Math.max(0, springT - i * 0.05);
+          const a = tune.spring * Math.exp(-tt * 3.2) * Math.sin(tt * Math.PI * 2 * 5.5);
+          const nx = Math.sign(p.cx - 12) / Math.SQRT2, ny = Math.sign(p.cy - 12) / Math.SQRT2;
+          jx = nx * a; jy = ny * a; jr = a * 10;
+        }
+        p.ex = p.cx + p.x + jx; p.ey = p.cy + p.y + jy;
+        p.el.setAttribute("transform", `translate(${(p.x + jx).toFixed(3)} ${(p.y + jy).toFixed(3)}) rotate(${(p.r + jr).toFixed(2)} ${p.cx} ${p.cy})`);
+        p.wakePath.setAttribute("opacity", wake.toFixed(3));
+        p.sleep.setAttribute("opacity", (1 - wake).toFixed(3));
+      });
+      for (const p of rays) {
+        p.glow = Math.max(0, p.glow - dt * 2.2);
+        // A signal's arrival: the ray swells a little for a moment.
+        p.sleep.setAttribute("stroke-width", (1.15 + p.glow * 0.45).toFixed(3));
+      }
+      // The star: never rotates, never moves; a little smaller (and breathing softly) while asleep.
+      const sleepScale = tune.star + Math.sin(t * 1.6) * 0.015;
+      // Awake: the thoughts become one idea; the star flashes once as the rays arrive.
+      if (!awake) flashed = false;
+      if (awake && !flashed && wake > 0.85) { flashed = true; flashT = 0; }
+      let bump = 0;
+      if (flashT >= 0) { flashT += dt * 2.5; bump = flashT < 1 ? Math.sin(flashT * Math.PI) * 0.08 : 0; if (flashT >= 1) flashT = -1; }
+      starScale = sleepScale + (1 - sleepScale) * wake + bump;
+      core.setAttribute("transform", `translate(12 12) scale(${starScale.toFixed(4)}) translate(-12 -12)`);
+      // Links: thin, fainter when long, gone once the logo is together.
+      const fade = tune.link * (1 - wake);
+      const strength = [];
+      pairs.forEach(([a, b], i) => {
+        const x2 = b ? b.ex : 12, y2 = b ? b.ey : 12;
+        const len = Math.hypot(a.ex - x2, a.ey - y2);
+        const near = Math.max(0, Math.min(1, 1.6 - len / 7));
+        strength[i] = near;
+        const busy = signals.some(sg => (sg.from === a && sg.to === b) || (sg.from === b && sg.to === a)) ? 1.8 : 1;
+        const o = Math.min(1, fade * near * (b ? 1 : .6) * busy);
+        const l = lines[i];
+        l.setAttribute("x1", a.ex.toFixed(2)); l.setAttribute("y1", a.ey.toFixed(2));
+        l.setAttribute("x2", x2.toFixed(2)); l.setAttribute("y2", y2.toFixed(2));
+        l.setAttribute("stroke-width", size > 100 ? ".09" : ".16");
+        l.setAttribute("stroke-opacity", o.toFixed(3));
+      });
+      // Signals: only while asleep; they follow the moving pieces.
+      if (!awake && !reduce && tune.signals > 0) {
+        nextSignal -= dt * tune.signals;
+        if (nextSignal <= 0) { spawnSignal(strength); nextSignal = 0.35 + Math.random() * 0.7; }
+      }
+      for (let i = signals.length - 1; i >= 0; i--) {
+        const sg = signals[i];
+        sg.t += dt / sg.dur;
+        const fx = sg.from ? sg.from.ex : 12, fy = sg.from ? sg.from.ey : 12, tx = sg.to ? sg.to.ex : 12, ty = sg.to ? sg.to.ey : 12;
+        const k = Math.min(1, sg.t), e = k * k * (3 - 2 * k);
+        const x = fx + (tx - fx) * e, y = fy + (ty - fy) * e, o = (1 - wake) * Math.sin(k * Math.PI);
+        for (const c of [sg.dot, sg.halo]) { c.setAttribute("cx", x.toFixed(2)); c.setAttribute("cy", y.toFixed(2)); }
+        sg.dot.setAttribute("opacity", o.toFixed(3)); sg.halo.setAttribute("opacity", (o * .25).toFixed(3));
+        if (sg.t >= 1) {
+          if (sg.to) sg.to.glow = 1;
+          sg.dot.remove(); sg.halo.remove(); signals.splice(i, 1);
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  document.querySelectorAll("[data-icon]").forEach(makeIcon);
+})();
+</script>

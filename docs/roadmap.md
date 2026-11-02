@@ -1,6 +1,16 @@
 # Roadmap
 
-## Now (0.2)
+## Done (0.3)
+
+- [x] Mac menu bar app: background engine, shortcut (configurable), Open at Login, Check for Updates
+- [x] Developer ID signing and notarization; DMG for first installs
+- [x] Pip: floating icon with animation, toolbar, keep on screen / hide / never show, snap to an edge
+- [x] Conversation as glass bubbles, stacked "latest only" view, slide in/out, glass density
+- [x] Settings with sidebar sections (resizable); provider setup lists (plugins, skills, MCP servers)
+- [x] Prompt templates: {$selected} / {$clipboard} / fields, on/off, export/import, own setup per template
+- [x] Pictures: paste or drop, previews, clipboard screenshots; all four connections
+
+## Earlier (0.2)
 
 - [x] Ask Claude / Ask ChatGPT action-editor presets on the Actions Ring
 - [x] Selection capture that never sends a stale clipboard
@@ -13,8 +23,8 @@
 
 ## Next
 
-- [x] **Mac app:** menu bar app with ⌥⇧Space, background engine, popups in-process, Open at Login.
-- [ ] Mac app: Developer ID signing and notarization; a choice of shortcut in Settings.
+- [ ] Confirm on a Mac: the 0.3.38 changes listed in CLAUDE.md → Status.
+- [ ] "Show latest only" sticky at the top of the conversation.
 - [ ] Logi plugin: hand requests to the Mac app when it is running (one engine, one history).
 - [ ] **Windows app:** tray app with the same engine (WebView2 + Mica).
 
@@ -28,6 +38,6 @@
 ## Before the Logi Marketplace
 
 - [x] License: MIT (see `LICENSE`)
-- [ ] Developer ID signing and notarization of the macOS popup
+- [x] Developer ID signing and notarization of the Mac app (the plugin's popup helper is still ad hoc)
 - [ ] Localization (`logiplugintool xliff`), with English as the base
 - [ ] Marketplace approval guidelines review, screenshots, support page
