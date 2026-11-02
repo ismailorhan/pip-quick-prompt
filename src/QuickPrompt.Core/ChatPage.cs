@@ -152,7 +152,13 @@ textarea::placeholder { color: var(--muted); }
 .shead { display: flex; align-items: center; gap: 8px; padding: 12px 14px 10px 18px; border-bottom: 1px solid var(--faint); }
 .shead .title { font-weight: 600; font-size: 14px; }
 .shead .status { flex: 1; font-size: 11.5px; color: var(--muted); }
-.sbody { display: grid; grid-template-columns: 186px 1fr; height: min(500px, calc(var(--view-max, 760px) - 120px)); min-height: 320px; }
+.sbody { display: grid; grid-template-columns: 186px 1fr; height: min(var(--settings-h, 500px), calc(var(--view-max, 760px) - 120px)); min-height: 320px; }
+/* Resize grip: in the top corner away from Pip (the panel grows from Pip's side). */
+.settings { position: relative; }
+.sgrip { position: absolute; top: 0; right: 0; width: 18px; height: 18px; cursor: nesw-resize; z-index: 2; }
+.sgrip::before { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-top: 2px solid var(--muted); border-right: 2px solid var(--muted); border-radius: 0 3px 0 0; opacity: .55; }
+#root.side-right .sgrip { right: auto; left: 0; cursor: nwse-resize; }
+#root.side-right .sgrip::before { right: auto; left: 5px; border-right: 0; border-left: 2px solid var(--muted); border-radius: 3px 0 0 0; }
 .snav { padding: 10px 8px; border-right: 1px solid var(--faint); overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
 .snav-g { font-size: 11px; color: var(--muted); padding: 10px 10px 4px; }
 .snav-g:first-child { padding-top: 2px; }
@@ -214,6 +220,11 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 .flist .sfield { margin-top: 6px; }
 .flist .sfield.missing input { box-shadow: inset 0 0 0 1.5px var(--error); }
 .aform { padding: 0 6px; }
+.params { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--faint); font-size: 12px; }
+.params .ptitle2 { font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.params .prow { display: grid; grid-template-columns: 112px 1fr; gap: 8px; padding: 2px 0; color: var(--muted); }
+.params code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+.params .pnote { margin-top: 5px; color: var(--muted); }
 .aform textarea { display: block; width: 100%; margin-top: 3px; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); background: var(--faint); border: 0; border-radius: 9px; padding: 7px 10px; outline: none; resize: vertical; min-height: 96px; max-height: 260px; }
 .aform textarea:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .frow { display: flex; gap: 10px; } .frow .sfield { flex: 1; }
@@ -223,6 +234,11 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 
 .srow.sub { margin-top: 10px; } .srow.sub .sname { font-weight: 500; font-size: 13px; }
 .setup { margin-top: 6px; padding: 6px 10px 8px; background: var(--faint); border-radius: 12px; }
+.sgrp { padding: 4px 0 6px; }
+.sgrp + .sgrp { border-top: 1px solid var(--faint); margin-top: 4px; padding-top: 8px; }
+.ghead { font-weight: 600; }
+.ghead .gcount { margin-left: auto; }
+.gitems { padding-left: 24px; }
 .setup .stitle { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 2px; }
 .chk { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
 .chk input { accent-color: var(--accent); margin: 0; }
@@ -341,6 +357,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
   </div>
   <div class="settings glass" id="settings" hidden>
+    <div class="sgrip" id="setGrip" title="Drag to resize"></div>
     <div class="shead" data-drag>
       <span class="title">Settings</span>
       <span class="status" id="setStatus"></span>
@@ -405,9 +422,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       </select></label>
       </div>
       <div class="cli-only" data-for="claudeConnection">
-        <div class="srow sub"><span class="sname">Use my Claude Code setup</span>
+        <div class="srow sub"><span class="sname">Use my plugins, skills and MCP servers</span>
           <div class="seg" data-name="claudeSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
-        <div class="shint">Off: plain answers, fastest. On: the plugins, skills and MCP servers you tick can be used (slower). It can look things up and use the servers' tools, but cannot run commands or change files.</div>
+        <div class="shint">Lets Claude use what you installed in Claude Code: plugins, skills, and MCP servers (connected tools such as a CRM or your mail). Off: plain answers, fastest. On: only what you tick below, a little slower. It can look things up and use those tools, but cannot run commands or change files.</div>
         <div class="setup" data-setup="claude" data-for="claudeSetupOn" hidden></div>
       </div>
         </section>
@@ -422,9 +439,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <label class="sfield">API model<input type="text" id="chatgptModel" spellcheck="false" placeholder="gpt-5-mini"></label>
       </div>
       <div class="cli-only" data-for="chatgptConnection">
-        <div class="srow sub"><span class="sname">Use my Codex setup</span>
+        <div class="srow sub"><span class="sname">Use my skills and MCP servers</span>
           <div class="seg" data-name="chatgptSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
-        <div class="shint">Off: none of your Codex MCP servers start (faster). On: the ones you tick are available. Codex stays read-only.</div>
+        <div class="shint">Lets ChatGPT use what you set up in the Codex CLI: skills and MCP servers (connected tools). Off: plain answers, faster. On: only what you tick below. Codex stays read-only.</div>
         <div class="setup" data-setup="chatgpt" data-for="chatgptSetupOn" hidden></div>
       </div>
         </section>
@@ -468,12 +485,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     <div class="actions" id="actButtons"><button type="button" class="primary" id="actNew">New template</button><button type="button" id="actBack">Back</button></div>
     <div class="aform" id="actForm" hidden>
       <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
-      <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{text}"></textarea></label>
-      <div class="shint"><b>{text}</b> is the selected text. Add a field to fill in with <b>{name}</b>, or a list with <b>{tone:friendly|formal|short}</b>. Fields are asked each time the template runs.</div>
+      <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{$selected}"></textarea></label>
+      <div class="params">
+        <div class="ptitle2">Parameters</div>
+        <div class="prow"><code>{$selected}</code><span>What is selected in the app you are in.</span></div>
+        <div class="prow"><code>{$clipboard}</code><span>What is on the clipboard.</span></div>
+        <div class="prow"><code>{name}</code><span>A field you fill in each time, e.g. <code>{language}</code>.</span></div>
+        <div class="prow"><code>{name:a|b|c}</code><span>A list to pick from, e.g. <code>{tone:friendly|formal|short}</code>; the first is the default.</span></div>
+        <div class="pnote">Parameters with <b>$</b> are filled in by Quick Prompt. Without <code>{$selected}</code> or <code>{$clipboard}</code>, you type or paste the text in the popup.</div>
+      </div>
       <div class="srow" style="margin-top:10px"><span class="sname">AI</span>
         <div class="seg" data-name="afProvider"><button type="button" data-v="claude">Claude</button><button type="button" data-v="codex">ChatGPT</button></div></div>
       <div class="frow">
-        <label class="sfield">Text from<select id="afInput"><option value="selection">Selected text</option><option value="clipboard">Clipboard</option><option value="popup">Paste in popup</option><option value="none">Nothing</option></select></label>
         <label class="sfield">Connection<select id="afConnection"><option value="default">As in Settings</option><option value="cli">CLI</option><option value="api">API</option></select></label>
       </div>
       <label class="sfield">Model (optional)<input type="text" id="afModel" spellcheck="false" placeholder="Default"></label>
@@ -612,7 +635,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const side = mini.hidden ? 0 : Math.ceil(mini.getBoundingClientRect().width) + 10;
-      const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? 760 : actionsOpen ? 520 : size.w) + side;
+      const width = collapsed ? Math.ceil(box.width) : (settingsOpen ? settingsSize.w : actionsOpen ? 520 : size.w) + side;
       // Where the icon's middle will be in a panel of this width, so the panel can keep the icon still
       // on screen while things around it change (toolbar opening, conversation opening on either side).
       const icon = mini.hidden ? null : $("miniOpen").getBoundingClientRect();
@@ -814,6 +837,36 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     setHotkey(mods.join("+") + "+" + e.code);
   });
 
+  // ---------- Settings size: drag the grip; remembered on this computer ----------
+  var settingsSize = { w: 760, h: 500 };
+  try { const saved = JSON.parse(localStorage.getItem("qp.settingsSize") || "null"); if (saved && saved.w && saved.h) settingsSize = saved; } catch (e) {}
+  function applySettingsSize() {
+    settingsSize.w = Math.round(Math.max(620, Math.min(1200, settingsSize.w)));
+    settingsSize.h = Math.round(Math.max(320, Math.min(1000, settingsSize.h)));
+    document.documentElement.style.setProperty("--settings-h", settingsSize.h + "px");
+    queueLayout();
+  }
+  applySettingsSize();
+  $("setGrip").addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    const start = { x: e.screenX, y: e.screenY, w: settingsSize.w, h: settingsSize.h };
+    // The panel stays put on Pip's side and grows on the other: drag away from Pip to make it bigger.
+    const dir = els.root.classList.contains("side-right") ? -1 : 1;
+    const move = ev => {
+      settingsSize.w = start.w + dir * (ev.screenX - start.x);
+      settingsSize.h = start.h - (ev.screenY - start.y);
+      applySettingsSize();
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move, true);
+      window.removeEventListener("mouseup", up, true);
+      try { localStorage.setItem("qp.settingsSize", JSON.stringify(settingsSize)); } catch (e) {}
+    };
+    window.addEventListener("mousemove", move, true);
+    window.addEventListener("mouseup", up, true);
+  });
+
   // Sections: the sidebar picks one; the last one used is remembered on this computer.
   let currentPane = "general";
   try { currentPane = localStorage.getItem("qp.settingsPane") || "general"; } catch (e) {}
@@ -894,49 +947,82 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       skillList: (d.skillList || []).map(k => Object.assign({}, k, { on: !offSkills.includes(k.name) })),
     });
   }
+  // Three lists, one under the other (Plugins, Skills, MCP servers), each with a header checkbox that
+  // switches the whole list on or off; then web search for Claude.
+  function group(kind, title, itemsHtml, count, empty) {
+    return '<div class="sgrp" data-group="' + kind + '">'
+      + '<label class="chk ghead"><input type="checkbox" data-group-toggle="' + kind + '"' + (kind === "skill" ? ' data-kind="skills" data-id="skills"' : '') + '>'
+      + '<span>' + title + '</span><em class="gcount"></em></label>'
+      + '<div class="gitems">' + (count ? itemsHtml : '<div class="shint">' + empty + '</div>') + '</div></div>';
+  }
   function renderSetup() {
     document.querySelectorAll(".setup").forEach(el => {
       const d = withChoice(setupData && setupData[el.dataset.setup], el.choice);
       if (!d) { el.innerHTML = '<div class="shint">Could not read your setup.</div>'; return; }
       if (!d.installed) { el.innerHTML = '<div class="shint">The CLI was not found on this computer.</div>'; return; }
+      const claude = el.dataset.setup === "claude";
+      const skillList = d.skillList || [];
       let html = "";
-      if (el.dataset.setup === "claude") {
-        html += '<div class="stitle">Plugins</div>' + (d.plugins.length
-          ? d.plugins.map(p => check("plugin", p.id, p.id.replace(/@.*$/, ""), p.on, !p.cliEnabled, p.cliEnabled ? "" : "off in Claude Code")).join("")
-          : '<div class="shint">No plugins installed.</div>');
+      if (claude) {
+        html += group("plugin", "Plugins",
+          (d.plugins || []).map(p => check("plugin", p.id, p.id.replace(/@.*$/, ""), p.on, !p.cliEnabled, p.cliEnabled ? "" : "off in Claude Code")).join(""),
+          (d.plugins || []).length, "No plugins installed.");
       }
-      html += '<div class="stitle">MCP servers</div>' + (d.servers.length
-        ? d.servers.map(s => check("server", s.name, s.name, s.on)).join("")
-        : '<div class="shint">No MCP servers in your ' + (el.dataset.setup === "claude" ? "user configuration (~/.claude.json)" : "~/.codex/config.toml") + '.</div>');
-      const skillList = (d.skillList || []);
-      if (el.dataset.setup === "claude") {
-        html += '<div class="stitle">Skills</div>' + check("skills", "skills", "Use skills", d.skills, false, "built-in Claude Code skills follow this switch");
-      } else {
-        html += '<div class="stitle">Skills</div>';
-      }
-      html += '<div class="skills"' + (el.dataset.setup === "claude" && !d.skills ? ' hidden' : '') + '>' + (skillList.length
-        ? skillList.map(k => check("skill", k.name, k.name, k.on, false, k.plugin ? "from " + k.plugin.replace(/@.*$/, "") : "")).join("")
-        : '<div class="shint">No skills found.</div>') + '</div>';
-      if (el.dataset.setup === "claude") {
-        html += '<div class="stitle">Other</div>' + check("web", "web", "Web search and fetch", d.web);
+      html += group("skill", "Skills",
+        skillList.map(k => check("skill", k.name, k.name, k.on && d.skills !== false, false, k.plugin ? "from " + k.plugin.replace(/@.*$/, "") : "")).join(""),
+        skillList.length, claude ? "No skills of your own; Claude Code's built-in skills follow this switch." : "No skills found.");
+      html += group("server", "MCP servers",
+        d.servers.map(x => check("server", x.name, x.name, x.on)).join(""),
+        d.servers.length, "No MCP servers in your " + (claude ? "user configuration (~/.claude.json)" : "~/.codex/config.toml") + ".");
+      if (claude) {
+        html += '<div class="sgrp"><label class="chk ghead"><input type="checkbox" data-kind="web" data-id="web"' + (d.web ? " checked" : "") + '><span>Web search and fetch</span></label></div>';
       }
       html += '<div class="shint">' + (d.error ? esc(d.error) + " " : "") + '<a href="#" data-refresh>Refresh</a></div>';
       el.innerHTML = html;
+      el.querySelectorAll(".sgrp[data-group]").forEach(g => {
+        // Skills with no list of their own: the header alone says whether skills are used.
+        if (g.dataset.group === "skill" && !g.querySelector('input[data-kind="skill"]')) g.querySelector(".ghead input").checked = d.skills !== false;
+        syncGroup(g);
+      });
+      syncPluginSkills(el);
     });
     queueLayout();
   }
+  // Header checkbox: on when every item is on, a dash when some are.
+  function syncGroup(g) {
+    const items = [...g.querySelectorAll(".gitems input[type=checkbox]")].filter(b => !b.disabled);
+    const head = g.querySelector(".ghead input");
+    const count = g.querySelector(".gcount");
+    if (!items.length) { if (count) count.textContent = ""; return; }
+    const on = items.filter(b => b.checked).length;
+    head.checked = on > 0;
+    head.indeterminate = on > 0 && on < items.length;
+    if (count) count.textContent = on + " of " + items.length;
+  }
+  // A plugin's skills go with it.
+  function syncPluginSkills(box) {
+    const list = ((setupData && setupData[box.dataset.setup]) || {}).skillList || [];
+    box.querySelectorAll('input[data-kind="skill"]').forEach(sk => {
+      const k = list.find(x => x.name === sk.dataset.id);
+      if (!k || !k.plugin) return;
+      const plugin = box.querySelector('input[data-kind="plugin"][data-id="' + CSS.escape(k.plugin) + '"]');
+      const off = plugin && !plugin.checked;
+      sk.disabled = !!off;
+      sk.parentElement.classList.toggle("off", !!off);
+    });
+    box.querySelectorAll(".sgrp[data-group]").forEach(syncGroup);
+  }
   document.addEventListener("change", e => {
     const t = e.target;
-    if (!(t instanceof HTMLInputElement) || !t.dataset.kind) return;
+    if (!(t instanceof HTMLInputElement)) return;
     const box = t.closest(".setup");
-    if (t.dataset.kind === "skills") { box.querySelector(".skills").hidden = !t.checked; queueLayout(); }
-    if (t.dataset.kind === "plugin") {
-      // A plugin's skills go with it.
-      box.querySelectorAll('input[data-kind="skill"]').forEach(s => {
-        const k = ((setupData[box.dataset.setup] || {}).skillList || []).find(x => x.name === s.dataset.id);
-        if (k && k.plugin === t.dataset.id) { s.disabled = !t.checked; s.parentElement.classList.toggle("off", !t.checked); }
-      });
+    if (!box) return;
+    if (t.dataset.groupToggle) {
+      // Header: the whole list on or off.
+      t.closest(".sgrp").querySelectorAll(".gitems input[type=checkbox]").forEach(b => { if (!b.disabled) b.checked = t.checked; });
     }
+    syncPluginSkills(box);
+    queueLayout();
   });
   document.addEventListener("click", e => {
     const a = e.target.closest("[data-refresh]");
@@ -953,6 +1039,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const d = setupData[name];
     const off = (kind, ids) => ids.filter(id => { const b = box(kind, id); return b && !b.disabled && !b.checked; });
     const skills = box("skills", "skills"), web = box("web", "web");
+    if (skills && skills.indeterminate) skills.checked = true;
     return JSON.stringify({
       enabled: on,
       disabledPlugins: off("plugin", (d.plugins || []).map(p => p.id)),
@@ -1433,7 +1520,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   // ---------- Prompt templates editor ----------
   const act = { view: $("actionsView"), list: $("actList"), form: $("actForm"), buttons: $("actButtons"), items: [], editing: null };
-  const INPUT_NAMES = { selection: "Selected text", clipboard: "Clipboard", popup: "Paste in popup", none: "No text" };
+  const INPUT_NAMES = { selection: "Uses the selection", clipboard: "Uses the clipboard", popup: "Typed in the popup", none: "No text" };
   function renderActions() {
     act.list.innerHTML = act.items.length ? act.items.map(a =>
       '<div class="hitem aitem" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
@@ -1486,7 +1573,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     $("afTitle").value = a ? a.title : "";
     $("afPrompt").value = a ? a.instruction : "";
     setSeg("afProvider", a ? a.provider : "claude");
-    $("afInput").value = a ? a.input : "selection";
     $("afConnection").value = a ? a.connection : "default";
     $("afModel").value = a ? a.model : "";
     $("afSetupBox").choice = a && a.setupChoice ? a.setupChoice : null;
@@ -1503,7 +1589,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (box.dataset.setup !== provider && box.querySelector("input")) box.choice = null;   // another CLI: start from Settings
     box.dataset.setup = provider;
     box.hidden = mode !== "custom";
-    $("afSetupHint").textContent = mode === "default" ? "Uses what Settings → Use my setup has ticked."
+    $("afSetupHint").textContent = mode === "default" ? "Uses what is ticked in Settings → Claude / ChatGPT."
       : mode === "off" ? "Plain answer: no plugins, MCP servers or skills (fastest)."
       : "Only for this template. Used when it runs through the CLI.";
     if (mode === "custom") loadSetup(); else queueLayout();
@@ -1534,7 +1620,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const body = {
       id: act.editing ? act.editing.id : "",
       title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
-      provider: segValues.afProvider || "claude", input: $("afInput").value,
+      provider: segValues.afProvider || "claude",
       connection: $("afConnection").value, model: $("afModel").value.trim(),
       setup: segValues.afSetup || "default",
       setupChoice: segValues.afSetup === "custom" ? choiceFrom($("afSetupBox"), true) : "",
@@ -1644,7 +1730,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.prompt.placeholder = s.messages.length && !fieldsActive()
       ? "Follow up…"
       : fieldsActive()
-        ? (/\{(text|selection|input)\}/i.test(s.presetPrompt || "") && !(s.draft && s.draft.context) ? "Paste the text — Enter runs" : "Add a note (optional) — Enter runs")
+        ? (/\{(\$selected|text|selection|input)\}/i.test(s.presetPrompt || "") && !(s.draft && s.draft.context) ? "Paste the text — Enter runs" : "Add a note (optional) — Enter runs")
       : s.pasteMode
         ? "Paste text" + (s.title ? " · " + s.title : "") + " — Enter sends"
         : ("Ask " + s.providerName + (s.title ? " · " + s.title : "") + "…");
@@ -1660,7 +1746,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       els.thread.innerHTML = s.messages.map((m, i) => {
         if (m.role === "user") {
           const q = m.text
-            ? esc(m.text).replace(/\{(text|selection|input)\}/gi, '<span class="tok">selected text</span>')
+            ? esc(m.text).replace(/\{(\$selected|text|selection|input)\}/gi, '<span class="tok">selected</span>').replace(/\{\$clipboard\}/gi, '<span class="tok">clipboard</span>')
             : '<span class="tok">selected text</span>';
           const ctx = m.context ? `<div class="ctxinfo" title="${esc(m.context.slice(0, 600))}">+ ${m.context.length} characters</div>` : "";
           return `<div class="msg user glass" data-drag><div class="q">${q}</div>${ctx}</div>`;

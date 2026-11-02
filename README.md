@@ -74,7 +74,7 @@ Example presets:
 ## Your CLI setup (plugins, MCP servers, skills)
 
 By default the CLIs run as plain question and answer: no tools, none of your MCP servers, fastest.
-In **Settings**, with a provider on **CLI**, turn on **Use my Claude Code setup** / **Use my Codex setup**
+In **Settings**, with a provider on **CLI**, turn on **Use my plugins, skills and MCP servers** (Claude) / **Use my skills and MCP servers** (ChatGPT)
 and tick what may be used:
 
 - **Claude Code:** installed plugins (from `claude plugin list`), MCP servers from your user configuration
@@ -96,11 +96,20 @@ Your own prompts, kept on this computer. Manage them from **Settings → Prompt 
 Pip's templates list (**Edit templates…**), or the menu bar (**Prompt Templates → Edit Templates…**).
 Run them from Pip or the menu bar.
 
-- `{text}` is where the selected text (or clipboard, or pasted text) goes.
-- `{name}` adds a field you fill in each time, e.g. `{language}`.
-- `{name:a|b|c}` adds a list to pick from, e.g. `{tone:friendly|formal|short}` (the first is the default).
+Parameters you can use in a template:
 
-Example: `Write a {tone:friendly|formal|short} reply in {language} to this email:\n\n{text}` asks for the
+| Parameter | What goes there |
+|---|---|
+| `{$selected}` | What is selected in the app you are in (copied with ⌘C) |
+| `{$clipboard}` | What is on the clipboard |
+| `{name}` | A field you fill in each time, e.g. `{language}` |
+| `{name:a\|b\|c}` | A list to pick from, e.g. `{tone:friendly\|formal\|short}` (the first is the default) |
+
+Parameters with `$` are filled in by Quick Prompt, so they never clash with your own fields. A template
+without `{$selected}` or `{$clipboard}` opens the popup for you to type or paste the text. (`{text}` from
+older templates still means `{$selected}`.)
+
+Example: `Write a {tone:friendly|formal|short} reply in {language} to this email:\n\n{$selected}` asks for the
 tone and the language, with the selected email already in place, then sends.
 
 Editing a built-in template (Summarize, Translate, …) saves your own copy in its place.

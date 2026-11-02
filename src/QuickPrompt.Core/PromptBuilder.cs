@@ -21,10 +21,35 @@ namespace QuickPrompt.Core
             @"\{([\p{L}\p{N}_][\p{L}\p{N}_ \-]{0,39})(?::([^{}\r\n]*))?\}",
             RegexOptions.CultureInvariant);
 
-        // Any of these in a preset prompt is replaced with the captured text.
+        // System parameters start with "$" so they never clash with your own fields:
+        //   {$selected}   what is selected in the app you are in (copied with ⌘C)
+        //   {$clipboard}  what is on the clipboard
+        // {text}, {selection} and {input} are the older names for {$selected} and still work.
+        public const String Selected = "{$selected}";
+
+        public const String Clipboard = "{$clipboard}";
+
         private static readonly Regex TokenRegex = new Regex(
-            @"\{(text|selection|input)\}",
+            @"\{(\$selected|text|selection|input)\}",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        private static readonly Regex ClipboardRegex = new Regex(@"\{\$clipboard\}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        public static Boolean HasClipboard(String instruction) =>
+            !String.IsNullOrEmpty(instruction) && ClipboardRegex.IsMatch(instruction);
+
+        /// <summary>Puts the clipboard text where {$clipboard} is.</summary>
+        public static String FillClipboard(String instruction, String clipboard) =>
+            HasClipboard(instruction) ? ClipboardRegex.Replace(instruction, _ => (clipboard ?? "").Trim()) : instruction ?? "";
+
+        /// <summary>
+        /// Which text a prompt template reads, from its system parameters: the selection ({$selected}),
+        /// the clipboard ({$clipboard} only), or nothing, in which case it is typed or pasted in the popup.
+        /// </summary>
+        public static String InputFor(String instruction) =>
+            HasToken(instruction) ? InputModes.Selection
+            : HasClipboard(instruction) ? InputModes.Clipboard
+            : InputModes.Popup;
 
         public static Boolean HasToken(String instruction) =>
             !String.IsNullOrEmpty(instruction) && TokenRegex.IsMatch(instruction);

@@ -82,10 +82,10 @@ namespace QuickPrompt.Core
 
         private static readonly SavedPreset[] BuiltIns =
         {
-            BuiltIn("Summarize", "Summarize the following in 3 short bullet points:\n\n{text}"),
-            BuiltIn("Translate", "Translate the following to English (to Turkish if it is already English). Reply with the translation only:\n\n{text}"),
-            BuiltIn("Fix grammar", "Fix spelling and grammar. Reply with the corrected text only:\n\n{text}"),
-            BuiltIn("Explain", "Explain the following simply and briefly:\n\n{text}"),
+            BuiltIn("Summarize", "Summarize the following in 3 short bullet points:\n\n{$selected}"),
+            BuiltIn("Translate", "Translate the following to English (to Turkish if it is already English). Reply with the translation only:\n\n{$selected}"),
+            BuiltIn("Fix grammar", "Fix spelling and grammar. Reply with the corrected text only:\n\n{$selected}"),
+            BuiltIn("Explain", "Explain the following simply and briefly:\n\n{$selected}"),
         };
 
         private readonly String _path;

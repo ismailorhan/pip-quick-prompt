@@ -82,7 +82,8 @@ namespace QuickPrompt.Core
                 Connection = saved.Connection,
                 Model = saved.Model,
                 Setup = saved.SetupFor(),
-                Input = InputModes.Normalize(saved.Input),
+                // Custom templates read what their system parameters ask for; older ones keep their setting.
+                Input = saved.Custom ? PromptBuilder.InputFor(saved.Instruction) : InputModes.Normalize(saved.Input),
                 Flow = FlowModes.Send,
             }).ConfigureAwait(false);
             return true;
@@ -251,7 +252,7 @@ namespace QuickPrompt.Core
                 instruction = p.Instruction,
                 provider = p.ProviderId,
                 connection = p.Connection,
-                input = InputModes.Normalize(p.Input),
+                input = p.Custom || p.BuiltIn ? PromptBuilder.InputFor(p.Instruction) : InputModes.Normalize(p.Input),
                 model = p.Model,
                 builtIn = p.BuiltIn,
                 fields = PromptBuilder.GetParameters(p.Instruction).Count,
@@ -276,7 +277,7 @@ namespace QuickPrompt.Core
                 Instruction = Get("instruction"),
                 ProviderId = Get("provider"),
                 Connection = Get("connection"),
-                Input = Get("input"),
+                Input = PromptBuilder.InputFor(Get("instruction")),
                 Model = Get("model"),
                 Setup = SetupModes.Normalize(Get("setup")),
                 SetupChoice = ParseSetupChoice(Get("setupChoice"), new CliSetupChoice { Enabled = true }),
@@ -329,7 +330,8 @@ namespace QuickPrompt.Core
             }
 
             var connection = this.ResolveConnection(preset.ProviderId, preset.Connection);
-            if (!session.ApplyPreset(this.GetProvider(preset.ProviderId, connection), connection, preset.Title, preset.Model, preset.Instruction))
+            var instruction = PromptBuilder.FillClipboard(preset.Instruction, this._host.GetClipboardText());
+            if (!session.ApplyPreset(this.GetProvider(preset.ProviderId, connection), connection, preset.Title, preset.Model, instruction))
             {
                 return false;
             }
@@ -581,6 +583,16 @@ namespace QuickPrompt.Core
 
             var capture = await this.CaptureInputAsync(preset.Input).ConfigureAwait(false);
             var context = capture.Text;
+
+            // {$clipboard}: the clipboard as it was before the selection was copied (or the clipboard itself).
+            if (PromptBuilder.HasClipboard(instruction))
+            {
+                instruction = PromptBuilder.FillClipboard(instruction, capture.PreviousClipboard ?? context);
+                if (preset.Input == InputModes.Clipboard)
+                {
+                    context = "";
+                }
+            }
 
             // A prompt with fields ({name} or {name:a|b}): ask for them in the popup, with the captured text ready.
             if (PromptBuilder.GetParameters(instruction).Count > 0)

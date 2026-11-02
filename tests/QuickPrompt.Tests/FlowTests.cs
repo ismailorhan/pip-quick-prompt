@@ -195,6 +195,25 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task System_parameters_fill_in_the_selection_and_the_clipboard()
+        {
+            this._host.Clipboard = "Acme Ltd, invoice 42";
+            this._host.Selection = "Please check the attached invoice.";
+            await this._manager.ExecutePresetAsync(new Preset
+            {
+                Instruction = "Customer: {$clipboard}\nEmail: {$selected}",
+                Input = PromptBuilder.InputFor("Customer: {$clipboard}\nEmail: {$selected}"),
+                Flow = FlowModes.Send,
+            });
+            await this.SingleSession().CurrentTurn;
+            Assert.Equal("Customer: Acme Ltd, invoice 42\nEmail: Please check the attached invoice.", this._claude.Requests.Single().Prompt);
+
+            Assert.Equal(InputModes.Selection, PromptBuilder.InputFor("Fix {text}"));
+            Assert.Equal(InputModes.Clipboard, PromptBuilder.InputFor("Summarize {$clipboard}"));
+            Assert.Equal(InputModes.Popup, PromptBuilder.InputFor("Write a haiku about {topic}"));
+        }
+
+        [Fact]
         public async Task Edit_flow_only_prefills()
         {
             this._host.Selection = "some text";
