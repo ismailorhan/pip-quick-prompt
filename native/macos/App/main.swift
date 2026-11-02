@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pendingActions: [(String, [String: String])] = []
 
     private var hotKeyRef: EventHotKeyRef?
+    private var askedForAccessibility = false
     private var loginItem: NSMenuItem?
     private let actionsMenu = NSMenu()
     private var actions: [[String: Any]] = []
@@ -484,9 +485,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         default: return
         }
 
-        // Sending keystrokes needs the Accessibility permission; ask once (macOS shows its own dialog).
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        guard AXIsProcessTrustedWithOptions(options) else { return }
+        // Sending keystrokes needs the Accessibility permission. macOS's own request shows at most once per
+        // start; after that a missing permission is only logged (no dialog on every ⌘C / ⌘V).
+        guard AXIsProcessTrusted() else {
+            if !askedForAccessibility {
+                askedForAccessibility = true
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            } else {
+                NSLog("Quick Prompt: no Accessibility permission, so ⌘C / ⌘V cannot be sent.")
+            }
+            return
+        }
 
         let source = CGEventSource(stateID: .combinedSessionState)
         // Explicit flags: ⌥⇧ may still be held from the shortcut, but the app must see a plain ⌘C / ⌘V.

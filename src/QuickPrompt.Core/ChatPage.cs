@@ -244,6 +244,15 @@ html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; b
 .frow { display: flex; gap: 10px; } .frow .sfield { flex: 1; }
 .aitem .hq { font-weight: 600; }
 .aitem .run { flex: none; align-self: center; font-size: 11.5px; padding: 3px 10px; }
+.aitem.disabled .hbody, .aitem.disabled .dot { opacity: .45; }
+.aitem .pick { flex: none; align-self: center; margin: 0 2px 0 0; accent-color: var(--accent); }
+/* On / off switch */
+.tgl { flex: none; align-self: center; width: 34px; height: 20px; padding: 0; border-radius: 999px; background: var(--faint); position: relative; margin-right: 6px; }
+.tgl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+.tgl.on { background: var(--accent); }
+.tgl.on::after { transform: translateX(14px); }
+.exportbar { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 0 6px; }
+.exportbar .ecount { font-size: 12px; color: var(--muted); }
 .pedit .pname { color: var(--muted); font-size: 12px; }
 
 .srow.sub { margin-top: 10px; } .srow.sub .sname { font-weight: 500; font-size: 13px; }
@@ -496,7 +505,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" class="x" id="actClose" title="Close">✕</button>
     </div>
     <div class="hlist" id="actList"></div>
-    <div class="actions" id="actButtons"><button type="button" class="primary" id="actNew">New template</button><button type="button" id="actBack">Back</button></div>
+    <div class="actions" id="actButtons"><button type="button" class="primary" id="actNew">New template</button><button type="button" id="actImport">Import…</button><button type="button" id="actExport">Export…</button><span style="flex:1"></span><button type="button" id="actBack">Back</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden></div>
+    <div class="exportbar" id="exportBar" hidden>
+      <label class="chk"><input type="checkbox" id="exportAll"><span>Select all</span></label>
+      <span class="ecount" id="exportCount"></span>
+      <span style="flex:1"></span>
+      <button type="button" id="exportCancel">Cancel</button>
+      <button type="button" class="primary" id="exportGo">Export</button>
+    </div>
     <div class="aform" id="actForm" hidden>
       <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
       <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{$selected}"></textarea></label>
@@ -1538,16 +1555,29 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const act = { view: $("actionsView"), list: $("actList"), form: $("actForm"), buttons: $("actButtons"), items: [], editing: null };
   const INPUT_NAMES = { selection: "Uses the selection", clipboard: "Uses the clipboard", popup: "Typed in the popup", none: "No text" };
   function renderActions() {
+    const exporting = !!act.exporting;
     act.list.innerHTML = act.items.length ? act.items.map(a =>
-      '<div class="hitem aitem" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
+      '<div class="hitem aitem' + (a.enabled === false ? ' disabled' : '') + '" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
+      + (exporting ? '<input type="checkbox" class="pick" data-pick="' + esc(a.id) + '"' + (act.picked.has(a.id) ? ' checked' : '') + ' aria-label="Export ' + esc(a.title) + '">' : '')
       + '<span class="dot"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
       + '<div class="ha">' + esc(a.instruction.replace(/\s+/g, " ")) + '</div>'
       + '<div class="hmeta">' + (a.provider === "codex" ? "ChatGPT" : "Claude") + ' · ' + INPUT_NAMES[a.input]
       + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '')
       + (a.setup === "custom" ? ' · own plugins/MCP/skills' : a.setup === "off" ? ' · no plugins/MCP/skills' : '')
       + (a.builtIn ? ' · built-in' : '') + '</div></div>'
-      + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button></div>').join("")
+      + (exporting ? '' : '<button type="button" class="tgl' + (a.enabled === false ? '' : ' on') + '" data-toggle="' + esc(a.id) + '" role="switch" aria-checked="' + (a.enabled !== false) + '" title="' + (a.enabled === false ? 'Off: not offered in Pip or the menu bar' : 'On') + '"></button>'
+        + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button>')
+      + '</div>').join("")
       : '<div class="hempty">No templates yet.</div>';
+    $("exportBar").hidden = !exporting;
+    act.buttons.hidden = exporting || !act.form.hidden;
+    if (exporting) {
+      const all = $("exportAll");
+      all.checked = act.picked.size > 0 && act.picked.size === act.items.length;
+      all.indeterminate = act.picked.size > 0 && act.picked.size < act.items.length;
+      $("exportCount").textContent = act.picked.size ? act.picked.size + " selected" : "Choose templates";
+      $("exportGo").disabled = act.picked.size === 0;
+    }
     queueLayout();
   }
   async function openActions(only) {
@@ -1562,7 +1592,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   // The list and editor live in the Prompt templates view or inside Settings → Prompt templates.
   function mountActions(target) {
-    if (act.list.parentElement !== target) target.append(act.list, act.buttons, act.form);
+    if (act.list.parentElement !== target) target.append(act.list, act.buttons, $("exportBar"), act.form);
   }
   async function loadActions() {
     act.list.innerHTML = '<div class="hempty">Loading…</div>';
@@ -1618,11 +1648,66 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     actionsOnly = false;
     closeActions();
   }
-  act.list.addEventListener("click", e => {
+  act.list.addEventListener("click", async e => {
+    if (act.exporting) {
+      // Choosing what to export: a click anywhere on the row ticks it.
+      const row = e.target.closest(".aitem");
+      if (!row) return;
+      const id = row.dataset.id;
+      if (act.picked.has(id)) act.picked.delete(id); else act.picked.add(id);
+      renderActions();
+      return;
+    }
+    const toggle = e.target.closest("[data-toggle]");
+    if (toggle) {
+      const on = !toggle.classList.contains("on");
+      const res = await post("toggleaction", { id: toggle.dataset.toggle, enabled: on ? "true" : "false" });
+      if (res.ok) { act.items = await res.json(); renderActions(); }
+      return;
+    }
     const run = e.target.closest("[data-run]");
     if (run) { runAction(run.dataset.run); return; }
     const item = e.target.closest(".aitem");
     if (item) editAction(act.items.find(a => a.id === item.dataset.id));
+  });
+
+  // ---------- export and import ----------
+  act.picked = new Set();
+  $("actExport").addEventListener("click", () => { act.exporting = true; act.picked = new Set(act.items.map(a => a.id)); renderActions(); });
+  $("exportCancel").addEventListener("click", () => { act.exporting = false; renderActions(); });
+  $("exportAll").addEventListener("change", e => {
+    act.picked = e.target.checked ? new Set(act.items.map(a => a.id)) : new Set();
+    renderActions();
+  });
+  $("exportGo").addEventListener("click", async () => {
+    const res = await post("exportactions", { ids: [...act.picked].join(",") });
+    if (!res.ok) { toast("Could not export"); return; }
+    const content = await res.text();
+    const name = act.picked.size === 1 ? (act.items.find(a => act.picked.has(a.id)) || {}).title + ".json" : "Quick Prompt templates.json";
+    if (bridge) {
+      bridge.postMessage({ type: "saveFile", name: name.replace(/[\\/:]/g, "-"), content });   // the native Save dialog
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([content], { type: "application/json" }));
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+    act.exporting = false;
+    renderActions();
+  });
+  window.__quickPromptSaved = ok => toast(ok ? "Exported" : "Not exported");
+  $("actImport").addEventListener("click", () => $("importFile").click());
+  $("importFile").addEventListener("change", async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const res = await post("importactions", { json: await file.text() });
+    const data = res.ok ? await res.json() : { error: "Could not import" };
+    if (data.error) { toast(data.error); return; }
+    act.items = data.actions;
+    renderActions();
+    toast("Imported " + data.added + (data.skipped ? " · " + data.skipped + " already there" : ""));
   });
   act.list.addEventListener("keydown", e => {
     const item = e.target.closest(".aitem");
@@ -1635,6 +1720,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   $("afSave").addEventListener("click", async () => {
     const body = {
       id: act.editing ? act.editing.id : "",
+      enabled: act.editing && act.editing.enabled === false ? "false" : "true",
       title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
       provider: segValues.afProvider || "claude",
       connection: $("afConnection").value, model: $("afModel").value.trim(),

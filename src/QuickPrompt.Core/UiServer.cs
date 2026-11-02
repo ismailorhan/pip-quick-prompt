@@ -235,6 +235,15 @@ namespace QuickPrompt.Core
                         return HttpResponse.Json(JsonSerializer.Serialize(new { error = ex.Message }), 400);
                     }
 
+                case "toggleaction":
+                    return HttpResponse.Json(this._manager.SetActionEnabled(GetString(body, "id"), GetString(body, "enabled") != "false"));
+
+                case "exportactions":
+                    return HttpResponse.Json(this._manager.ExportActions(GetString(body, "ids").Split(',', StringSplitOptions.RemoveEmptyEntries)));
+
+                case "importactions":
+                    return HttpResponse.Json(this._manager.ImportActions(GetString(body, "json")));
+
                 case "deleteaction":
                     return HttpResponse.Json(this._manager.DeleteAction(GetString(body, "id")));
 

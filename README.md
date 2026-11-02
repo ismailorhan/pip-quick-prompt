@@ -120,6 +120,11 @@ older templates still means `{$selected}`.)
 Example: `Write a {tone:friendly|formal|short} reply in {language} to this email:\n\n{$selected}` asks for the
 tone and the language, with the selected email already in place, then sends.
 
+Each template has an on/off switch: switched off, it stays in the editor but is not offered in Pip's list
+or the menu bar. **Export…** saves all or chosen templates to a `.json` file; **Import…** adds the templates of
+such a file (the same title and prompt are skipped, a different prompt under a taken title gets " (2)";
+nothing is overwritten).
+
 Editing a built-in template (Summarize, Translate, …) saves your own copy in its place.
 
 ## Settings

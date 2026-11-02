@@ -257,6 +257,7 @@ namespace QuickPrompt.Core
                 builtIn = p.BuiltIn,
                 fields = PromptBuilder.GetParameters(p.Instruction).Count,
                 setup = SetupModes.Normalize(p.Setup),
+                enabled = p.Enabled,
                 setupChoice = p.SetupChoice == null ? null : new
                 {
                     skills = p.SetupChoice.Skills,
@@ -280,9 +281,82 @@ namespace QuickPrompt.Core
                 Input = PromptBuilder.InputFor(Get("instruction")),
                 Model = Get("model"),
                 Setup = SetupModes.Normalize(Get("setup")),
+                Enabled = Get("enabled") != "false",
                 SetupChoice = ParseSetupChoice(Get("setupChoice"), new CliSetupChoice { Enabled = true }),
             });
             return this.GetActionsJson();
+        }
+
+        public String SetActionEnabled(String id, Boolean enabled)
+        {
+            this._presets.SetEnabled(id, enabled);
+            return this.GetActionsJson();
+        }
+
+        /// <summary>The chosen templates as a file to share: { "quickPromptTemplates": 1, "templates": [...] }.</summary>
+        public String ExportActions(IEnumerable<String> ids)
+        {
+            var wanted = new HashSet<String>(ids ?? Array.Empty<String>());
+            var templates = this._presets.ListEditable().Where(p => wanted.Contains(p.Id)).Select(p => new
+            {
+                title = p.Title,
+                instruction = p.Instruction,
+                provider = p.ProviderId,
+                connection = p.Connection,
+                model = p.Model,
+                enabled = p.Enabled,
+                setup = SetupModes.Normalize(p.Setup),
+                setupChoice = p.SetupChoice == null ? null : new
+                {
+                    skills = p.SetupChoice.Skills,
+                    web = p.SetupChoice.Web,
+                    disabledPlugins = p.SetupChoice.DisabledPlugins,
+                    disabledServers = p.SetupChoice.DisabledServers,
+                    disabledSkills = p.SetupChoice.DisabledSkills,
+                },
+            }).ToArray();
+            return System.Text.Json.JsonSerializer.Serialize(new { quickPromptTemplates = 1, exported = DateTime.UtcNow.ToString("o"), templates },
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+
+        /// <summary>Adds the templates of an exported file. Returns { added, skipped, actions } or { error }.</summary>
+        public String ImportActions(String json)
+        {
+            var templates = new List<SavedPreset>();
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json ?? "");
+                if (!doc.RootElement.TryGetProperty("templates", out var list) || list.ValueKind != System.Text.Json.JsonValueKind.Array)
+                {
+                    return System.Text.Json.JsonSerializer.Serialize(new { error = "This is not a Quick Prompt templates file." });
+                }
+
+                foreach (var item in list.EnumerateArray())
+                {
+                    String Str(String name) => item.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : "";
+                    templates.Add(new SavedPreset
+                    {
+                        Title = Str("title"),
+                        Instruction = Str("instruction"),
+                        ProviderId = Str("provider"),
+                        Connection = Str("connection"),
+                        Model = Str("model"),
+                        Input = PromptBuilder.InputFor(Str("instruction")),
+                        Setup = SetupModes.Normalize(Str("setup")),
+                        SetupChoice = item.TryGetProperty("setupChoice", out var choice) && choice.ValueKind == System.Text.Json.JsonValueKind.Object
+                            ? ParseSetupChoice(choice.GetRawText(), new CliSetupChoice { Enabled = true })
+                            : null,
+                        Enabled = !item.TryGetProperty("enabled", out var en) || en.ValueKind != System.Text.Json.JsonValueKind.False,
+                    });
+                }
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new { error = "This file could not be read." });
+            }
+
+            var (added, skipped) = this._presets.Import(templates);
+            return "{\"added\":" + added + ",\"skipped\":" + skipped + ",\"actions\":" + this.GetActionsJson() + "}";
         }
 
         public String DeleteAction(String id)

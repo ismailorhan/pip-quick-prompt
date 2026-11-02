@@ -33,6 +33,9 @@ namespace QuickPrompt.Core
         /// <summary>Made or edited in the Prompt templates editor (not remembered from the ring).</summary>
         public Boolean Custom { get; set; }
 
+        /// <summary>Switched off: kept in the editor but not offered in Pip's list or the menu bar.</summary>
+        public Boolean Enabled { get; set; } = true;
+
         /// <summary>CLI setup for this action: SetupModes (default = as in Settings).</summary>
         public String Setup { get; set; } = SetupModes.Default;
 
@@ -107,8 +110,79 @@ namespace QuickPrompt.Core
                 var titles = new HashSet<String>(custom.Select(p => p.Title), StringComparer.OrdinalIgnoreCase);
                 var remembered = this.ReadLocked(this._path).Where(p => !titles.Contains(p.Title)).ToList();
                 titles.UnionWith(remembered.Select(p => p.Title));
-                return custom.Concat(remembered).Concat(BuiltIns.Where(b => !titles.Contains(b.Title))).ToList();
+                return custom.Concat(remembered).Concat(BuiltIns.Where(b => !titles.Contains(b.Title)))
+                    .Where(p => p.Enabled)
+                    .ToList();
             }
+        }
+
+        /// <summary>Switches a template on or off (a built-in becomes your copy, so it can remember that).</summary>
+        public void SetEnabled(String id, Boolean enabled)
+        {
+            var current = this.ListEditable().FirstOrDefault(p => p.Id == id);
+            if (current == null)
+            {
+                return;
+            }
+
+            if (current.BuiltIn)
+            {
+                this.Save(new SavedPreset
+                {
+                    Title = current.Title, Instruction = current.Instruction, ProviderId = current.ProviderId,
+                    Connection = current.Connection, Model = current.Model, Enabled = enabled,
+                });
+                return;
+            }
+
+            lock (this._lock)
+            {
+                var list = this.ReadLocked(this._customPath);
+                var found = list.FirstOrDefault(p => p.Id == id);
+                if (found != null)
+                {
+                    found.Enabled = enabled;
+                    this.WriteLocked(this._customPath, list);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Adds templates from an export. The same title with the same prompt is skipped; the same title with
+        /// another prompt is added with " (2)" (nothing is overwritten). Returns (added, skipped).
+        /// </summary>
+        public (Int32 Added, Int32 Skipped) Import(IEnumerable<SavedPreset> templates)
+        {
+            var added = 0;
+            var skipped = 0;
+            foreach (var template in templates)
+            {
+                if (template == null || String.IsNullOrWhiteSpace(template.Title) || String.IsNullOrWhiteSpace(template.Instruction))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var existing = this.ListEditable();
+                if (existing.Any(p => String.Equals(p.Title, template.Title.Trim(), StringComparison.OrdinalIgnoreCase) && p.Instruction == template.Instruction))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var title = template.Title.Trim();
+                for (var n = 2; existing.Any(p => String.Equals(p.Title, title, StringComparison.OrdinalIgnoreCase)); n++)
+                {
+                    title = $"{template.Title.Trim()} ({n})";
+                }
+
+                template.Id = "";
+                template.Title = title;
+                this.Save(template);
+                added++;
+            }
+
+            return (added, skipped);
         }
 
         /// <summary>What the editor shows: your actions, then the built-ins you have not replaced.</summary>
@@ -147,6 +221,7 @@ namespace QuickPrompt.Core
                     Setup = SetupModes.Normalize(action.Setup),
                     SetupChoice = action.SetupChoice,
                     Custom = true,
+                    Enabled = action.Enabled,
                     LastUsedUtc = DateTime.UtcNow,
                 };
                 var index = list.FindIndex(p => p.Id == saved.Id);
@@ -176,7 +251,9 @@ namespace QuickPrompt.Core
             }
         }
 
-        public SavedPreset Find(String id) => this.List().FirstOrDefault(p => p.Id == id);
+        /// <summary>Any template by id, switched off or not (Run in the editor works for both).</summary>
+        public SavedPreset Find(String id) =>
+            this.List().FirstOrDefault(p => p.Id == id) ?? this.ListEditable().FirstOrDefault(p => p.Id == id);
 
         /// <summary>Records a preset that was just run from the ring.</summary>
         public void Remember(Preset preset)

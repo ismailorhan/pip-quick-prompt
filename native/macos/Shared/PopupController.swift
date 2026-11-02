@@ -10,6 +10,7 @@
 import AppKit
 import ApplicationServices
 import QuartzCore
+import UniformTypeIdentifiers
 import WebKit
 
 let defaultPopupWidth: CGFloat = 520
@@ -542,6 +543,22 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             isMini = mini
             watchHover(mini)
             updateSide()
+        case "saveFile":
+            // Export: the standard Save dialog; the page gets told whether it was saved.
+            guard let content = body["content"] as? String else { break }
+            let name = (body["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Quick Prompt templates.json"
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = name
+            savePanel.canCreateDirectories = true
+            if #available(macOS 11.0, *) {
+                savePanel.allowedContentTypes = [.json]
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            var saved = false
+            if savePanel.runModal() == .OK, let target = savePanel.url {
+                saved = (try? content.write(to: target, atomically: true, encoding: .utf8)) != nil
+            }
+            webView?.evaluateJavaScript("window.__quickPromptSaved && window.__quickPromptSaved(\(saved))", completionHandler: nil)
         case "home":
             // Pip on its own (at start / Show Pip): where it was last left, or near the bottom-right corner.
             updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
@@ -621,6 +638,17 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         guard !closing else { return }
         webView.load(URLRequest(url: url))
+    }
+
+    /// <input type="file"> (Import): the standard Open dialog.
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping ([URL]?) -> Void) {
+        let openPanel = NSOpenPanel()
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = false
+        openPanel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        NSApp.activate(ignoringOtherApps: true)
+        completionHandler(openPanel.runModal() == .OK ? openPanel.urls : nil)
     }
 
     func webViewDidClose(_ webView: WKWebView) {

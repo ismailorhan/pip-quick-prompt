@@ -50,5 +50,41 @@ namespace QuickPrompt.Tests
             catalog.Delete(saved.Id);
             Assert.DoesNotContain(catalog.ListEditable(), p => p.Title == "Reply");
         }
+
+        [Fact]
+        public void Templates_switch_off_export_and_import_without_overwriting()
+        {
+            var dir = TempDir.Create();
+            using var manager = new ChatManager(dir, new FakeHost(), new IAiProvider[] { new FakeProvider(ProviderIds.Claude), new FakeProvider(ProviderIds.Codex) }, new IAiProvider[0]);
+            manager.SaveAction(new Dictionary<string, string> { ["title"] = "Reply", ["instruction"] = "Reply {tone:short|long}: {$selected}" });
+            var reply = System.Text.Json.JsonDocument.Parse(manager.GetActionsJson()).RootElement.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Reply").GetProperty("id").GetString();
+            var summarize = System.Text.Json.JsonDocument.Parse(manager.GetActionsJson()).RootElement.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Summarize").GetProperty("id").GetString();
+
+            // Off: gone from Pip's list, still in the editor (a built-in becomes a copy that remembers it).
+            manager.SetActionEnabled(reply, false);
+            manager.SetActionEnabled(summarize, false);
+            var offered = System.Text.Json.JsonDocument.Parse(manager.GetPresetsJson()).RootElement.EnumerateArray().Select(p => p.GetProperty("title").GetString()).ToList();
+            Assert.DoesNotContain("Reply", offered);
+            Assert.DoesNotContain("Summarize", offered);
+            var editor = System.Text.Json.JsonDocument.Parse(manager.GetActionsJson()).RootElement.EnumerateArray().ToList();
+            Assert.False(editor.First(a => a.GetProperty("title").GetString() == "Reply").GetProperty("enabled").GetBoolean());
+
+            var file = manager.ExportActions(new[] { reply });
+            Assert.Contains("\"quickPromptTemplates\": 1", file);
+
+            // Into another computer: added; again: skipped; a changed prompt with the same title: "(2)".
+            var other = new ChatManager(TempDir.Create(), new FakeHost(), new IAiProvider[] { new FakeProvider(ProviderIds.Claude), new FakeProvider(ProviderIds.Codex) }, new IAiProvider[0]);
+            using var first = System.Text.Json.JsonDocument.Parse(other.ImportActions(file));
+            Assert.Equal(1, first.RootElement.GetProperty("added").GetInt32());
+            using var again = System.Text.Json.JsonDocument.Parse(other.ImportActions(file));
+            Assert.Equal(1, again.RootElement.GetProperty("skipped").GetInt32());
+            using var changed = System.Text.Json.JsonDocument.Parse(other.ImportActions(file.Replace("Reply {tone", "Answer {tone")));
+            Assert.Equal(1, changed.RootElement.GetProperty("added").GetInt32());
+            var titles = System.Text.Json.JsonDocument.Parse(other.GetActionsJson()).RootElement.EnumerateArray().Select(a => a.GetProperty("title").GetString()).ToList();
+            Assert.Contains("Reply", titles);
+            Assert.Contains("Reply (2)", titles);
+            Assert.Contains("error", other.ImportActions("{\"nope\":1}"));
+            other.Dispose();
+        }
     }
 }
