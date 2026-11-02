@@ -292,7 +292,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 <body>
 <div id="root">
   <div class="mini" id="mini" hidden>
-    <button type="button" class="mascot" id="miniOpen" title="Open (drag to move)"><svg viewBox="0 0 24 24" width="56" height="56">
+    <button type="button" class="mascot" id="miniOpen" title="Pip: click to open or tuck away, drag to move"><svg viewBox="0 0 24 24" width="56" height="56">
       <defs>
         <linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
         <radialGradient id="qpDisc" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
@@ -325,7 +325,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <span id="who"></span>
       <span class="title" id="title"></span>
       <span class="status" id="status"></span>
-      <button type="button" class="x" id="pinBtn" title="Pin: Esc and ✕ keep it as a small icon" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
+      <button type="button" class="x" id="pinBtn" title="Pin: Esc and ✕ keep it as Pip" hidden><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
       <button type="button" class="x" id="metaHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
       <button type="button" class="x" id="gear" title="Settings"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
       <button type="button" class="x" id="close" title="Close (Esc)">✕</button>
@@ -375,8 +375,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat size"><span class="sz big">A</span></div>
           </div>
           <div class="sline">
-            <div><div class="sl-t">Icon size</div><div class="sl-d">The floating icon and its toolbar.</div></div>
-            <div class="slider"><span class="sz small">A</span><input type="range" id="iconSlider" min="0" max="100" step="1" aria-label="Icon size"><span class="sz big">A</span></div>
+            <div><div class="sl-t">Pip size</div><div class="sl-d">Pip, the little floating icon, and its toolbar.</div></div>
+            <div class="slider"><span class="sz small">A</span><input type="range" id="iconSlider" min="0" max="100" step="1" aria-label="Pip size"><span class="sz big">A</span></div>
           </div>
           <div class="sline">
             <div><div class="sl-t">Glass</div><div class="sl-d">From clear to dense, for easier reading. You see it as you move the slider.</div></div>
@@ -423,7 +423,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         </section>
         <section class="spane" data-pane="templates">
           <h2>Prompt templates</h2>
-          <div class="sl-d">Your own prompts, with fields to fill in. Run them from the floating icon or the menu bar. Each one can choose its own plugins, MCP servers and skills.</div>
+          <div class="sl-d">Your own prompts, with fields to fill in. Run them from Pip or the menu bar. Each one can choose its own plugins, MCP servers and skills.</div>
           <div class="stemplates" id="setTemplates"></div>
         </section>
         <section class="spane" data-pane="about">
@@ -482,7 +482,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
-    <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as a small icon" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
+    <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as Pip" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
     <button type="button" class="round gear" id="barGear" title="Settings"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
@@ -968,7 +968,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     pinned = value;
     ["pinBtn", "barPin"].forEach(id => $(id).classList.toggle("pinned", pinned));
     if (bridge) bridge.postMessage({ type: "pin", value: pinned });
-    toast(pinned ? "Pinned: Esc keeps it as an icon" : "Unpinned");
+    toast(pinned ? "Pinned: Esc keeps it as Pip" : "Unpinned");
   }
 
   const bubble = $("bubble");
