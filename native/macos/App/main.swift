@@ -490,8 +490,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard AXIsProcessTrusted() else {
             if !askedForAccessibility {
                 askedForAccessibility = true
-                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                _ = AXIsProcessTrustedWithOptions(options)
+                DispatchQueue.main.async { [weak self] in self?.explainAccessibility() }
             } else {
                 NSLog("Quick Prompt: no Accessibility permission, so ⌘C / ⌘V cannot be sent.")
             }
@@ -506,6 +505,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
         up?.post(tap: .cghidEventTap)
+    }
+
+    /// Our own explanation instead of macOS's prompt: a switch that looks on in System Settings may belong
+    /// to an older copy (another signature), so offer to clear that entry before turning it on again.
+    private func explainAccessibility() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Quick Prompt needs Accessibility permission"
+        alert.informativeText = """
+        It presses ⌘C and ⌘V for you, to read the selection and paste answers.
+
+        If Quick Prompt already looks switched on in Privacy & Security → Accessibility, that entry belongs to an \
+        older copy. Reset clears it; then switch Quick Prompt on in the list that opens, and start Quick Prompt again.
+        """
+        alert.addButton(withTitle: "Reset and Open Settings")
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Not Now")
+        let answer = alert.runModal()
+        if answer == .alertThirdButtonReturn {
+            return
+        }
+        if answer == .alertFirstButtonReturn, let bundleID = Bundle.main.bundleIdentifier {
+            let reset = Process()
+            reset.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            reset.arguments = ["reset", "Accessibility", bundleID]
+            try? reset.run()
+            reset.waitUntilExit()
+        }
+        if answer == .alertFirstButtonReturn {
+            // After the reset this puts Quick Prompt back in the list (switched off), to switch on.
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        }
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func showAlert(_ title: String, _ message: String) {
