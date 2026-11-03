@@ -503,6 +503,11 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     // MARK: context menu (right click on the floating icon)
 
     private func showMenu(_ items: [[String: Any]]) {
+        buildMenu(items).popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    /// Items: {id, title, checked?}, {separator: true}, or {title, items: [...]} for a submenu.
+    private func buildMenu(_ items: [[String: Any]]) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
         for item in items {
@@ -510,7 +515,14 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                 menu.addItem(.separator())
                 continue
             }
-            guard let id = item["id"] as? String, let title = item["title"] as? String else { continue }
+            guard let title = item["title"] as? String else { continue }
+            if let children = item["items"] as? [[String: Any]] {
+                let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                parent.submenu = buildMenu(children)
+                menu.addItem(parent)
+                continue
+            }
+            guard let id = item["id"] as? String else { continue }
             let menuItem = NSMenuItem(title: title, action: #selector(menuItemSelected(_:)), keyEquivalent: "")
             menuItem.target = self
             menuItem.representedObject = id
@@ -519,7 +531,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             }
             menu.addItem(menuItem)
         }
-        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+        return menu
     }
 
     @objc private func menuItemSelected(_ sender: NSMenuItem) {

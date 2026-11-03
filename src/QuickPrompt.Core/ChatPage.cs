@@ -1333,12 +1333,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // Right click on the icon: native menu (Open, Settings, Close).
   // Right click (on the icon or anywhere that is not text): the native menu with everything that used
   // to sit in the popup's top row.
+  // The templates submenu, as in the menu bar menu: menu ids "tpl-<n>" map to template ids.
+  let menuTemplates = [];
   function menuItems() {
     return [
       ...(collapsed ? [{ id: "open", title: "Open" }] : []),
       { id: "new", title: "New Chat" },
       { id: "recent", title: "Recent Chats" },
-      { id: "actions", title: "Prompt Templates…" },
+      { title: "Prompt Templates", items: [
+        ...menuTemplates.map((p, i) => ({ id: "tpl-" + i, title: p.title })),
+        ...(menuTemplates.length ? [{ separator: true }] : []),
+        { id: "actions", title: "Edit Templates…" },
+      ] },
       { separator: true },
       { id: "settings", title: "Settings…" },
       { separator: true },
@@ -1346,15 +1352,27 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       { id: "never", title: "Never Show Pip" },
     ];
   }
-  document.addEventListener("contextmenu", e => {
+  document.addEventListener("contextmenu", async e => {
     if (!bridge) return;
     if (e.target.closest("textarea, input, select")) return;            // keep the text field's own menu
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed && e.target.closest(".thread")) return;  // and Copy for selected answer text
     e.preventDefault();
+    try {
+      const res = await fetch(base + "presets", { cache: "no-store" });
+      if (res.status === 404) { sessionEnded(); return; }
+      menuTemplates = await res.json();
+    } catch (err) {}
     bridge.postMessage({ type: "menu", items: menuItems() });
   });
   window.__quickPromptMenu = async id => {
+    if (id.startsWith("tpl-")) {
+      const preset = menuTemplates[+id.slice(4)];
+      if (!preset) return;
+      const res = await post("usepreset", { id: preset.id });
+      if (res.ok) { stick = true; expand(); } else if (res.status !== 404) toast("Still answering");
+      return;
+    }
     if (id === "open") expand();
     else if (id === "new") { const res = await post("new"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
     else if (id === "recent") { expand(); openHistory(false); }
