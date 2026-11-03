@@ -147,5 +147,5 @@ fi
 rm -f "${key:-/nonexistent}"
 # What the app's "Check for Updates…" reads (published next to the zip on the Latest build release).
 sha="$(shasum -a 256 "$zip" | awk '{ print $1 }')"
-printf '{ "version": "%s", "url": "https://github.com/ismailorhan/quick-prompt-for-logi-action-rings/releases/download/latest/QuickPrompt-mac.zip", "sha256": "%s" }\n' "$version" "$sha" > "$root/dist/QuickPrompt-mac.json"
+printf '{ "version": "%s", "url": "https://github.com/ismailorhan/pip-quick-prompt/releases/download/latest/QuickPrompt-mac.zip", "sha256": "%s" }\n' "$version" "$sha" > "$root/dist/QuickPrompt-mac.json"
 echo "Done: native/macos/$app, dist/QuickPrompt-mac.zip and dist/QuickPrompt-mac.json ($version)"

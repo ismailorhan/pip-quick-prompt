@@ -499,7 +499,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <h2>About</h2>
           <div class="sline"><div><div class="sl-t">Quick Prompt</div><div class="sl-d" id="aboutVersion"></div></div></div>
           <div class="sline"><div><div class="sl-t">Your keys</div><div class="sl-d">API keys are stored encrypted on this computer and are only sent to Anthropic or OpenAI. A prompt template can override CLI or API for itself.</div></div></div>
-          <div class="sline"><div><div class="sl-t">Source and updates</div><div class="sl-d">github.com/ismailorhan/quick-prompt-for-logi-action-rings, under Releases → Latest build</div></div></div>
+          <div class="sline"><div><div class="sl-t">Source and updates</div><div class="sl-d">github.com/ismailorhan/pip-quick-prompt, under Releases → Latest build</div></div></div>
         </section>
       </div>
     </div>

@@ -74,6 +74,8 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 
 ## Release and signing
 
+- Repository: `ismailorhan/pip-quick-prompt` (renamed from `quick-prompt-for-logi-action-rings` on 3 Nov 2026;
+  GitHub redirects the old name, but code and docs use the new one).
 - Version `0.3.<CI run number>`, stamped by CI.
 - GitHub secrets (set by the owner): `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD`, `APPLE_TEAM_ID` (S7J34LZJ27),
   `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID`. Developer ID Application certificate valid until 2 Feb 2027.

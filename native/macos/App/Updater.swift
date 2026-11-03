@@ -10,7 +10,7 @@ import AppKit
 import CryptoKit
 
 final class Updater {
-    static let feedURL = URL(string: "https://github.com/ismailorhan/quick-prompt-for-logi-action-rings/releases/download/latest/QuickPrompt-mac.json")!
+    static let feedURL = URL(string: "https://github.com/ismailorhan/pip-quick-prompt/releases/download/latest/QuickPrompt-mac.json")!
 
     struct Release {
         let version: String
