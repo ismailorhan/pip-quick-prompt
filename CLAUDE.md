@@ -87,7 +87,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.41, 3 Nov 2026)
+## Status (v0.3.42, 4 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -101,7 +101,7 @@ Copy/Paste, Pip after Paste, middle-click snap, stacked view, bubble ✕, first-
 Accessibility dialog with "Reset and Open Settings", template export/import dialogs, pictures from the
 clipboard.
 
-Built as v0.3.41 (3 Nov 2026), not yet confirmed on the owner's Mac: Pip left on screen overnight showed "This popup session has ended"
+Built (v0.3.41 / v0.3.42, 3-4 Nov 2026), not yet confirmed on the owner's Mac: Pip left on screen overnight showed "This popup session has ended"
 in the morning, because sessions idle for 3 h were forgotten even while Pip's page was polling. Now a
 session a window is polling is kept; if one is lost anyway (long sleep), Pip asks the app to open a fresh
 Pip in its place. The engine log is now written to a file (see above). The same lost session made Pip's
@@ -119,6 +119,12 @@ collapsing (no long script task, so rendering); not known whether WKWebView does
 Known issue being fixed: the Accessibility prompt kept appearing because the TCC entry belonged to an older,
 ad-hoc signed copy. Fix: `tccutil reset Accessibility app.quickprompt.mac` (or the app's Reset button),
 then switch Quick Prompt on again. Signing is stable now, so it should hold across updates.
+
+v0.3.42 (measured with the real PopupController in a test app, see `docs/development.md` → not yet written
+there; the method is in Hindsight): Pip no longer drifts on hover (its place is the truth, the panel follows),
+corners place Pip itself, the toolbar keeps its size and morphs its glass (empty parts let clicks through),
+and a snapshot of Pip covers the web view while the panel resizes (no sideways jump).
+CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run it.
 
 ## Open items / ideas
 
