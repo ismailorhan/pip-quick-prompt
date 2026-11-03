@@ -86,7 +86,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.38, 2 Nov 2026)
+## Status (v0.3.41, 3 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -100,12 +100,12 @@ Copy/Paste, Pip after Paste, middle-click snap, stacked view, bubble ✕, first-
 Accessibility dialog with "Reset and Open Settings", template export/import dialogs, pictures from the
 clipboard.
 
-On `dev`, not built yet (3 Nov 2026): Pip left on screen overnight showed "This popup session has ended"
+Built as v0.3.41 (3 Nov 2026), not yet confirmed on the owner's Mac: Pip left on screen overnight showed "This popup session has ended"
 in the morning, because sessions idle for 3 h were forgotten even while Pip's page was polling. Now a
 session a window is polling is kept; if one is lost anyway (long sleep), Pip asks the app to open a fresh
 Pip in its place. The engine log is now written to a file (see above). The same lost session made Pip's
 template list say "No templates yet" (the built-ins are always there) and New Chat say "Still answering";
-any 404 now goes the same way. Also on `dev`: Pip no longer jumps sideways when its toolbar opens next to
+any 404 now goes the same way. Also: Pip no longer jumps sideways when its toolbar opens next to
 the Dock (the hover resize skips Dock avoidance); the conversation slides in only after the panel has its
 new size, and only the conversation's glass slides (26 px, 0.3 s in / 0.22 s out); middle click on an edge
 goes clockwise to the next corner; ⌥-click on Pip does the same (trackpads have no middle button; the
