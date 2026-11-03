@@ -46,9 +46,10 @@ html.native, html.native body { background: transparent; min-height: 0; }
 /* Beside the conversation the icon sits at the bottom, next to the input; the conversation grows upward. */
 #root:not(.is-mini) { align-items: flex-end; }
 /* The conversation slides out of the icon and back into it. */
-#root { --reveal-dx: -18px; } #root.side-right { --reveal-dx: 18px; }
-#main.reveal-in { animation: qp-reveal-in .24s cubic-bezier(.2, .8, .2, 1) both; }
-#main.reveal-out { animation: qp-reveal-out .2s ease-in both; }
+#root { --reveal-dx: -26px; } #root.side-right { --reveal-dx: 26px; }
+#main.reveal-pending { opacity: 0; }
+#main.reveal-in { animation: qp-reveal-in .3s cubic-bezier(.2, .8, .2, 1) both; }
+#main.reveal-out { animation: qp-reveal-out .22s ease-in both; }
 @keyframes qp-reveal-in { from { opacity: 0; transform: translateX(var(--reveal-dx)); } to { opacity: 1; transform: none; } }
 @keyframes qp-reveal-out { to { opacity: 0; transform: translateX(var(--reveal-dx)); } }
 @media (prefers-reduced-motion: reduce) { #main.reveal-in, #main.reveal-out { animation-duration: .01s; } }
@@ -619,7 +620,22 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   function post(action, body) {
-    return fetch(base + action, { method: "POST", headers: { "Content-Type": "application/json", "X-QuickPrompt": "1" }, body: JSON.stringify(body || {}) });
+    return fetch(base + action, { method: "POST", headers: { "Content-Type": "application/json", "X-QuickPrompt": "1" }, body: JSON.stringify(body || {}) })
+      .then(res => { if (res.status === 404) sessionEnded(); return res; });
+  }
+
+  // The engine no longer knows this popup (it restarted, or forgot the session). With Pip on screen the app
+  // opens a fresh Pip in its place; otherwise (and in the Logi popup helper) the message stays.
+  let ended = false;
+  function sessionEnded() {
+    if (ended) return;
+    ended = true;
+    if (bridge && (startedAsPip || pinned)) { bridge.postMessage({ type: "sessionEnded" }); return; }
+    els.card.hidden = false;
+    if (!sizeKnown) applySize(30);
+    els.thread.innerHTML = '<div class="msg bot glass"><div class="a error">This popup session has ended. Press Esc and try again.</div></div>';
+    els.send.disabled = true;
+    queueLayout();
   }
 
   async function copyText(text) {
@@ -676,8 +692,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     layoutQueued = true;
     requestAnimationFrame(() => {
       layoutQueued = false;
+      if (revealing) { layoutAfterReveal = true; return; }   // the slide started meanwhile
       const view = els.thread.getBoundingClientRect();
       const scrolling = els.thread.classList.contains("scrolling");
+      const main = $("main");
       const rects = [...document.querySelectorAll(".glass")]
         .filter(el => !el.hidden && el.offsetParent !== null && !(scrolling && els.thread.contains(el)))
         .map(el => {
@@ -685,7 +703,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           let top = r.top, bottom = r.bottom;
           // Bubbles scroll inside the thread: only the visible part gets native glass.
           if (els.thread.contains(el)) { top = Math.max(top, view.top); bottom = Math.min(bottom, view.bottom); }
-          return { x: r.left, y: top, w: r.width, h: Math.max(0, bottom - top), r: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.height / 2) };
+          // m: part of the conversation, which slides; Pip's own glass stays still.
+          return { x: r.left, y: top, w: r.width, h: Math.max(0, bottom - top), r: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.height / 2), m: main.contains(el) };
         })
         .filter(r => r.h > 1);
       const box = els.root.getBoundingClientRect();
@@ -699,11 +718,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const anchorX = !icon ? null
         : els.root.classList.contains("side-right") ? width - (box.right - (icon.left + icon.width / 2))
         : icon.left + icon.width / 2 - box.left;
-      const key = JSON.stringify([width, height, rects, anchorX, anchorY]);
+      // pending: the conversation is about to slide in, so its glass waits hidden for the slide.
+      const pending = main.classList.contains("reveal-pending");
+      const key = JSON.stringify([width, height, rects, anchorX, anchorY, pending]);
       if (key === lastLayout) return;
       lastLayout = key;
-      bridge.postMessage({ type: "layout", width, height, rects, anchorX, anchorY });
-      if (revealNext) startReveal(revealNext);
+      bridge.postMessage({ type: "layout", width, height, rects, anchorX, anchorY, pending });
+      if (revealNext) startRevealWhenSized(revealNext, width);
     });
   }
   const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;
@@ -1186,28 +1207,56 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.bar.hidden = false;
     lastKey = "";
     lastLayout = "";
-    revealNext = bridge ? "in" : null;   // slide out of the icon once the panel has its new size
+    if (bridge) {
+      // Slide out of the icon once the panel has its new size; until then the conversation stays hidden.
+      revealNext = "in";
+      $("main").classList.add("reveal-pending");
+      clearTimeout(expand.safety);
+      expand.safety = setTimeout(() => {
+        if (!$("main").classList.contains("reveal-pending")) return;
+        $("main").classList.remove("reveal-pending");
+        revealNext = null; lastLayout = ""; queueLayout();
+      }, 700);
+    }
     if (state) render();
     queueLayout();
     setTimeout(() => els.prompt.focus(), 0);
   }
 
+  // The panel resizes after the layout message; start the slide only once the page has its new width,
+  // so nothing reflows mid-slide.
+  function startRevealWhenSized(dir, width) {
+    revealNext = null;
+    const go = () => requestAnimationFrame(() => requestAnimationFrame(() => startReveal(dir)));
+    if (Math.abs(window.innerWidth - width) < 2) { go(); return; }
+    let started = false;
+    const once = () => {
+      if (started) return;
+      started = true;
+      window.removeEventListener("resize", once);
+      go();
+    };
+    window.addEventListener("resize", once);
+    setTimeout(once, 160);   // the panel may be clamped to the screen and never reach that width
+  }
+
   // The slide: the page moves #main with CSS, the native panel moves the glass behind it the same way.
+  const REVEAL_DX = 26, REVEAL_IN = 0.3, REVEAL_OUT = 0.22;
   function startReveal(dir) {
     revealNext = null;
     const main = $("main");
-    const dx = els.root.classList.contains("side-right") ? 18 : -18;
-    main.classList.remove("reveal-in", "reveal-out");
+    const dx = els.root.classList.contains("side-right") ? REVEAL_DX : -REVEAL_DX;
+    main.classList.remove("reveal-in", "reveal-out", "reveal-pending");
     void main.offsetWidth;
     main.classList.add(dir === "in" ? "reveal-in" : "reveal-out");
     revealing = true;
-    if (bridge) bridge.postMessage({ type: "reveal", dir, dx, duration: dir === "in" ? 0.24 : 0.2 });
+    if (bridge) bridge.postMessage({ type: "reveal", dir, dx, duration: dir === "in" ? REVEAL_IN : REVEAL_OUT });
     clearTimeout(startReveal.t);
     startReveal.t = setTimeout(() => {
       revealing = false;
       if (dir === "in") main.classList.remove("reveal-in");
       if (layoutAfterReveal) { layoutAfterReveal = false; lastLayout = ""; queueLayout(); }
-    }, dir === "in" ? 260 : 220);
+    }, (dir === "in" ? REVEAL_IN : REVEAL_OUT) * 1000 + 20);
   }
 
   /// Tucks the conversation back into the icon with the slide.
@@ -1215,7 +1264,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (collapsed) return;
     if (!bridge) { collapse(); return; }
     startReveal("out");
-    setTimeout(() => { $("main").classList.remove("reveal-out"); collapse(); }, 210);
+    setTimeout(() => { $("main").classList.remove("reveal-out"); collapse(); }, REVEAL_OUT * 1000 - 10);
   }
 
   /// Esc / ✕: with "Keep Pip on screen" the conversation tucks into Pip, otherwise the popup closes.
@@ -1258,7 +1307,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (!presetList.hidden) { presetList.hidden = true; queueLayout(); scheduleTuck(); return; }
     bubble.hidden = true;
     let items = [];
-    try { items = await (await fetch(base + "presets", { cache: "no-store" })).json(); } catch (e) {}
+    try {
+      const res = await fetch(base + "presets", { cache: "no-store" });
+      if (res.status === 404) { sessionEnded(); return; }
+      items = await res.json();
+    } catch (e) {}
     $("plistItems").innerHTML = items.length ? items.map(p =>
       '<button type="button" class="pitem" data-id="' + esc(p.id) + '" data-provider="' + esc(p.provider) + '">'
       + '<span class="dot"></span><span class="pname">' + esc(p.title) + '</span>'
@@ -2223,16 +2276,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     while (true) {
       try {
         const res = await fetch(base + "state?v=" + version + (isTab ? "&tab=1" : ""), { cache: "no-store" });
-        if (res.status === 404) {
-          els.card.hidden = false;
-          if (!sizeKnown) applySize(30);
-          els.thread.innerHTML = '<div class="msg bot glass"><div class="a error">This popup session has ended. Press Esc and try again.</div></div>';
-          els.send.disabled = true;
-          queueLayout();
-          // Pip on screen: the app opens a fresh Pip in its place (the Logi popup helper keeps this message).
-          if (bridge && (startedAsPip || pinned)) bridge.postMessage({ type: "sessionEnded" });
-          return;
-        }
+        if (res.status === 404) { sessionEnded(); return; }
         state = await res.json();
         version = state.v;
         render();

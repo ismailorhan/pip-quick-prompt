@@ -70,6 +70,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private var webView: WKWebView!
     private var container: NSView!
     private var glassViews: [NSView] = []
+    /// Per glass view: part of the conversation (slides with it), not Pip's own glass.
+    private var glassInMain: [Bool] = []
     private var topLeft = NSPoint.zero
     private var visibleArea = NSRect.zero
     /// Where the Dock is (or slides in when auto-hidden) on the panel's screen; the panel stays off it.
@@ -227,8 +229,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             popupWidth = min(max(w.rounded(.up), 56), visibleArea.width - 16)
         }
         let height = min(max(requested.rounded(.up), 40), visibleArea.height * 0.85)
-        // The floating icon may sit right in a corner; the full popup keeps a small gap.
-        let frame = fit(NSRect(x: topLeft.x, y: topLeft.y - height, width: popupWidth, height: height), edge: isMini ? 0 : 8)
+        // The floating icon may sit right in a corner; the full popup keeps a small gap. Pip's toolbar opening
+        // on hover must not move Pip, so on its own Pip only stays on screen (it was kept off the Dock when dropped).
+        let frame = fit(NSRect(x: topLeft.x, y: topLeft.y - height, width: popupWidth, height: height), edge: isMini ? 0 : 8, avoidDock: !isMini)
         topLeft = NSPoint(x: frame.minX, y: frame.maxY)
         panel.setFrame(frame, display: true, animate: false)
         container.layoutSubtreeIfNeeded()
@@ -355,7 +358,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     /// Moves a frame inside the usable area and off the Dock.
-    private func fit(_ frame: NSRect, edge: CGFloat) -> NSRect {
+    private func fit(_ frame: NSRect, edge: CGFloat, avoidDock: Bool = true) -> NSRect {
         let area = visibleArea.insetBy(dx: edge, dy: edge)
         var f = frame
         func clamp() {
@@ -363,7 +366,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             f.origin.y = min(max(f.minY, area.minY), area.maxY - f.height)
         }
         clamp()
-        if let dock = dockArea?.insetBy(dx: -edge, dy: -edge), f.intersects(dock) {
+        if avoidDock, let dock = dockArea?.insetBy(dx: -edge, dy: -edge), f.intersects(dock) {
             // Step out of the Dock the shortest way that stays on screen.
             var options: [NSRect] = []
             var up = f; up.origin.y = dock.maxY; options.append(up)
@@ -435,20 +438,40 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         }
     }
 
-    /// Middle click on Pip: glide to the nearest screen edge (left, right, top or bottom), staying off the Dock.
+    /// Middle click on Pip. Away from the edges: glide to the nearest one. On an edge: go clockwise along it to
+    /// the next corner (bottom → bottom left, left → top left, top → top right, right → bottom right), so
+    /// clicking again goes round the corners. Always off the Dock.
     private func snapToNearestEdge() {
         updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
         let frame = panel.frame
+        // On an edge = it cannot move further that way (the screen edge, or the Dock's top / side).
+        func blocked(_ dx: CGFloat, _ dy: CGFloat) -> Bool {
+            let moved = fit(frame.offsetBy(dx: dx, dy: dy), edge: 0)
+            return abs(moved.minX - frame.minX) < 1 && abs(moved.minY - frame.minY) < 1
+        }
+        let left = blocked(-4, 0), right = blocked(4, 0), bottom = blocked(0, -4), top = blocked(0, 4)
+        let minX = visibleArea.minX, maxX = visibleArea.maxX - frame.width
+        let minY = visibleArea.minY, maxY = visibleArea.maxY - frame.height
         var target = frame
-        let distances: [(CGFloat, Int)] = [
-            (frame.minX - visibleArea.minX, 0), (visibleArea.maxX - frame.maxX, 1),
-            (frame.minY - visibleArea.minY, 2), (visibleArea.maxY - frame.maxY, 3),
-        ]
-        switch distances.min(by: { $0.0 < $1.0 })?.1 ?? 0 {
-        case 0: target.origin.x = visibleArea.minX
-        case 1: target.origin.x = visibleArea.maxX - frame.width
-        case 2: target.origin.y = visibleArea.minY
-        default: target.origin.y = visibleArea.maxY - frame.height
+        if left && !top {
+            target.origin = NSPoint(x: minX, y: maxY)          // up the left edge to the top left
+        } else if top && !right {
+            target.origin = NSPoint(x: maxX, y: maxY)          // along the top to the top right
+        } else if right && !bottom {
+            target.origin = NSPoint(x: maxX, y: minY)          // down the right edge to the bottom right
+        } else if bottom {
+            target.origin = NSPoint(x: minX, y: minY)          // along the bottom to the bottom left
+        } else {
+            let distances: [(CGFloat, Int)] = [
+                (frame.minX - visibleArea.minX, 0), (visibleArea.maxX - frame.maxX, 1),
+                (frame.minY - visibleArea.minY, 2), (visibleArea.maxY - frame.maxY, 3),
+            ]
+            switch distances.min(by: { $0.0 < $1.0 })?.1 ?? 0 {
+            case 0: target.origin.x = minX
+            case 1: target.origin.x = maxX
+            case 2: target.origin.y = minY
+            default: target.origin.y = maxY
+            }
         }
         target = fit(target, edge: 0)
         NSAnimationContext.runAnimationGroup({ context in
@@ -505,13 +528,15 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     /// Places one glass view behind each rectangle reported by the page (CSS pixels, top-left origin).
-    private func layoutGlass(_ rects: [[String: Any]]) {
+    /// pending: the conversation is about to slide in; its glass waits hidden for the "reveal" message.
+    private func layoutGlass(_ rects: [[String: Any]], pending: Bool) {
         let height = container.bounds.height
         while glassViews.count < rects.count {
             let view = makeGlassView()
             container.addSubview(view, positioned: .below, relativeTo: webView)
             glassViews.append(view)
         }
+        glassInMain = rects.map { ($0["m"] as? Bool) ?? true }
         for (index, view) in glassViews.enumerated() {
             guard index < rects.count else {
                 view.isHidden = true
@@ -524,7 +549,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             let h = CGFloat(r["h"] as? Double ?? 0)
             let radius = CGFloat(r["r"] as? Double ?? 0)
             view.isHidden = false
-            view.alphaValue = 1
+            view.alphaValue = pending && glassInMain[index] ? 0 : 1
             view.frame = NSRect(x: x, y: height - y - h, width: w, height: h)
             setCornerRadius(view, min(radius, min(w, h) / 2))
         }
@@ -594,7 +619,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                 }
             }
             if let rects = body["rects"] as? [[String: Any]] {
-                layoutGlass(rects)
+                layoutGlass(rects, pending: (body["pending"] as? Bool) ?? false)
             }
             show()
         case "close":
@@ -644,7 +669,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             let goingIn = (body["dir"] as? String) == "in"
             let dx = CGFloat(body["dx"] as? Double ?? 0)
             let duration = body["duration"] as? Double ?? 0.22
-            for view in glassViews where !view.isHidden {
+            for (index, view) in glassViews.enumerated() where !view.isHidden && index < glassInMain.count && glassInMain[index] {
                 let final = view.frame.origin
                 let offset = NSPoint(x: final.x + dx, y: final.y)
                 if goingIn {

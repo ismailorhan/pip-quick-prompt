@@ -103,7 +103,13 @@ clipboard.
 On `dev`, not built yet (3 Nov 2026): Pip left on screen overnight showed "This popup session has ended"
 in the morning, because sessions idle for 3 h were forgotten even while Pip's page was polling. Now a
 session a window is polling is kept; if one is lost anyway (long sleep), Pip asks the app to open a fresh
-Pip in its place. The engine log is now written to a file (see above).
+Pip in its place. The engine log is now written to a file (see above). The same lost session made Pip's
+template list say "No templates yet" (the built-ins are always there) and New Chat say "Still answering";
+any 404 now goes the same way. Also on `dev`: Pip no longer jumps sideways when its toolbar opens next to
+the Dock (the hover resize skips Dock avoidance); the conversation slides in only after the panel has its
+new size, and only the conversation's glass slides (26 px, 0.3 s in / 0.22 s out); middle click on an edge
+goes clockwise to the next corner. Open: in headless Chromium the page draws nothing for ~0.75 s after
+collapsing (no long script task, so rendering); not known whether WKWebView does the same.
 
 Known issue being fixed: the Accessibility prompt kept appearing because the TCC entry belonged to an older,
 ad-hoc signed copy. Fix: `tccutil reset Accessibility app.quickprompt.mac` (or the app's Reset button),
