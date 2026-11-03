@@ -308,6 +308,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return nil
     }
 
+    /// The engine's log: ~/Library/Logs/Quick Prompt/agent.log, appended to; over 1 MB it moves to agent.old.log.
+    private func agentLogHandle() -> FileHandle? {
+        let files = FileManager.default
+        guard let library = files.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
+        let folder = library.appendingPathComponent("Logs/Quick Prompt", isDirectory: true)
+        let log = folder.appendingPathComponent("agent.log")
+        try? files.createDirectory(at: folder, withIntermediateDirectories: true)
+        if let size = (try? files.attributesOfItem(atPath: log.path))?[.size] as? NSNumber, size.intValue > 1_000_000 {
+            let old = folder.appendingPathComponent("agent.old.log")
+            try? files.removeItem(at: old)
+            try? files.moveItem(at: log, to: old)
+        }
+        if !files.fileExists(atPath: log.path) {
+            files.createFile(atPath: log.path, contents: nil)
+        }
+        guard let handle = try? FileHandle(forWritingTo: log) else { return nil }
+        handle.seekToEndOfFile()
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        handle.write("--- Quick Prompt \(version) started the engine at \(Date())\n".data(using: .utf8)!)
+        return handle
+    }
+
     private func startAgent() {
         guard !quitting else { return }
         guard let executable = agentExecutable() else {
@@ -333,7 +355,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let output = Pipe()
         process.standardInput = input
         process.standardOutput = output
-        process.standardError = FileHandle.standardError
+        process.standardError = agentLogHandle() ?? FileHandle.standardError
 
         agentOutputBuffer = ""
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -482,6 +504,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let popup = PopupController(url: url)
         popup.onClosed = { [weak self] closed in
             self?.popups.removeAll { $0 === closed }
+        }
+        popup.onSessionEnded = { [weak self] in
+            self?.send("pip")   // the new Pip takes this popup's place
         }
         popups.append(popup)
         popup.open(at: anchor, bottomCenter: true)

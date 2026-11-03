@@ -930,15 +930,24 @@ namespace QuickPrompt.Core
             }
         }
 
-        private void Cleanup()
+        private void Cleanup() => this.RemoveStaleSessions(DateTime.UtcNow);
+
+        /// <summary>Forgets sessions that have been idle for three hours with no window looking at them.</summary>
+        public void RemoveStaleSessions(DateTime nowUtc)
         {
-            var cutoff = DateTime.UtcNow.AddHours(-3);
+            var cutoff = nowUtc.AddHours(-3);
+            var removed = 0;
             foreach (var pair in this._sessions)
             {
-                if (pair.Value.LastActivityUtc < cutoff && !pair.Value.IsBusy)
+                if (pair.Value.IsStale(cutoff) && this._sessions.TryRemove(pair.Key, out _))
                 {
-                    this._sessions.TryRemove(pair.Key, out _);
+                    removed++;
                 }
+            }
+
+            if (removed > 0)
+            {
+                this._host.Log($"Forgot {removed} idle session(s)");
             }
         }
 

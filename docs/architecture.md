@@ -6,7 +6,8 @@ Actions Ring button (Options+ action editor preset)
        │  HostBridge: clipboard, ⌘C/⌘V or Ctrl+C/V, notifications
        └─ QuickPrompt.Core (no Logitech dependency)
             ├─ ChatManager      runs a preset: read selection → start session → open popup / paste / copy
-            ├─ ChatSession      one popup = one conversation (history, streaming state, long-poll versioning)
+            ├─ ChatSession      one popup = one conversation (history, streaming state, long-poll versioning;
+            │                   forgotten after 3 h idle with no window polling it)
             ├─ ClaudeCliProvider  claude -p --output-format stream-json --tools "" …   (prompt on stdin)
             ├─ CodexCliProvider   codex exec --sandbox read-only --json --ephemeral -  (prompt on stdin)
             ├─ AnthropicApiProvider  Anthropic C# SDK, streamed, server-side refusal fallbacks

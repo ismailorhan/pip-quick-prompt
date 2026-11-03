@@ -2229,6 +2229,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           els.thread.innerHTML = '<div class="msg bot glass"><div class="a error">This popup session has ended. Press Esc and try again.</div></div>';
           els.send.disabled = true;
           queueLayout();
+          // Pip on screen: the app opens a fresh Pip in its place (the Logi popup helper keeps this message).
+          if (bridge && (startedAsPip || pinned)) bridge.postMessage({ type: "sessionEnded" });
           return;
         }
         state = await res.json();

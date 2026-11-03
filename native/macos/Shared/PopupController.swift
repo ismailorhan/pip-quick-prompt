@@ -64,6 +64,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     let url: URL
     /// Called once the popup has closed (the app forgets it; the helper quits).
     var onClosed: ((PopupController) -> Void)?
+    /// Called when the engine no longer knows this popup's session (the app opens a fresh Pip).
+    var onSessionEnded: (() -> Void)?
     private var panel: PopupPanel!
     private var webView: WKWebView!
     private var container: NSView!
@@ -597,6 +599,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             show()
         case "close":
             close()
+        case "sessionEnded":
+            onSessionEnded?()
         case "drag":
             startDrag()
         case "mode":

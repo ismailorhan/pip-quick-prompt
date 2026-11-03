@@ -32,6 +32,8 @@ namespace QuickPrompt.Core
         private Int64 _version = 1;
         private String _status = "";
         private Boolean _busy;
+        private Int32 _watchers;
+        private DateTime _lastSeenUtc = DateTime.UtcNow;
 
         public ChatSession(IAiProvider provider, Func<QuickPromptSettings> settings)
         {
@@ -197,6 +199,18 @@ namespace QuickPrompt.Core
         }
 
         public DateTime LastActivityUtc { get; private set; }
+
+        /// <summary>
+        /// True when nothing has happened for a while and no window is looking at the session. A window that is
+        /// open polls the state all the time, so Pip (or a popup) left on screen overnight keeps its session.
+        /// </summary>
+        public Boolean IsStale(DateTime cutoffUtc)
+        {
+            lock (this._lock)
+            {
+                return !this._busy && this._watchers == 0 && this.LastActivityUtc < cutoffUtc && this._lastSeenUtc < cutoffUtc;
+            }
+        }
 
         public Boolean IsBusy
         {
@@ -405,21 +419,37 @@ namespace QuickPrompt.Core
             }
         }
 
-        /// <summary>Waits until the session changes past <paramref name="sinceVersion"/> or the timeout passes.</summary>
+        /// <summary>
+        /// Waits until the session changes past <paramref name="sinceVersion"/> or the timeout passes. A window is
+        /// watching the session while it waits (also while the Mac sleeps with the request open).
+        /// </summary>
         public async Task WaitForChangeAsync(Int64 sinceVersion, TimeSpan timeout, CancellationToken cancellationToken)
         {
             Task changed;
             lock (this._lock)
             {
+                this._lastSeenUtc = DateTime.UtcNow;
                 if (this._version > sinceVersion)
                 {
                     return;
                 }
 
                 changed = this._changed.Task;
+                this._watchers++;
             }
 
-            await Task.WhenAny(changed, Task.Delay(timeout, cancellationToken)).ConfigureAwait(false);
+            try
+            {
+                await Task.WhenAny(changed, Task.Delay(timeout, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (this._lock)
+                {
+                    this._watchers--;
+                    this._lastSeenUtc = DateTime.UtcNow;
+                }
+            }
         }
 
         public String ToJson(Boolean isAppWindow)

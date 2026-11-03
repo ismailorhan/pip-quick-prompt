@@ -54,6 +54,10 @@ Popup page: one HTML/JS page (src/QuickPrompt.Core/ChatPage.cs) in a WKWebView; 
   `{name}` and `{name:a|b}` (fields asked in a form). On/off, export/import (`.json`).
 - Data: `~/Library/Application Support/Quick Prompt` (settings.json, history/, actions.json, presets.json);
   API keys in the macOS Keychain (service "Quick Prompt").
+- Engine log: `~/Library/Logs/Quick Prompt/agent.log` (the agent's stderr, written by the app; over 1 MB it
+  moves to `agent.old.log`). Look here first when the owner reports something odd.
+- Swift can be type-checked on the owner's Mac (Xcode is installed):
+  `cd native/macos && swiftc -typecheck -swift-version 5 -target arm64-apple-macos12.0 App/main.swift App/Updater.swift Shared/PopupController.swift`.
 
 Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 
@@ -95,6 +99,11 @@ Not yet confirmed on the owner's Mac (built, untested): faster shortcut, popup p
 Copy/Paste, Pip after Paste, middle-click snap, stacked view, bubble ✕, first-click on Pip, the own
 Accessibility dialog with "Reset and Open Settings", template export/import dialogs, pictures from the
 clipboard.
+
+On `dev`, not built yet (3 Nov 2026): Pip left on screen overnight showed "This popup session has ended"
+in the morning, because sessions idle for 3 h were forgotten even while Pip's page was polling. Now a
+session a window is polling is kept; if one is lost anyway (long sleep), Pip asks the app to open a fresh
+Pip in its place. The engine log is now written to a file (see above).
 
 Known issue being fixed: the Accessibility prompt kept appearing because the TCC entry belonged to an older,
 ad-hoc signed copy. Fix: `tccutil reset Accessibility app.quickprompt.mac` (or the app's Reset button),
