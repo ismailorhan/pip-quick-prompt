@@ -124,6 +124,12 @@ v0.3.42 (measured with the real PopupController in a test app, see `docs/develop
 there; the method is in Hindsight): Pip no longer drifts on hover (its place is the truth, the panel follows),
 corners place Pip itself, the toolbar keeps its size and morphs its glass (empty parts let clicks through),
 and a snapshot of Pip covers the web view while the panel resizes (no sideways jump).
+On `dev` after v0.3.42 (4 Nov 2026): Pip stays under the Dock (level just below it) and a Dock that does not
+hide is the screen's edge; near the bottom the templates list and bubble open upward; the open/close blink is
+gone (freeze now waits: the page asks, the native side takes the snapshot of the unchanged page, shows it in a
+separate still window, hides the web view, then answers `__quickPromptFrozen`; WKWebView snapshots taken while
+the page is changing come back wrong, and CGWindowListCreateImage was not used because of the screen-recording
+permission).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run it.
 
 ## Open items / ideas

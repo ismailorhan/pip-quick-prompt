@@ -60,6 +60,11 @@ final class ClickThroughWebView: WKWebView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+extension PopupController {
+    /// Just under the Dock: above other apps and their floating windows, never over the Dock.
+    static let belowDock = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.dockWindow)) - 1)
+}
+
 final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     let url: URL
     /// Called once the popup has closed (the app forgets it; the helper quits).
@@ -218,6 +223,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         }
         dragTimer?.invalidate()
         hoverTimer?.invalidate()
+        frozenWindow?.orderOut(nil)
+        frozenWindow = nil
         panel?.orderOut(nil)
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "quickPrompt")
         webView?.stopLoading()
@@ -267,7 +274,6 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         topLeft = NSPoint(x: frame.minX, y: frame.maxY)
         panel.setFrame(frame, display: true, animate: false)
         container.layoutSubtreeIfNeeded()
-        placeFrozenView()
     }
 
     /// Moves the panel with the mouse until the button is released (started by the page on mouse down).
@@ -313,6 +319,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         let autohide = defaults?.bool(forKey: "autohide") == true
         var area = full
         area.size.height = visible.maxY - full.minY   // below the menu bar
+        if !autohide {
+            // A Dock that stays on screen is the edge: Pip stops at its top (or side).
+            area = visible
+        }
 
         // The Dock's real size and place, read through Accessibility (the app has that permission).
         if let tiles = dockTilesFrame() {
@@ -679,11 +689,6 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: Any] else { return }
-        // While Pip's picture is being taken, later messages (the resize) wait, so they land after it.
-        if freezing {
-            heldMessages.append(body)
-            return
-        }
         handle(body)
     }
 
@@ -691,63 +696,59 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     //
     // After a resize WKWebView shows its old picture for a few frames, pinned to the panel's top left, so
     // when the conversation opens (the panel grows to Pip's left) or tucks away, Pip jumps sideways for a
-    // moment. The page asks for a "freeze" first: a snapshot of Pip goes over the web view at Pip's place on
-    // screen, the web view hides, the resize happens, and "thaw" (sent once the page is drawn at its new
-    // size) brings the web view back.
+    // moment. Before such a change the page asks for a "freeze" and waits: a snapshot of Pip (taken while
+    // the page is still unchanged) goes into a small window of its own at Pip's place, the web view hides,
+    // and the page is told to go on. "thaw" (sent once the page is drawn at its new size) brings the web
+    // view back. The picture has its own window because one inside the panel would move with it: macOS
+    // moves a window at once but its views only with the next frame.
 
-    private var freezing = false
-    private var heldMessages: [[String: Any]] = []
-    private var frozenView: NSImageView?
-    private var frozenScreenRect: NSRect?
+    private var frozenWindow: NSWindow?
 
     private func freeze(_ rect: [String: Any]) {
-        guard frozenView == nil, let webView = webView else { return }
+        let goOn: () -> Void = { [weak self] in
+            self?.webView?.evaluateJavaScript("window.__quickPromptFrozen && window.__quickPromptFrozen()", completionHandler: nil)
+        }
         let r = NSRect(x: rect["x"] as? Double ?? 0, y: rect["y"] as? Double ?? 0, width: rect["w"] as? Double ?? 0, height: rect["h"] as? Double ?? 0)
-        guard r.width > 0, r.height > 0 else { return }
-        freezing = true
+        guard frozenWindow == nil, let webView = webView, r.width > 0, r.height > 0 else { goOn(); return }
+        // With Pip's shadow, and on whole points so the picture sits exactly where Pip is.
         let screenRect = NSRect(x: panel.frame.minX + r.minX, y: panel.frame.maxY - r.maxY, width: r.width, height: r.height)
+            .insetBy(dx: -12, dy: -12).integral
         let config = WKSnapshotConfiguration()
-        config.rect = r   // the web view's own (top-left) coordinates
+        config.rect = NSRect(x: screenRect.minX - panel.frame.minX, y: panel.frame.maxY - screenRect.maxY,
+                             width: screenRect.width, height: screenRect.height)   // the web view's top-left coordinates
         webView.takeSnapshot(with: config) { [weak self] image, _ in
             guard let self = self else { return }
-            if let image = image, !self.closing {
-                let view = NSImageView(frame: .zero)
-                view.image = image
-                view.imageScaling = .scaleAxesIndependently
-                self.container.addSubview(view, positioned: .above, relativeTo: webView)
-                self.frozenView = view
-                self.frozenScreenRect = screenRect
-                self.placeFrozenView()
-                webView.alphaValue = 0
-                // Never stay frozen if "thaw" does not come.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.thaw() }
-            }
-            self.freezing = false
-            let held = self.heldMessages
-            self.heldMessages.removeAll()
-            held.forEach { self.handle($0) }
+            guard let image = image, !self.closing else { goOn(); return }
+            let window = NSWindow(contentRect: screenRect, styleMask: .borderless, backing: .buffered, defer: false)
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.hasShadow = false
+            window.ignoresMouseEvents = true
+            window.isReleasedWhenClosed = false
+            window.level = self.panel.level
+            window.collectionBehavior = self.panel.collectionBehavior
+            let view = NSImageView(frame: NSRect(origin: .zero, size: screenRect.size))
+            view.image = image
+            view.imageScaling = .scaleAxesIndependently
+            window.contentView = view
+            window.order(.above, relativeTo: self.panel.windowNumber)
+            self.frozenWindow = window
+            webView.alphaValue = 0
+            CATransaction.flush()
+            // The page changes (and the panel resizes) once the hidden web view is on screen.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { goOn() }
+            // Never stay frozen if "thaw" does not come.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.thaw() }
         }
-        // A snapshot that never returns must not hold the page's messages.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            guard let self = self, self.freezing else { return }
-            self.freezing = false
-            let held = self.heldMessages
-            self.heldMessages.removeAll()
-            held.forEach { self.handle($0) }
-        }
-    }
-
-    private func placeFrozenView() {
-        guard let view = frozenView, let r = frozenScreenRect else { return }
-        view.frame = NSRect(x: r.minX - panel.frame.minX, y: r.minY - panel.frame.minY, width: r.width, height: r.height)
     }
 
     private func thaw() {
-        guard let view = frozenView else { return }
+        guard let window = frozenWindow else { return }
+        frozenWindow = nil
         webView?.alphaValue = 1
-        view.removeFromSuperview()
-        frozenView = nil
-        frozenScreenRect = nil
+        CATransaction.flush()
+        // The picture goes a frame later, once the web view shows Pip again (no gap between them).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { window.orderOut(nil) }
     }
 
     private func handle(_ body: [String: Any]) {
@@ -878,8 +879,9 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             }
         case "pin":
             pinned = (body["value"] as? Bool) ?? false
-            // Pinned: above other apps' floating windows too, on every Space and over full-screen apps.
-            panel.level = pinned ? .statusBar : .floating
+            // Pinned: above other apps' floating windows too, on every Space and over full-screen apps, but
+            // under the Dock (the Dock always stays on top).
+            panel.level = pinned ? PopupController.belowDock : .floating
         default:
             break
         }

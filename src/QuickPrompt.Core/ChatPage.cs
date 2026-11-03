@@ -333,6 +333,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .mini.tb-above { flex-direction: column-reverse; }
 .mini.tb-start { align-items: flex-start; }
 .mini.tb-end { align-items: flex-end; }
+/* Near the bottom the templates list and the answer bubble beside Pip line up with its bottom (they open upward). */
+#root.is-mini.pip-bottom { align-items: flex-end; }
+#root.pip-bottom .plist { margin-top: 0; margin-bottom: 6px; }
+#root.pip-bottom .bubble { margin-top: 0; margin-bottom: 10px; }
 .plist { width: 250px; border-radius: 18px; padding: 8px 6px; margin-top: 6px; }
 .plist .ptitle { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 2px 10px 6px; }
 .pitem { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border-radius: 12px; padding: 7px 10px; text-align: left; }
@@ -1228,7 +1232,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let lastBusy = false;
 
   function collapse() {
-    if (!collapsed) { freezePip(); thawNext = true; }
+    if (!collapsed && bridge && !collapse.now) {
+      freezePip(() => { collapse.now = true; try { thawNext = true; collapse(); } finally { collapse.now = false; } });
+      return;
+    }
     collapsed = true;
     setTimeout(() => globe.start(), 0);
     bubble.hidden = true;
@@ -1245,17 +1252,32 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) tuckBar(); }, 3000);
   }
 
-  // Before the panel changes size: the native side puts a picture of Pip over the web view (its old
-  // frames would make Pip jump sideways), and takes it away once the page is drawn at the new size.
-  function freezePip() {
-    if (!bridge || mini.hidden) return;
+  // Before a change that resizes the panel: the native side puts a picture of Pip over the web view (its
+  // old frames would make Pip jump sideways) and calls back; only then does the page change (next), and
+  // once it is drawn at the new size the picture goes (thawPip). The picture is taken while the page is
+  // still unchanged, so the change waits for it.
+  let freezePending = false;
+  function freezePip(next) {
+    if (!bridge || mini.hidden) { next(); return; }
+    if (freezePending) return;   // a change is already on its way
+    freezePending = true;
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      freezePending = false;
+      window.__quickPromptFrozen = null;
+      next();
+    };
+    window.__quickPromptFrozen = go;
+    setTimeout(go, 150);   // never wait longer than this
     const r = $("miniOpen").getBoundingClientRect();
     bridge.postMessage({ type: "freeze", icon: { x: r.left, y: r.top, w: r.width, h: r.height } });
   }
   function thawPip() { if (bridge) bridge.postMessage({ type: "thaw" }); }
 
   function expand() {
-    if (collapsed) freezePip();
+    if (collapsed && bridge && !expand.now) { freezePip(() => { expand.now = true; try { expand(); } finally { expand.now = false; } }); return; }
     collapsed = false;
     mini.hidden = !bridge;   // in the native popup the icon stays beside the conversation
     setTimeout(() => globe.start(), 0);
@@ -1402,7 +1424,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   $("miniRecent").addEventListener("click", () => { expand(); openHistory(false); });
 
   async function togglePresets() {
-    if (!presetList.hidden) { presetList.hidden = true; queueLayout(); scheduleTuck(); return; }
+    // The list resizes the panel: Pip's picture covers the web view meanwhile (see freezePip).
+    if (!presetList.hidden) { freezePip(() => { thawNext = true; presetList.hidden = true; lastLayout = ""; queueLayout(); scheduleTuck(); }); return; }
     bubble.hidden = true;
     let items = [];
     try {
@@ -1415,9 +1438,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       + '<span class="dot"></span><span class="pname">' + esc(p.title) + '</span>'
       + '<span class="pmeta">' + esc(p.providerName) + (p.connection === "api" ? " · API" : "") + '</span></button>').join("")
       : '<div class="hempty">No templates yet.</div>';
-    presetList.hidden = false;
-    clearTimeout(tuckTimer);
-    queueLayout();
+    freezePip(() => {
+      thawNext = true;
+      presetList.hidden = false;
+      clearTimeout(tuckTimer);
+      lastLayout = ""; queueLayout();
+    });
   }
   $("miniActions").addEventListener("click", togglePresets);
   $("plistEdit").addEventListener("click", () => { presetList.hidden = true; expand(); openActions(false); });
@@ -1506,6 +1532,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     mini.classList.toggle("tb-start", start);
     mini.classList.toggle("tb-end", end);
     mini.classList.toggle("tb-above", above);
+    els.root.classList.toggle("pip-bottom", above);
     if (changed) { lastLayout = ""; queueLayout(); }
   };
   if (bridge) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
