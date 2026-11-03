@@ -318,12 +318,19 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .msg .actions { gap: 2px; margin-top: 6px; }
 .minibar button:hover { background: var(--faint); }
 .minibar .sep { width: 1px; height: 16px; background: var(--faint); }
-.minibar { transition: padding .25s ease, width .25s ease, height .25s ease; overflow: hidden; }
-.minibar.tucked { padding: 0; width: 34px; height: 6px; margin-top: -4px; cursor: pointer; }
-.minibar.tucked > * { display: none; }
+/* Tucked, the toolbar keeps its size (so the panel never resizes on hover); only its glass shrinks to a
+   thin line (the page reports the line's rect) and its buttons hide. */
+.minibar { overflow: hidden; }
+.minibar.tucked { cursor: pointer; }
+.minibar.tucked > * { visibility: hidden; }
+/* Opening and tucking: the native glass grows from the line (and shrinks back), the buttons fade. */
+@keyframes qp-bar-in { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+@keyframes qp-bar-out { to { opacity: 0; transform: scale(.85); } }
+.minibar.opening > * { animation: qp-bar-in .22s cubic-bezier(.2, .8, .2, 1) .07s both; }
+.minibar.closing > * { animation: qp-bar-out .14s ease-in both; }
+@media (prefers-reduced-motion: reduce) { .minibar.opening > *, .minibar.closing > * { animation-duration: .01s; } }
 /* Near the screen's bottom the toolbar opens above Pip; near a side it lines up with Pip on that side. */
 .mini.tb-above { flex-direction: column-reverse; }
-.mini.tb-above .minibar.tucked { margin-top: 0; margin-bottom: -4px; }
 .mini.tb-start { align-items: flex-start; }
 .mini.tb-end { align-items: flex-end; }
 .plist { width: 250px; border-radius: 18px; padding: 8px 6px; margin-top: 6px; }
@@ -714,6 +721,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   let layoutQueued = false, lastLayout = "", layoutAfterReveal = false;
+  let thawNext = false;   // after this layout: show the web view again once it is drawn at the new size
+  let barOpening = false;   // the toolbar is opening: the next layout lets its glass grow from the line
   let revealing = false, revealNext = null;
   function queueLayout() {
     if (!bridge || layoutQueued || !sizeKnown) return;
@@ -728,12 +737,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const rects = [...document.querySelectorAll(".glass")]
         .filter(el => !el.hidden && el.offsetParent !== null && !(scrolling && els.thread.contains(el)))
         .map(el => {
-          const r = el.getBoundingClientRect();
+          let r = el.getBoundingClientRect();
+          // Pip's toolbar tucked: its glass is just the thin line.
+          if (el.id === "minibar" && el.classList.contains("tucked")) { const l = barLine(r); r = { left: l.x, top: l.y, width: l.w, height: l.h, bottom: l.y + l.h }; }
           let top = r.top, bottom = r.bottom;
           // Bubbles scroll inside the thread: only the visible part gets native glass.
           if (els.thread.contains(el)) { top = Math.max(top, view.top); bottom = Math.min(bottom, view.bottom); }
           // m: part of the conversation, which slides; Pip's own glass stays still.
-          return { x: r.left, y: top, w: r.width, h: Math.max(0, bottom - top), r: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.height / 2), m: main.contains(el) };
+          const rect = { x: r.left, y: top, w: r.width, h: Math.max(0, bottom - top), r: Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, r.height / 2), m: main.contains(el) };
+          // The toolbar opening: its glass grows out of the line it was.
+          if (el.id === "minibar") rect.bar = true;
+          if (el.id === "minibar" && barOpening && !el.classList.contains("tucked")) rect.from = barLine(r);
+          return rect;
         })
         .filter(r => r.h > 1);
       const box = els.root.getBoundingClientRect();
@@ -752,8 +767,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const key = JSON.stringify([width, height, rects, anchorX, anchorY, pending]);
       if (key === lastLayout) return;
       lastLayout = key;
-      bridge.postMessage({ type: "layout", width, height, rects, anchorX, anchorY, pending });
+      // Where the panel takes clicks while Pip is on its own (elsewhere they go to the app behind).
+      const hits = collapsed && icon ? [...rects.map(r => ({ x: r.x, y: r.y, w: r.w, h: r.h })), { x: icon.left, y: icon.top, w: icon.width, h: icon.height }] : null;
+      bridge.postMessage({ type: "layout", width, height, rects, anchorX, anchorY, pending, iconR: icon ? icon.width / 2 : null, hits });
+      barOpening = false;
       if (revealNext) startRevealWhenSized(revealNext, width);
+      if (thawNext) { thawNext = false; whenSized(width, thawPip); }
     });
   }
   const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;
@@ -1209,6 +1228,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let lastBusy = false;
 
   function collapse() {
+    if (!collapsed) { freezePip(); thawNext = true; }
     collapsed = true;
     setTimeout(() => globe.start(), 0);
     bubble.hidden = true;
@@ -1222,10 +1242,20 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     queueLayout();
     $("minibar").classList.remove("tucked");
     clearTimeout(window.__qpTuck);
-    window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) { $("minibar").classList.add("tucked"); queueLayout(); } }, 3000);
+    window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) tuckBar(); }, 3000);
   }
 
+  // Before the panel changes size: the native side puts a picture of Pip over the web view (its old
+  // frames would make Pip jump sideways), and takes it away once the page is drawn at the new size.
+  function freezePip() {
+    if (!bridge || mini.hidden) return;
+    const r = $("miniOpen").getBoundingClientRect();
+    bridge.postMessage({ type: "freeze", icon: { x: r.left, y: r.top, w: r.width, h: r.height } });
+  }
+  function thawPip() { if (bridge) bridge.postMessage({ type: "thaw" }); }
+
   function expand() {
+    if (collapsed) freezePip();
     collapsed = false;
     mini.hidden = !bridge;   // in the native popup the icon stays beside the conversation
     setTimeout(() => globe.start(), 0);
@@ -1256,7 +1286,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // so nothing reflows mid-slide.
   function startRevealWhenSized(dir, width) {
     revealNext = null;
-    const go = () => requestAnimationFrame(() => requestAnimationFrame(() => startReveal(dir)));
+    whenSized(width, () => startReveal(dir));
+  }
+  // Runs fn once the page has the new width and has drawn two frames at it.
+  function whenSized(width, fn) {
+    const go = () => requestAnimationFrame(() => requestAnimationFrame(fn));
     if (Math.abs(window.innerWidth - width) < 2) { go(); return; }
     let started = false;
     const once = () => {
@@ -1278,6 +1312,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     main.classList.remove("reveal-in", "reveal-out", "reveal-pending");
     void main.offsetWidth;
     main.classList.add(dir === "in" ? "reveal-in" : "reveal-out");
+    if (dir === "in") thawPip();
     revealing = true;
     if (bridge) bridge.postMessage({ type: "reveal", dir, dx, duration: dir === "in" ? REVEAL_IN : REVEAL_OUT });
     clearTimeout(startReveal.t);
@@ -1316,14 +1351,47 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let tuckTimer = null;
   function scheduleTuck() {
     clearTimeout(tuckTimer);
-    tuckTimer = setTimeout(() => {
-      if (collapsed && presetList.hidden) { minibar.classList.add("tucked"); queueLayout(); }
-    }, 3000);
+    tuckTimer = setTimeout(() => { if (collapsed && presetList.hidden) tuckBar(); }, 3000);
+  }
+  // Where the thin line sits for a toolbar rect (page pixels): under it, or over it when it opens above,
+  // lined up like the toolbar.
+  function barLine(r) {
+    const z = parseFloat(getComputedStyle(mini).zoom) || 1, w = 34 * z, h = 6 * z;
+    const x = mini.classList.contains("tb-start") ? r.left : mini.classList.contains("tb-end") ? r.right - w : r.left + (r.width - w) / 2;
+    const y = mini.classList.contains("tb-above") ? r.bottom - h : r.top;
+    return { x, y, w, h };
+  }
+  // The toolbar's glass shrinks into the line while its buttons fade, then the panel gets its new size.
+  function tuckBar() {
+    clearTimeout(tuckBar.t);
+    if (minibar.classList.contains("tucked") || minibar.classList.contains("closing")) return;
+    if (!bridge) { minibar.classList.add("tucked"); queueLayout(); return; }
+    minibar.classList.remove("opening");
+    minibar.classList.add("closing");
+    bridge.postMessage({ type: "barOut", to: barLine(minibar.getBoundingClientRect()), duration: 0.16 });
+    tuckBar.t = setTimeout(() => {
+      minibar.classList.remove("closing");
+      minibar.classList.add("tucked");
+      lastLayout = ""; queueLayout();
+    }, 170);
   }
   function untuck() {
     clearTimeout(tuckTimer);
     clearTimeout(window.__qpTuck);   // the tuck after collapsing must not fire under the mouse either
-    if (minibar.classList.contains("tucked")) { minibar.classList.remove("tucked"); queueLayout(); }
+    if (minibar.classList.contains("closing")) {
+      // Back while it was tucking: open again where it is.
+      clearTimeout(tuckBar.t);
+      minibar.classList.remove("closing");
+      barOpening = true; lastLayout = ""; queueLayout();
+      return;
+    }
+    if (!minibar.classList.contains("tucked")) return;
+    minibar.classList.remove("tucked");
+    minibar.classList.remove("opening"); void minibar.offsetWidth; minibar.classList.add("opening");
+    clearTimeout(untuck.t);
+    untuck.t = setTimeout(() => minibar.classList.remove("opening"), 320);
+    barOpening = true;
+    queueLayout();
   }
   mini.addEventListener("mouseenter", untuck);
   mini.addEventListener("mouseleave", scheduleTuck);
@@ -1427,7 +1495,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let toolbarSize = null;
   window.__quickPromptEdges = edges => {
     const bar = $("minibar"), icon = $("miniOpen").getBoundingClientRect();
-    if (!bar.classList.contains("tucked") && bar.offsetWidth) toolbarSize = { w: bar.getBoundingClientRect().width, h: bar.getBoundingClientRect().height };
+    if (bar.offsetWidth) toolbarSize = { w: bar.getBoundingClientRect().width, h: bar.getBoundingClientRect().height };
     const zoom = parseFloat(getComputedStyle(mini).zoom) || 1;
     const size = toolbarSize || { w: 124 * zoom, h: 38 * zoom };
     const half = size.w / 2 + 6;

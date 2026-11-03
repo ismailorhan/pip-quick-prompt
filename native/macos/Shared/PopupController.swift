@@ -72,6 +72,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private var glassViews: [NSView] = []
     /// Per glass view: part of the conversation (slides with it), not Pip's own glass.
     private var glassInMain: [Bool] = []
+    /// Which glass view is behind Pip's toolbar (it grows from / shrinks to the thin line).
+    private var barGlassIndex: Int?
     private var topLeft = NSPoint.zero
     private var visibleArea = NSRect.zero
     /// Where the Dock is (or slides in when auto-hidden) on the panel's screen; the panel stays off it.
@@ -98,6 +100,24 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private var iconScreenX: CGFloat?
     private var lastAnchorY: CGFloat?
     private var iconScreenY: CGFloat?
+    /// While Pip is on its own: the parts of the page that take clicks (page coordinates, top-left origin).
+    private var hitRects: [NSRect]?
+    /// Pip's radius in points (the page reports it with each layout).
+    private var iconRadius: CGFloat = 28
+
+    /// What a drop, throw or middle click places: Pip itself while it is on its own (its toolbar then opens
+    /// inward, so Pip can sit right in a corner), the whole popup while the conversation is open.
+    private var moveSubject: NSRect {
+        // From the panel's frame (a drag moves the panel, not iconScreenX).
+        guard isMini, let ax = lastAnchorX, let ay = lastAnchorY else { return panel.frame }
+        let x = panel.frame.minX + ax, y = panel.frame.maxY - ay
+        return NSRect(x: x - iconRadius, y: y - iconRadius, width: iconRadius * 2, height: iconRadius * 2)
+    }
+
+    /// The panel frame that puts the move subject at `target`.
+    private func panelFrame(movingSubject subject: NSRect, to target: NSRect) -> NSRect {
+        panel.frame.offsetBy(dx: target.minX - subject.minX, dy: target.minY - subject.minY)
+    }
     /// Which side of the conversation the icon sits on: away from the nearer screen edge.
     private var side = "left"
 
@@ -208,6 +228,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         hoverTimer?.invalidate()
         hoverTimer = nil
         mouseInside = false
+        panel?.ignoresMouseEvents = false
         guard on else { return }
         let timer = Timer(timeInterval: 0.08, target: self, selector: #selector(hoverTick(_:)), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
@@ -216,7 +237,16 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
 
     @objc private func hoverTick(_ timer: Timer) {
         guard let panel = panel, panel.isVisible, dragTimer == nil else { return }
-        let inside = NSMouseInRect(NSEvent.mouseLocation, panel.frame, false)
+        let mouse = NSEvent.mouseLocation
+        let inside = NSMouseInRect(mouse, panel.frame, false)
+        // Pip on its own keeps room for its toolbar: clicks on the empty part go to the app behind.
+        if let hits = hitRects {
+            let point = NSPoint(x: mouse.x - panel.frame.minX, y: panel.frame.maxY - mouse.y)   // page coordinates
+            let onSomething = inside && hits.contains { $0.insetBy(dx: -3, dy: -3).contains(point) }
+            if panel.ignoresMouseEvents == onSomething {
+                panel.ignoresMouseEvents = !onSomething
+            }
+        }
         if inside != mouseInside {
             mouseInside = inside
             webView?.evaluateJavaScript("window.__quickPromptHover && window.__quickPromptHover(\(inside))", completionHandler: nil)
@@ -229,12 +259,15 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             popupWidth = min(max(w.rounded(.up), 56), visibleArea.width - 16)
         }
         let height = min(max(requested.rounded(.up), 40), visibleArea.height * 0.85)
-        // The floating icon may sit right in a corner; the full popup keeps a small gap. Pip's toolbar opening
-        // on hover must not move Pip, so on its own Pip only stays on screen (it was kept off the Dock when dropped).
-        let frame = fit(NSRect(x: topLeft.x, y: topLeft.y - height, width: popupWidth, height: height), edge: isMini ? 0 : 8, avoidDock: !isMini)
+        // The full popup stays on screen with a small gap. Pip on its own is never pushed: it was placed on
+        // screen and off the Dock when dropped, and near an edge its toolbar opens inward (reportEdges), so
+        // pushing the panel would only move Pip away from the edge while the toolbar opens or turns.
+        let requested = NSRect(x: topLeft.x, y: topLeft.y - height, width: popupWidth, height: height)
+        let frame = isMini ? requested : fit(requested, edge: 8)
         topLeft = NSPoint(x: frame.minX, y: frame.maxY)
         panel.setFrame(frame, display: true, animate: false)
         container.layoutSubtreeIfNeeded()
+        placeFrozenView()
     }
 
     /// Moves the panel with the mouse until the button is released (started by the page on mouse down).
@@ -387,7 +420,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private func finishDrag(_ samples: [(time: TimeInterval, point: NSPoint)]) {
         updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
         let screen = visibleArea
-        let frame = panel.frame
+        let frame = moveSubject
         let margin: CGFloat = 0
         var target = frame
 
@@ -407,10 +440,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             }
         }
 
-        // Always end fully on screen and off the Dock.
-        target = fit(target, edge: 0)
+        // Always end fully on screen and off the Dock (Pip itself while it is on its own).
+        target = panelFrame(movingSubject: frame, to: fit(target, edge: 0))
 
-        if target.origin != frame.origin {
+        if target.origin != panel.frame.origin {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.28
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -443,7 +476,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// clicking again goes round the corners. Always off the Dock.
     private func snapToNearestEdge() {
         updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
-        let frame = panel.frame
+        let frame = moveSubject   // Pip itself on its own: it goes right into the corner
         // On an edge = it cannot move further that way (the screen edge, or the Dock's top / side).
         func blocked(_ dx: CGFloat, _ dy: CGFloat) -> Bool {
             let moved = fit(frame.offsetBy(dx: dx, dy: dy), edge: 0)
@@ -473,16 +506,17 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             default: target.origin.y = maxY
             }
         }
-        target = fit(target, edge: 0)
+        target = panelFrame(movingSubject: frame, to: fit(target, edge: 0))
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.28
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             self.panel.animator().setFrame(target, display: true)
         }, completionHandler: { [weak self] in
             guard let self = self else { return }
-            self.topLeft = NSPoint(x: self.panel.frame.minX, y: self.panel.frame.maxY)
-            if let anchor = self.lastAnchorX { self.iconScreenX = self.panel.frame.minX + anchor }
-            if let anchorY = self.lastAnchorY { self.iconScreenY = self.panel.frame.maxY - anchorY }
+            // From the requested frame, not the (rounded) one macOS placed.
+            self.topLeft = NSPoint(x: target.minX, y: target.maxY)
+            if let anchor = self.lastAnchorX { self.iconScreenX = target.minX + anchor }
+            if let anchorY = self.lastAnchorY { self.iconScreenY = target.maxY - anchorY }
             if self.isMini { self.miniTopLeft = self.topLeft }
             self.updateSide()
             if let point = self.iconPoint {
@@ -578,10 +612,32 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             let radius = CGFloat(r["r"] as? Double ?? 0)
             view.isHidden = false
             view.alphaValue = pending && glassInMain[index] ? 0 : 1
-            view.frame = NSRect(x: x, y: height - y - h, width: w, height: h)
+            let final = NSRect(x: x, y: height - y - h, width: w, height: h)
+            if (r["bar"] as? Bool) == true {
+                barGlassIndex = index
+            }
+            if let from = r["from"] as? [String: Any] {
+                // Pip's toolbar opening: its glass grows out of the thin line.
+                view.frame = pageRect(from, height: height)
+                setCornerRadius(view, min(radius, min(w, h) / 2))
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.22
+                    context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
+                    view.animator().frame = final
+                }
+                continue
+            }
+            view.frame = final
             setCornerRadius(view, min(radius, min(w, h) / 2))
         }
         panel.invalidateShadow()
+    }
+
+    /// A rect from the page ({x, y, w, h}, CSS pixels from the top left) in the container's coordinates.
+    private func pageRect(_ r: [String: Any], height: CGFloat) -> NSRect {
+        let x = CGFloat(r["x"] as? Double ?? 0), y = CGFloat(r["y"] as? Double ?? 0)
+        let w = CGFloat(r["w"] as? Double ?? 0), h = CGFloat(r["h"] as? Double ?? 0)
+        return NSRect(x: x, y: height - y - h, width: w, height: h)
     }
 
     private func makeGlassView() -> NSView {
@@ -622,8 +678,87 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     // MARK: page → panel messages
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        guard let body = message.body as? [String: Any] else { return }
+        // While Pip's picture is being taken, later messages (the resize) wait, so they land after it.
+        if freezing {
+            heldMessages.append(body)
+            return
+        }
+        handle(body)
+    }
+
+    // MARK: Pip's picture while the panel resizes
+    //
+    // After a resize WKWebView shows its old picture for a few frames, pinned to the panel's top left, so
+    // when the conversation opens (the panel grows to Pip's left) or tucks away, Pip jumps sideways for a
+    // moment. The page asks for a "freeze" first: a snapshot of Pip goes over the web view at Pip's place on
+    // screen, the web view hides, the resize happens, and "thaw" (sent once the page is drawn at its new
+    // size) brings the web view back.
+
+    private var freezing = false
+    private var heldMessages: [[String: Any]] = []
+    private var frozenView: NSImageView?
+    private var frozenScreenRect: NSRect?
+
+    private func freeze(_ rect: [String: Any]) {
+        guard frozenView == nil, let webView = webView else { return }
+        let r = NSRect(x: rect["x"] as? Double ?? 0, y: rect["y"] as? Double ?? 0, width: rect["w"] as? Double ?? 0, height: rect["h"] as? Double ?? 0)
+        guard r.width > 0, r.height > 0 else { return }
+        freezing = true
+        let screenRect = NSRect(x: panel.frame.minX + r.minX, y: panel.frame.maxY - r.maxY, width: r.width, height: r.height)
+        let config = WKSnapshotConfiguration()
+        config.rect = r   // the web view's own (top-left) coordinates
+        webView.takeSnapshot(with: config) { [weak self] image, _ in
+            guard let self = self else { return }
+            if let image = image, !self.closing {
+                let view = NSImageView(frame: .zero)
+                view.image = image
+                view.imageScaling = .scaleAxesIndependently
+                self.container.addSubview(view, positioned: .above, relativeTo: webView)
+                self.frozenView = view
+                self.frozenScreenRect = screenRect
+                self.placeFrozenView()
+                webView.alphaValue = 0
+                // Never stay frozen if "thaw" does not come.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.thaw() }
+            }
+            self.freezing = false
+            let held = self.heldMessages
+            self.heldMessages.removeAll()
+            held.forEach { self.handle($0) }
+        }
+        // A snapshot that never returns must not hold the page's messages.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self = self, self.freezing else { return }
+            self.freezing = false
+            let held = self.heldMessages
+            self.heldMessages.removeAll()
+            held.forEach { self.handle($0) }
+        }
+    }
+
+    private func placeFrozenView() {
+        guard let view = frozenView, let r = frozenScreenRect else { return }
+        view.frame = NSRect(x: r.minX - panel.frame.minX, y: r.minY - panel.frame.minY, width: r.width, height: r.height)
+    }
+
+    private func thaw() {
+        guard let view = frozenView else { return }
+        webView?.alphaValue = 1
+        view.removeFromSuperview()
+        frozenView = nil
+        frozenScreenRect = nil
+    }
+
+    private func handle(_ body: [String: Any]) {
+        guard let type = body["type"] as? String else { return }
         switch type {
+        case "freeze":
+            if let rect = body["icon"] as? [String: Any] {
+                freeze(rect)
+            }
+        case "thaw":
+            thaw()
         case "layout":
             if let value = body["height"] as? Double {
                 // Keep the floating icon where it is when its column changes width.
@@ -638,11 +773,24 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                 }
                 lastAnchorX = anchor
                 lastAnchorY = anchorY
+                if let r = body["iconR"] as? Double, r > 0 {
+                    iconRadius = CGFloat(r)
+                }
+                hitRects = (body["hits"] as? [[String: Any]])?.map {
+                    NSRect(x: $0["x"] as? Double ?? 0, y: $0["y"] as? Double ?? 0, width: $0["w"] as? Double ?? 0, height: $0["h"] as? Double ?? 0)
+                }
+                if hitRects == nil {
+                    panel.ignoresMouseEvents = false
+                }
+                let wanted = topLeft
                 setSize(width: (body["width"] as? Double).map { CGFloat($0) }, height: CGFloat(value))
-                if let anchor = anchor {
+                // Pip's place is the truth; the panel only follows it. macOS rounds window positions to whole
+                // points, so recomputing Pip's place from the panel after every resize would creep it left
+                // (the toolbar's opening alone sends a dozen sizes). Only a panel kept on screen moves Pip.
+                if let anchor = anchor, iconScreenX == nil || abs(panel.frame.minX - wanted.x) > 1 {
                     iconScreenX = panel.frame.minX + anchor
                 }
-                if let anchorY = anchorY {
+                if let anchorY = anchorY, iconScreenY == nil || abs(panel.frame.maxY - wanted.y) > 1 {
                     iconScreenY = panel.frame.maxY - anchorY
                 }
             }
@@ -692,6 +840,17 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                 iconScreenY = visibleArea.minY + 150
             }
             updateSide()
+        case "barOut":
+            // Pip's toolbar tucking away: its glass shrinks into the thin line; the page resizes afterwards.
+            if let to = body["to"] as? [String: Any], let index = barGlassIndex, index < glassViews.count {
+                let view = glassViews[index]
+                let target = pageRect(to, height: container.bounds.height)
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = body["duration"] as? Double ?? 0.16
+                    context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                    view.animator().frame = target
+                }
+            }
         case "reveal":
             // The conversation slides out of (or back into) the icon: move the glass with it.
             let goingIn = (body["dir"] as? String) == "in"

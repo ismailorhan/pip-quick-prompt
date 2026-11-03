@@ -19,8 +19,9 @@ app; the plugin still exists.
 
 ## How we work (agreed with the owner)
 
-- The owner speaks **Turkish** in chat. **Everything in the repository is English**: code, comments, UI
-  strings, docs, commit messages.
+- The owner speaks **Turkish** in chat. **Every reply to the owner is in Turkish**, including short
+  progress notes while working, unless they ask for another language at that moment.
+  **Everything in the repository is English**: code, comments, UI strings, docs, commit messages.
 - **Do not build or release unless the owner says "build" / "build al".** Work on the **`dev`** branch
   (pushing it builds nothing). "Build" means: fast-forward `main` to `dev` and push `main`; CI then builds,
   signs, notarizes and publishes the rolling **Latest build** release.
