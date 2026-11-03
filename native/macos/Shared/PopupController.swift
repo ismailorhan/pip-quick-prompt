@@ -491,8 +491,24 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         })
     }
 
+    /// Tells the page how much room Pip's middle has to the left, right and below (the Dock counts as the
+    /// edge where Pip is beside it), so its toolbar opens above near the bottom and lines up with Pip near a side.
+    private func reportEdges() {
+        guard let x = iconScreenX, let y = iconScreenY else { return }
+        var left = visibleArea.minX, right = visibleArea.maxX, bottom = visibleArea.minY
+        if let dock = dockArea {
+            if dock.minY <= visibleArea.minY + 1, x >= dock.minX, x <= dock.maxX { bottom = max(bottom, dock.maxY) }
+            if dock.minX <= visibleArea.minX + 1, y >= dock.minY, y <= dock.maxY { left = max(left, dock.maxX) }
+            if dock.maxX >= visibleArea.maxX - 1, y >= dock.minY, y <= dock.maxY { right = min(right, dock.minX) }
+        }
+        let js = String(format: "window.__quickPromptEdges && window.__quickPromptEdges({left:%.0f,right:%.0f,bottom:%.0f})",
+                        x - left, right - x, y - bottom)
+        webView?.evaluateJavaScript(js, completionHandler: nil)
+    }
+
     /// Puts the icon on the side away from the nearer screen edge (the page lays itself out mirrored).
     private func updateSide() {
+        reportEdges()
         let x = iconScreenX ?? panel.frame.midX
         let next = x > visibleArea.midX ? "right" : "left"
         guard next != side else { return }

@@ -108,7 +108,11 @@ template list say "No templates yet" (the built-ins are always there) and New Ch
 any 404 now goes the same way. Also on `dev`: Pip no longer jumps sideways when its toolbar opens next to
 the Dock (the hover resize skips Dock avoidance); the conversation slides in only after the panel has its
 new size, and only the conversation's glass slides (26 px, 0.3 s in / 0.22 s out); middle click on an edge
-goes clockwise to the next corner. Open: in headless Chromium the page draws nothing for ~0.75 s after
+goes clockwise to the next corner; ⌥-click on Pip does the same (trackpads have no middle button; the
+Windows app should use Alt-click). Pip's toolbar opens above Pip near the bottom of the screen (or the
+Dock's top) and lines up with Pip's left or right side near that edge (`reportEdges` → `__quickPromptEdges`).
+Pip's right-click menu has a templates submenu. Settings has a Shortcuts page (keep it current when adding
+one). Open: in headless Chromium the page draws nothing for ~0.75 s after
 collapsing (no long script task, so rendering); not known whether WKWebView does the same.
 
 Known issue being fixed: the Accessibility prompt kept appearing because the TCC entry belonged to an older,
@@ -119,7 +123,7 @@ then switch Quick Prompt on again. Signing is stable now, so it should hold acro
 
 - Make "Show latest only" sticky at the top of the conversation (offered, not done).
 - Logi plugin: hand requests to the Mac app when it is running (one engine, one history).
-- Windows app: tray app with the same engine (WebView2 + Mica).
+- Windows app: tray app with the same engine (WebView2 + Mica). Pip there: Alt-click = middle click (the page already treats altKey as ⌥); the Shortcuts page then needs Windows key names.
 - Verify the OpenAI default model name (`gpt-5-mini`) and the Codex CLI with a real login.
 - Logi Marketplace: localization, review, screenshots, support page.
 - Mac App Store is not planned (the app needs Accessibility and runs CLIs).

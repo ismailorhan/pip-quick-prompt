@@ -195,6 +195,11 @@ textarea::placeholder { color: var(--muted); }
 .stemplates #actBack { display: none; }
 .hotkey { font: 600 13px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: .04em; min-width: 120px; padding: 6px 14px; border-radius: 9px; background: var(--faint); }
 .hotkey.recording { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--muted); }
+.kbgroup { font-size: 12px; color: var(--muted); margin: 16px 0 6px; }
+.kbgroup:first-of-type { margin-top: 4px; }
+.kbrow { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: baseline; padding: 6px 0; font-size: 13px; border-top: 1px solid var(--faint); }
+.kbrow .keys { color: var(--muted); white-space: nowrap; }
+.kbrow kbd { font: 500 12px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); padding: 2px 7px; border-radius: 6px; background: var(--faint); }
 .sfoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px 12px 18px; border-top: 1px solid var(--faint); }
 .sfoot .status { font-size: 11.5px; color: var(--muted); }
 .sfoot-hint { flex: 1; font-size: 11.5px; color: var(--muted); text-align: right; padding-right: 4px; }
@@ -316,6 +321,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .minibar { transition: padding .25s ease, width .25s ease, height .25s ease; overflow: hidden; }
 .minibar.tucked { padding: 0; width: 34px; height: 6px; margin-top: -4px; cursor: pointer; }
 .minibar.tucked > * { display: none; }
+/* Near the screen's bottom the toolbar opens above Pip; near a side it lines up with Pip on that side. */
+.mini.tb-above { flex-direction: column-reverse; }
+.mini.tb-above .minibar.tucked { margin-top: 0; margin-bottom: -4px; }
+.mini.tb-start { align-items: flex-start; }
+.mini.tb-end { align-items: flex-end; }
 .plist { width: 250px; border-radius: 18px; padding: 8px 6px; margin-top: 6px; }
 .plist .ptitle { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 2px 10px 6px; }
 .pitem { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border-radius: 12px; padding: 7px 10px; text-align: left; }
@@ -356,7 +366,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 <body>
 <div id="root">
   <div class="mini" id="mini" hidden>
-    <button type="button" class="mascot" id="miniOpen" title="Pip: click to open or tuck away, drag to move"><svg viewBox="0 0 24 24" width="56" height="56">
+    <button type="button" class="mascot" id="miniOpen" title="Pip: click to open or tuck away, drag to move, ⌥-click or middle click to send it to an edge or the next corner"><svg viewBox="0 0 24 24" width="56" height="56">
       <defs>
         <linearGradient id="qpMini" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
         <radialGradient id="qpDisc" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
@@ -414,6 +424,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <div class="snav-g">Preferences</div>
         <button type="button" data-pane="general"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg>General</button>
         <button type="button" data-pane="appearance"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.4-9-7.4z M7.5 12h0 M10 7.5h0 M14.5 7.5h0"/></svg>Appearance</button>
+        <button type="button" data-pane="shortcuts"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z M7 10h0 M10.5 10h0 M14 10h0 M17.5 10h0 M8 14h8"/></svg>Shortcuts</button>
         <div class="snav-g">AI</div>
         <button type="button" data-pane="claude"><svg class="plogo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#D97757" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>Claude</button>
         <button type="button" data-pane="chatgpt"><svg class="plogo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10A37F" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>ChatGPT</button>
@@ -437,6 +448,24 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div><div class="sl-t">Shortcut</div><div class="sl-d">Opens Quick Prompt with the selected text, in any app. Click, then press the new keys (with ⌘, ⌃ or ⌥). The menu bar icon has the rest.</div></div>
             <button type="button" class="hotkey" id="hotkeyBtn" title="Click, then press the keys">⌥⇧Space</button>
           </div>
+        </section>
+        <section class="spane" data-pane="shortcuts">
+          <h2>Shortcuts</h2>
+          <div class="kbgroup">Anywhere</div>
+          <div class="kbrow"><span class="keys"><kbd id="kbGlobal">⌥⇧Space</kbd></span><span>Ask about the selected text (change it in General)</span></div>
+          <div class="kbrow"><span class="keys"><kbd>⌘,</kbd></span><span>Settings, from the menu bar menu</span></div>
+          <div class="kbrow"><span class="keys"><kbd>⌘Q</kbd></span><span>Quit Quick Prompt, from the menu bar menu</span></div>
+          <div class="kbgroup">In a conversation</div>
+          <div class="kbrow"><span class="keys"><kbd>↵</kbd></span><span>Send</span></div>
+          <div class="kbrow"><span class="keys"><kbd>⇧↵</kbd></span><span>New line</span></div>
+          <div class="kbrow"><span class="keys"><kbd>⌘↵</kbd></span><span>With the box empty: paste the answer into the app you were using</span></div>
+          <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>Close, or tuck into Pip</span></div>
+          <div class="kbrow"><span class="keys"><kbd>↵</kbd> <kbd>⌘↵</kbd></span><span>In a template's fields: next field, send</span></div>
+          <div class="kbgroup">Pip</div>
+          <div class="kbrow"><span class="keys">Click</span><span>Open, or tuck away</span></div>
+          <div class="kbrow"><span class="keys">Drag</span><span>Move it; a quick throw sends it to the corner that way</span></div>
+          <div class="kbrow"><span class="keys">Middle click · <kbd>⌥</kbd> click</span><span>To the nearest edge; on an edge, on to the next corner clockwise</span></div>
+          <div class="kbrow"><span class="keys">Right click</span><span>Menu: new chat, recent chats, templates, settings</span></div>
         </section>
         <section class="spane" data-pane="appearance">
           <h2>Appearance</h2>
@@ -899,7 +928,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const parts = spec.split("+"), code = parts.pop();
     return ["ctrl", "alt", "shift", "cmd"].filter(m => parts.includes(m)).map(m => MOD_SYMBOL[m]).join("") + keyLabel(code);
   }
-  function setHotkey(spec) { hotkeyValue = spec; hotkeyBtn.textContent = hotkeyText(spec); hotkeyBtn.classList.remove("recording"); recording = false; }
+  function setHotkey(spec) { hotkeyValue = spec; hotkeyBtn.textContent = hotkeyText(spec); $("kbGlobal").textContent = hotkeyText(spec); hotkeyBtn.classList.remove("recording"); recording = false; }
   hotkeyBtn.addEventListener("click", () => { recording = true; hotkeyBtn.textContent = "Press keys…"; hotkeyBtn.classList.add("recording"); });
   hotkeyBtn.addEventListener("blur", () => { if (recording) setHotkey(hotkeyValue); });
   hotkeyBtn.addEventListener("keydown", e => {
@@ -1293,6 +1322,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   function untuck() {
     clearTimeout(tuckTimer);
+    clearTimeout(window.__qpTuck);   // the tuck after collapsing must not fire under the mouse either
     if (minibar.classList.contains("tucked")) { minibar.classList.remove("tucked"); queueLayout(); }
   }
   mini.addEventListener("mouseenter", untuck);
@@ -1392,6 +1422,24 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     queueLayout();
   };
   if (nativeInfo.side) els.root.classList.toggle("side-right", nativeInfo.side === "right");
+
+  // Room around Pip's middle (screen points, from the native panel): where the toolbar goes.
+  let toolbarSize = null;
+  window.__quickPromptEdges = edges => {
+    const bar = $("minibar"), icon = $("miniOpen").getBoundingClientRect();
+    if (!bar.classList.contains("tucked") && bar.offsetWidth) toolbarSize = { w: bar.getBoundingClientRect().width, h: bar.getBoundingClientRect().height };
+    const zoom = parseFloat(getComputedStyle(mini).zoom) || 1;
+    const size = toolbarSize || { w: 124 * zoom, h: 38 * zoom };
+    const half = size.w / 2 + 6;
+    const start = edges.left < half, end = !start && edges.right < half;
+    const above = edges.bottom < icon.height / 2 + 6 * zoom + size.h + 6;
+    const changed = mini.classList.contains("tb-start") !== start || mini.classList.contains("tb-end") !== end
+      || mini.classList.contains("tb-above") !== above;
+    mini.classList.toggle("tb-start", start);
+    mini.classList.toggle("tb-end", end);
+    mini.classList.toggle("tb-above", above);
+    if (changed) { lastLayout = ""; queueLayout(); }
+  };
   if (bridge) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
   $("miniNew").addEventListener("click", async () => {
     const res = await post("new");
@@ -1595,12 +1643,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     downAt = { x: e.screenX, y: e.screenY };
     if (!bridge || e.button !== 0) return;
     const onMini = e.target.closest("#miniOpen");
+    if (onMini && e.altKey) return;   // ⌥-click on Pip moves it (see below), no drag
     const area = e.target.closest("[data-drag]");
     if (!onMini && (!area || e.target.closest("button, textarea, input, select, a, .seg"))) return;
     if (!onMini) e.preventDefault();
     bridge.postMessage({ type: "drag" });
   });
-  // Middle click (the wheel) on Pip: it glides to the nearest screen edge.
+  // Middle click (the wheel) or ⌥-click (for a trackpad) on Pip: it glides to the nearest screen edge,
+  // and from an edge on to the next corner clockwise.
   $("miniOpen").addEventListener("mousedown", e => {
     if (e.button !== 1 || !bridge) return;
     e.preventDefault();
@@ -1610,6 +1660,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   // A click on the icon opens it again; a drag (the icon moved under the mouse) does not.
   $("miniOpen").addEventListener("click", e => {
+    if (e.altKey && bridge) { bridge.postMessage({ type: "snap" }); return; }
     if (downAt && Math.abs(e.screenX - downAt.x) + Math.abs(e.screenY - downAt.y) > 4) return;
     if (collapsed) expand(); else collapseAnimated();   // the icon beside the conversation tucks it away
   });
