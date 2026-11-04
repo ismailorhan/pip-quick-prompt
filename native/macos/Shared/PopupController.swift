@@ -231,7 +231,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         mouseInside = false
         panel?.ignoresMouseEvents = false
         guard on else { return }
-        let timer = Timer(timeInterval: 0.08, target: self, selector: #selector(hoverTick(_:)), userInfo: nil, repeats: true)
+        let timer = Timer(timeInterval: 0.04, target: self, selector: #selector(hoverTick(_:)), userInfo: nil, repeats: true)
         RunLoop.main.add(timer, forMode: .common)
         hoverTimer = timer
     }
@@ -252,7 +252,17 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             mouseInside = inside
             webView?.evaluateJavaScript("window.__quickPromptHover && window.__quickPromptHover(\(inside))", completionHandler: nil)
         }
+        // The panel never becomes key while Pip is on its own, so the web view gets no mouse moves and CSS
+        // :hover never applies: the page highlights what is under the pointer from this.
+        let point = inside ? NSPoint(x: (mouse.x - panel.frame.minX).rounded(), y: (panel.frame.maxY - mouse.y).rounded()) : nil
+        if point != lastPointer {
+            lastPointer = point
+            let js = point.map { String(format: "window.__quickPromptPointer && window.__quickPromptPointer(%.0f,%.0f)", $0.x, $0.y) }
+                ?? "window.__quickPromptPointer && window.__quickPromptPointer(null,null)"
+            webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
     }
+    private var lastPointer: NSPoint?
 
     /// Resizes the panel keeping its top-left corner (the page reports its own size), inside the screen.
     private func setSize(width requestedWidth: CGFloat?, height requested: CGFloat) {

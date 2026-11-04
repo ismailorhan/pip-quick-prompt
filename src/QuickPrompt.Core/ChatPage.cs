@@ -323,7 +323,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .iconbtn { width: 28px; height: 26px; padding: 0; border-radius: 8px; display: inline-grid; place-items: center; background: transparent; color: var(--muted); }
 .iconbtn:hover { background: var(--faint); color: var(--text); }
 .msg .actions { gap: 2px; margin-top: 6px; }
-.minibar button:hover { background: var(--faint); }
+.minibar button:hover, .minibar button.hov { background: rgba(128,128,128,.24); }
 .minibar .sep { width: 1px; height: 16px; background: var(--faint); }
 /* Tucked, the toolbar keeps its size (so the panel never resizes on hover); only its glass shrinks to a
    thin line (the page reports the line's rect) and its buttons hide. */
@@ -347,7 +347,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .plist { width: 250px; border-radius: 18px; padding: 8px 6px; margin-top: 6px; }
 .plist .ptitle { font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 2px 10px 6px; }
 .pitem { display: flex; align-items: center; gap: 9px; width: 100%; background: transparent; border-radius: 12px; padding: 7px 10px; text-align: left; }
-.pitem:hover, .pitem:focus-visible { background: var(--faint); }
+.pitem:hover, .pitem.hov, .pitem:focus-visible { background: var(--faint); }
 .pitem .dot { flex: none; }
 .pitem[data-provider="codex"] .dot { background: #10a37f; }
 .pitem[data-provider="claude"] .dot { background: #d97757; }
@@ -1537,6 +1537,16 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   if (nativeInfo.side) els.root.classList.toggle("side-right", nativeInfo.side === "right");
 
   // Room around Pip's middle (screen points, from the native panel): where the toolbar goes.
+  // Pip on its own: the native panel reports the pointer (page points), since the web view gets no mouse moves.
+  let hovered = null;
+  window.__quickPromptPointer = (x, y) => {
+    const el = x == null ? null : document.elementFromPoint(x, y);
+    const target = el && el.closest(".minibar:not(.tucked) button, .pitem");
+    if (target === hovered) return;
+    if (hovered) hovered.classList.remove("hov");
+    hovered = target;
+    if (hovered) hovered.classList.add("hov");
+  };
   let toolbarSize = null, pipEdges = null;
   window.__quickPromptEdges = edges => {
     pipEdges = edges;
