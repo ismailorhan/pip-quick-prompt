@@ -87,7 +87,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.42, 4 Nov 2026)
+## Status (v0.3.43, 4 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -124,7 +124,7 @@ v0.3.42 (measured with the real PopupController in a test app, see `docs/develop
 there; the method is in Hindsight): Pip no longer drifts on hover (its place is the truth, the panel follows),
 corners place Pip itself, the toolbar keeps its size and morphs its glass (empty parts let clicks through),
 and a snapshot of Pip covers the web view while the panel resizes (no sideways jump).
-On `dev` after v0.3.42 (4 Nov 2026): Pip stays under the Dock (level just below it) and a Dock that does not
+v0.3.43 (4 Nov 2026), not yet confirmed on the owner's Mac: Pip stays under the Dock (level just below it) and a Dock that does not
 hide is the screen's edge; near the bottom the templates list and bubble open upward; the open/close blink is
 gone (freeze now waits: the page asks, the native side takes the snapshot of the unchanged page, shows it in a
 separate still window, hides the web view, then answers `__quickPromptFrozen`; WKWebView snapshots taken while
