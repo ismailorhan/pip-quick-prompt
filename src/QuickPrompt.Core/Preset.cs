@@ -74,6 +74,9 @@ namespace QuickPrompt.Core
         /// <summary>The action's own CLI setup (plugins, MCP servers, skills); null = as in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
 
+        /// <summary>Put the first answer on the clipboard as soon as it is complete.</summary>
+        public Boolean AutoCopy { get; set; }
+
         /// <summary>
         /// From the app's shortcut: no ring overlay has to close first, so the selection is copied right away
         /// and waited for only briefly (a selection shows up on the clipboard within a few hundred ms).

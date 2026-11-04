@@ -644,6 +644,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <label class="sfield">Connection<select id="afConnection"><option value="default">As in Settings</option><option value="cli">CLI</option><option value="api">API</option></select></label>
       </div>
       <label class="sfield">Model (optional)<input type="text" id="afModel" spellcheck="false" placeholder="Default"></label>
+      <div class="srow sub"><span class="sname">Copy the first answer</span>
+        <div class="seg" data-name="afAutoCopy"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
+      <div class="shint">On: the first answer goes onto the clipboard as soon as it is complete, ready to paste.</div>
       <div class="srow sub"><span class="sname">Plugins, MCP servers and skills</span>
         <div class="seg" data-name="afSetup"><button type="button" data-v="default">As in Settings</button><button type="button" data-v="off">None</button><button type="button" data-v="custom">Choose</button></div></div>
       <div class="shint" id="afSetupHint"></div>
@@ -773,6 +776,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   applyGlass(35);
   let lastStateGlass = null, savedGlass = 35;
+  let lastAutoCopied = null;
 
   function applyIconScale(value) {
     const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 38));
@@ -1523,8 +1527,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const item = e.target.closest(".pitem");
     if (!item) return;
     const res = await post("usepreset", { id: item.dataset.id });
-    if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }
+    if (res.ok) { runTemplateView(); } else { toast("Still answering"); }
   });
+  // A template picked from Pip: the popup opens on it (its fields and the question bar), not on the Settings,
+  // template list or history view that was open last time.
+  function runTemplateView() {
+    if (actionsOpen) closeActions();
+    if (settingsOpen) closeSettings();
+    if (historyOpen) closeHistory();
+    stick = true;
+    expand();
+  }
 
   // Right click on the icon: native menu (Open, Settings, Close).
   // Right click (on the icon or anywhere that is not text): the native menu with everything that used
@@ -1567,7 +1580,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const preset = menuTemplates[+id.slice(4)];
       if (!preset) return;
       const res = await post("usepreset", { id: preset.id });
-      if (res.ok) { stick = true; expand(); } else if (res.status !== 404) toast("Still answering");
+      if (res.ok) runTemplateView(); else if (res.status !== 404) toast("Still answering");
       return;
     }
     if (id === "open") expand();
@@ -1960,6 +1973,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     setSeg("afProvider", a ? a.provider : "claude");
     $("afConnection").value = a ? a.connection : "default";
     $("afModel").value = a ? a.model : "";
+    setSeg("afAutoCopy", a && a.autoCopy ? "true" : "false");
     $("afSetupBox").choice = a && a.setupChoice ? a.setupChoice : null;
     setSeg("afSetup", a ? a.setup || "default" : "default");
     $("afDelete").hidden = !a || a.builtIn;
@@ -2064,6 +2078,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       provider: segValues.afProvider || "claude",
       connection: $("afConnection").value, model: $("afModel").value.trim(),
       setup: segValues.afSetup || "default",
+      autoCopy: segValues.afAutoCopy === "true" ? "true" : "false",
       setupChoice: segValues.afSetup === "custom" ? choiceFrom($("afSetupBox"), true) : "",
     };
     if (!body.title) { $("afTitle").focus(); toast("Give it a title"); return; }
@@ -2120,6 +2135,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (s.iconScale !== lastStateIcon) applyIconScale(s.iconScale);
     if (s.glassTint !== lastStateGlass && !settingsOpen) { applyGlass(s.glassTint); savedGlass = s.glassTint; }
     lastStateGlass = s.glassTint;
+    // A template with "Copy the first answer" put it on the clipboard.
+    if (lastAutoCopied != null && (s.autoCopied || 0) > lastAutoCopied) toast("Answer copied");
+    lastAutoCopied = s.autoCopied || 0;
     lastStateScale = s.popupScale; lastStateIcon = s.iconScale;
     if (!!s.keepPip !== pinned) setPinned(!!s.keepPip);
     if (s.startCollapsed && !startedAsPip && bridge) {

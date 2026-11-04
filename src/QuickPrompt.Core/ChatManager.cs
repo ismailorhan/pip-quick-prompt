@@ -82,6 +82,7 @@ namespace QuickPrompt.Core
                 Connection = saved.Connection,
                 Model = saved.Model,
                 Setup = saved.SetupFor(),
+                AutoCopy = saved.AutoCopy,
                 // Custom templates read what their system parameters ask for; older ones keep their setting.
                 Input = saved.Custom ? PromptBuilder.InputFor(saved.Instruction) : InputModes.Normalize(saved.Input),
                 Flow = FlowModes.Send,
@@ -169,6 +170,7 @@ namespace QuickPrompt.Core
                 Connection = resolved,
             };
             session.TurnFinished += this.OnTurnFinished;
+            session.AnswerToCopy += this.OnAnswerToCopy;
             this._sessions[session.Token] = session;
             return session;
         }
@@ -178,6 +180,19 @@ namespace QuickPrompt.Core
 
         public void OpenWindow(ChatSession session) =>
             this.Launcher.Open(appWindow => this.GetSessionUrl(session, appWindow));
+
+        /// <summary>A template with "Copy the first answer" finished its first answer: onto the clipboard.</summary>
+        private void OnAnswerToCopy(ChatSession session, String text)
+        {
+            try
+            {
+                this._host.SetClipboardText(text);
+            }
+            catch (Exception ex)
+            {
+                this._host.Log("Could not copy the answer", ex);
+            }
+        }
 
         private void OnTurnFinished(ChatSession session)
         {
@@ -258,6 +273,7 @@ namespace QuickPrompt.Core
                 fields = PromptBuilder.GetParameters(p.Instruction).Count,
                 setup = SetupModes.Normalize(p.Setup),
                 enabled = p.Enabled,
+                autoCopy = p.AutoCopy,
                 setupChoice = p.SetupChoice == null ? null : new
                 {
                     skills = p.SetupChoice.Skills,
@@ -282,6 +298,7 @@ namespace QuickPrompt.Core
                 Model = Get("model"),
                 Setup = SetupModes.Normalize(Get("setup")),
                 Enabled = Get("enabled") != "false",
+                AutoCopy = Get("autoCopy") == "true",
                 SetupChoice = ParseSetupChoice(Get("setupChoice"), new CliSetupChoice { Enabled = true }),
             });
             return this.GetActionsJson();
@@ -305,6 +322,7 @@ namespace QuickPrompt.Core
                 connection = p.Connection,
                 model = p.Model,
                 enabled = p.Enabled,
+                autoCopy = p.AutoCopy,
                 setup = SetupModes.Normalize(p.Setup),
                 setupChoice = p.SetupChoice == null ? null : new
                 {
@@ -347,6 +365,7 @@ namespace QuickPrompt.Core
                             ? ParseSetupChoice(choice.GetRawText(), new CliSetupChoice { Enabled = true })
                             : null,
                         Enabled = !item.TryGetProperty("enabled", out var en) || en.ValueKind != System.Text.Json.JsonValueKind.False,
+                        AutoCopy = item.TryGetProperty("autoCopy", out var ac) && ac.ValueKind == System.Text.Json.JsonValueKind.True,
                     });
                 }
             }
@@ -411,6 +430,7 @@ namespace QuickPrompt.Core
             }
 
             session.Setup = preset.SetupFor();
+            session.AutoCopyFirstAnswer = preset.AutoCopy;
             return true;
         }
 
@@ -644,6 +664,7 @@ namespace QuickPrompt.Core
         {
             var session = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
             session.Setup = preset.Setup;
+            session.AutoCopyFirstAnswer = preset.AutoCopy;
             return session;
         }
 

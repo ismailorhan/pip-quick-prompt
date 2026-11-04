@@ -55,6 +55,15 @@ namespace QuickPrompt.Core
         /// <summary>Raised after every finished turn (answer or error), e.g. to save the conversation.</summary>
         public event Action<ChatSession> TurnFinished;
 
+        /// <summary>The first answer of a template with "Copy the first answer" is complete (its text).</summary>
+        public event Action<ChatSession, String> AnswerToCopy;
+
+        /// <summary>Set when a template asks for its first answer on the clipboard; cleared once copied.</summary>
+        public Boolean AutoCopyFirstAnswer { get; set; }
+
+        /// <summary>Counts copies made that way, so the page can say so.</summary>
+        public Int32 AutoCopied { get; private set; }
+
         public String Title { get; set; } = "";
 
         public String Model { get; set; } = "";
@@ -161,6 +170,7 @@ namespace QuickPrompt.Core
                 this.DraftContext = "";
                 this.DraftImages = new List<ImageAttachment>();
                 this.Notice = "";
+                this.AutoCopyFirstAnswer = false;
                 this._messages.Clear();
                 this.TouchLocked();
                 return true;
@@ -479,6 +489,7 @@ namespace QuickPrompt.Core
                     iconScale = this._settings().IconScale,
                     glassTint = this._settings().GlassTint,
                     keepPip = this._settings().KeepPip,
+                    autoCopied = this.AutoCopied,
                     speechLanguage = QuickPromptSettings.IsValidSpeechLanguage(this._settings().SpeechLanguage) ? this._settings().SpeechLanguage : "auto",
                     speechHints = this._settings().SpeechHints ?? "",
                     startCollapsed = this.StartCollapsed,
@@ -559,6 +570,7 @@ namespace QuickPrompt.Core
                 errorText = cancellationToken.IsCancellationRequested ? "Cancelled or timed out." : ex.Message;
             }
 
+            String toCopy = null;
             if (finalText == null && errorText == null)
             {
                 errorText = cancellationToken.IsCancellationRequested ? "Cancelled or timed out." : "No answer received.";
@@ -575,11 +587,22 @@ namespace QuickPrompt.Core
                 else
                 {
                     answer.State = "done";
+                    if (this.AutoCopyFirstAnswer && !String.IsNullOrWhiteSpace(answer.Text))
+                    {
+                        this.AutoCopyFirstAnswer = false;
+                        toCopy = answer.Text;
+                        this.AutoCopied++;
+                    }
                 }
 
                 this._busy = false;
                 this._status = "";
                 this.TouchLocked();
+            }
+
+            if (toCopy != null)
+            {
+                this.AnswerToCopy?.Invoke(this, toCopy);
             }
 
             try

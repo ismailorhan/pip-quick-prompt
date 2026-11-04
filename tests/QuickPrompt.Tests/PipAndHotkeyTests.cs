@@ -44,6 +44,33 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task A_template_with_copy_the_first_answer_puts_only_the_first_answer_on_the_clipboard()
+        {
+            var dir = TempDir.Create();
+            var host = new FakeHost();
+            using var manager = new ChatManager(dir, host, new IAiProvider[] { new FakeProvider(ProviderIds.Claude), new FakeProvider(ProviderIds.Codex) }, new IAiProvider[0]);
+            manager.Launcher.OverrideOpen = _ => { };
+            var saved = JsonDocument.Parse(manager.SaveAction(new Dictionary<string, string>
+            {
+                ["title"] = "Rephrase", ["instruction"] = "Rephrase: {source}", ["provider"] = "claude", ["autoCopy"] = "true",
+            })).RootElement;
+            var template = saved.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Rephrase");
+            Assert.True(template.GetProperty("autoCopy").GetBoolean());
+
+            var session = manager.CreateSession(ProviderIds.Claude, "", "");
+            Assert.True(manager.UsePreset(session, template.GetProperty("id").GetString()));
+            Assert.True(session.StartTurnFromPopup("", "", new Dictionary<string, string> { ["source"] = "hello" }));
+            await session.CurrentTurn;
+            var first = host.Clipboard;
+            Assert.Contains("hello", first);
+
+            Assert.True(session.StartTurnFromPopup("again", ""));
+            await session.CurrentTurn;
+            Assert.Equal(first, host.Clipboard);
+            Assert.Contains("\"autoCopied\":1", session.ToJson(false));
+        }
+
+        [Fact]
         public async Task A_session_a_window_is_watching_is_kept_overnight_and_an_idle_one_is_forgotten()
         {
             var dir = TempDir.Create();

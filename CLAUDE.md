@@ -150,6 +150,9 @@ Prompt/models (size + SHA-256 checked). Auto language = Turkish or English only,
 (Whisper's own detection picked Russian). Settings → Dictation: language, words to expect, model. Test without a
 mic: QP_SPEECH_FILE=<16 kHz wav> (and QP_SPEECH_HELPER for the app side). Template text fields are full-width
 textareas that grow. Pip's toolbar highlights under the pointer (the panel gets no mouse moves while Pip is alone).
+Also on `dev`: templates have "Copy the first answer" (autoCopy; the first complete answer goes onto the
+clipboard, the page toasts "Answer copied"); a template picked from Pip's list or right-click menu opens on its
+fields and the question bar, closing any Settings / template list / history view left open.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

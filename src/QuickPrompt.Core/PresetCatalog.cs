@@ -33,6 +33,9 @@ namespace QuickPrompt.Core
         /// <summary>Made or edited in the Prompt templates editor (not remembered from the ring).</summary>
         public Boolean Custom { get; set; }
 
+        /// <summary>Put the first answer on the clipboard as soon as it is complete.</summary>
+        public Boolean AutoCopy { get; set; }
+
         /// <summary>Switched off: kept in the editor but not offered in Pip's list or the menu bar.</summary>
         public Boolean Enabled { get; set; } = true;
 
@@ -222,6 +225,7 @@ namespace QuickPrompt.Core
                     SetupChoice = action.SetupChoice,
                     Custom = true,
                     Enabled = action.Enabled,
+                    AutoCopy = action.AutoCopy,
                     LastUsedUtc = DateTime.UtcNow,
                 };
                 var index = list.FindIndex(p => p.Id == saved.Id);
