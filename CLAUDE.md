@@ -88,7 +88,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.43, 4 Nov 2026)
+## Status (v0.3.44, 4 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -131,12 +131,12 @@ gone (freeze now waits: the page asks, the native side takes the snapshot of the
 separate still window, hides the web view, then answers `__quickPromptFrozen`; WKWebView snapshots taken while
 the page is changing come back wrong, and CGWindowListCreateImage was not used because of the screen-recording
 permission).
-On `dev` after v0.3.43: Pip's motion rewritten around one rule (Pip's centre is the truth; every move picks a
+In v0.3.44: Pip's motion rewritten around one rule (Pip's centre is the truth; every move picks a
 target, keeps Pip whole on screen and goes through `glide(to:)`; layouts wait while a glide or drag runs;
 `windowDidMove` ignores our own moves; the panel overrides `constrainFrameRect` so macOS no longer pushes it
 down from the top; no Dock avoidance, the Dock is above Pip). Verified with `tools/pip-motion-test/run.sh`
 (all steps pass on both screens). Run that test after any change to how Pip moves.
-Also on `dev` (not built): the question bar has no Settings button; the history button hides while text is
+v0.3.44 (4 Nov 2026), not yet confirmed on the owner's Mac: the motion rewrite above, and the question bar has no Settings button; the history button hides while text is
 typed; the question grows up to ~45% of the screen, upward from Pip's bottom, or downward from Pip's top when
 the room above runs out (`grow-down`, from the `top` the edge report now carries); + opens a menu (Add Text,
 Add Attachment…); pictures and text files (into the text box, under their names) can be added from the menu
