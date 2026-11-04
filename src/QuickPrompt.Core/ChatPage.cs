@@ -2573,6 +2573,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.send.classList.toggle("dictstop", recording);
     if (recording) els.send.classList.remove("idle"); else updateSendState();
     els.root.classList.toggle("dictating", next === "listening" || next === "starting");
+    // While recording, the red stop button says it; the microphone steps aside.
+    micBtn.hidden = !speech.available || recording;
   }
   function setDictated(text) {
     const base = speech.base.replace(/\s+$/, "");
@@ -2615,7 +2617,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         speech.model = e.model;
         speech.size = e.size || speech.size;
         speech.received = e.received || 0;
-        micBtn.hidden = !speech.available;
+        micBtn.hidden = !speech.available || speech.state !== "idle";
         if (speech.startWhenKnown) { speech.startWhenKnown = false; if (speech.available) setTimeout(startDictation, 0); }
         renderSpeechSettings();
         if (speech.model === "downloading" && speech.wantStart) renderSpeechBoxProgress();
