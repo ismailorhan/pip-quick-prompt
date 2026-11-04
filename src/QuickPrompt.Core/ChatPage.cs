@@ -148,8 +148,10 @@ button.x:hover { color: var(--text); }
 .round.mic.on { background: #e5484d; color: #fff; box-shadow: 0 0 0 calc(var(--lvl, 0) * 9px) rgba(229, 72, 77, .28); transition: box-shadow .08s linear; }
 .round.mic.on:hover { background: #d93d42; color: #fff; }
 .send.dictstop { background: #e5484d; color: #fff; opacity: 1; }
-#root.dictating #miniOpen { box-shadow: 0 0 0 2.5px #e5484d, 0 0 14px 2px rgba(229, 72, 77, .55); border-radius: 50%; animation: qp-rec 1.4s ease-in-out infinite; }
-@keyframes qp-rec { 50% { box-shadow: 0 0 0 2.5px #e5484d, 0 0 4px 0 rgba(229, 72, 77, .2); } }
+/* Dictating: a mirrored spectrum of red rays around Pip, moving with the voice (drawn on #pipWave). The panel
+   gets room for it; the anchors keep Pip itself where it is. */
+#root.dictating { padding: 30px; }
+#pipWave { position: fixed; pointer-events: none; z-index: 5; }
 .round.mic.wait { animation: qp-mic-wait 1s ease-in-out infinite; }
 @keyframes qp-mic-wait { 50% { opacity: .35; } }
 .bar textarea.dictating { color: var(--muted); }
@@ -685,6 +687,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   <div class="bubble glass" id="bubble" hidden><button type="button" class="bclose" id="bubbleClose" title="Dismiss">✕</button><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
 </div>
 <div class="toast" id="toast"></div>
+<canvas id="pipWave" hidden></canvas>
 <script>
 (() => {
   "use strict";
@@ -2525,6 +2528,57 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
     queueLayout();
   }
+  // Pip while dictating: 36 rays around it, mirrored left and right, red fading to coral at the tips, turning
+  // slowly. Their lengths follow the microphone's level (the helper sends ~12 a second); between those the
+  // rays ease, so the motion stays smooth.
+  const pipWave = (() => {
+    const canvas = $("pipWave"), ctx = canvas.getContext("2d");
+    const N = 36, bins = new Array(N).fill(0);
+    let running = false, shown = 0, peak = 0.12, t = 0, raf = 0;
+    function draw() {
+      if (!running) return;
+      raf = requestAnimationFrame(draw);
+      const icon = $("miniOpen").getBoundingClientRect();
+      if (!icon.width || mini.hidden) { canvas.hidden = true; return; }
+      t += 1 / 60;
+      // Automatic gain: relative to the loudest of the last few seconds, so a quiet voice moves the rays too.
+      peak = Math.max(api.level, peak * 0.996, 0.12);
+      const target = api.level < 0.04 ? 0 : Math.min(1, api.level / peak);
+      shown += (target - shown) * 0.25;
+      const r = icon.width / 2, inner = r + 6, reach = r * 0.85, size = Math.ceil((inner + reach + 4) * 2);
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== size * dpr) { canvas.width = canvas.height = size * dpr; canvas.style.width = canvas.style.height = size + "px"; }
+      canvas.style.left = (icon.left + icon.width / 2 - size / 2) + "px";
+      canvas.style.top = (icon.top + icon.height / 2 - size / 2) + "px";
+      canvas.hidden = false;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, size, size);
+      const c = size / 2, half = N / 2, turn = t * 0.25;
+      for (let i = 0; i < half; i++) {
+        // A spectrum-like spread from one level: neighbouring rays move together, each at its own pace.
+        const v = shown * (0.4 + 0.6 * Math.abs(Math.sin(t * 6 + i * 0.9) * Math.cos(t * 3.3 + i * 0.37)));
+        bins[i] += (v - bins[i]) * 0.3;
+      }
+      ctx.lineCap = "round";
+      ctx.lineWidth = Math.max(2, r * 0.1);
+      for (let i = 0; i < N; i++) {
+        const v = bins[i < half ? i : N - 1 - i];
+        const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 3 + v * reach;
+        const x0 = c + Math.cos(a) * inner, y0 = c + Math.sin(a) * inner, x1 = c + Math.cos(a) * (inner + len), y1 = c + Math.sin(a) * (inner + len);
+        const g = ctx.createLinearGradient(x0, y0, x1, y1);
+        g.addColorStop(0, "rgba(229, 72, 77, .95)");
+        g.addColorStop(1, "rgba(240, 153, 123, 0)");
+        ctx.strokeStyle = g;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      }
+    }
+    const api = {
+      level: 0,
+      start() { if (running) return; running = true; api.level = 0; shown = 0; peak = 0.12; bins.fill(0); raf = requestAnimationFrame(draw); },
+      stop() { running = false; cancelAnimationFrame(raf); canvas.hidden = true; },
+    };
+    return api;
+  })();
   function showSpeechBox(text, opts) {
     opts = opts || {};
     $("sbText").textContent = text;
@@ -2573,6 +2627,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.send.classList.toggle("dictstop", recording);
     if (recording) els.send.classList.remove("idle"); else updateSendState();
     els.root.classList.toggle("dictating", next === "listening" || next === "starting");
+    if (next === "listening" || next === "starting") pipWave.start(); else pipWave.stop();
     // While recording, the red stop button says it; the microphone steps aside.
     micBtn.hidden = !speech.available || recording;
   }
@@ -2633,7 +2688,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         if (speech.state === "starting") setSpeechState("listening");
         break;
       case "level":
-        if (speech.state === "listening") micBtn.style.setProperty("--lvl", Math.min(1, e.value).toFixed(2));
+        if (speech.state === "listening") { micBtn.style.setProperty("--lvl", Math.min(1, e.value).toFixed(2)); pipWave.level = Math.min(1, e.value); }
         break;
       case "partial":
         if (speech.state === "listening") setDictated(e.text || "");

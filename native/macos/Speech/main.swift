@@ -55,6 +55,14 @@ var engine: AVAudioEngine?
 var listening = false
 var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
 
+/// How loud, 0…1, as the ear hears it: -50 dB (a quiet room) is 0, -10 dB (speaking up close) is 1.
+func loudness<C: Collection>(_ chunk: C) -> Double where C.Element == Float {
+    guard !chunk.isEmpty else { return 0 }
+    let rms = sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count))
+    let db = 20 * log10(max(Double(rms), 1e-6))
+    return min(1, max(0, (db + 50) / 40))
+}
+
 /// Test mode (QP_SPEECH_FILE=<16 kHz mono wav>): the file plays in as if spoken, at real-time speed.
 var fileTimer: DispatchSourceTimer?
 func startFile(_ path: String) throws {
@@ -69,6 +77,8 @@ func startFile(_ path: String) throws {
         let n = min(1600, all.count - at)
         guard n > 0 else { return }
         lock.lock(); samples.append(contentsOf: all[at..<at + n]); lock.unlock()
+        let chunk = all[at..<at + n]
+        send(["type": "level", "value": loudness(chunk)])
         at += n
     }
     timer.resume()
@@ -103,8 +113,7 @@ func startAudio() throws {
         let now = Date().timeIntervalSince1970
         if now - lastLevel > 0.08 {
             lastLevel = now
-            let rms = sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count))
-            send(["type": "level", "value": Double(min(1, rms * 12))])
+            send(["type": "level", "value": loudness(chunk)])
         }
     }
     engine0.prepare()

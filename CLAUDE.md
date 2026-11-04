@@ -166,7 +166,9 @@ On `dev` after v0.3.46: while dictating, the send button is a stop button (■) 
 text shows; Enter again sends) — sending during a recording used to leave the mic on and re-add the text. A
 dictation shortcut (Settings → General, default ⌥⇧M; Carbon hot key id 2; `dictationHotkey`) opens the chat and
 starts listening, again stops; with no popup it opens a new chat with `startDictation`. Recording goes on when the
-chat tucks into Pip; Pip shows a red ring meanwhile (style to be picked from 4 options).
+chat tucks into Pip; Pip shows a mirrored spectrum of red rays (option A1, picked by the owner) drawn on #pipWave
+from the mic loudness (dB scale −50…−10, with automatic gain in the page); #root.dictating pads 30 px so the rays
+fit, the anchors keep Pip still. The mic button hides while recording.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
