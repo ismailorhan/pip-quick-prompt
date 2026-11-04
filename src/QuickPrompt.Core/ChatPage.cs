@@ -144,6 +144,23 @@ kbd { font: 11px -apple-system, sans-serif; color: var(--muted); margin-left: 5p
 button.x { background: transparent; color: var(--muted); padding: 0 4px; font-size: 13px; line-height: 1; display: inline-grid; place-items: center; }
 button.x:hover { color: var(--text); }
 
+/* Dictation */
+.round.mic.on { background: #e5484d; color: #fff; box-shadow: 0 0 0 calc(var(--lvl, 0) * 9px) rgba(229, 72, 77, .28); transition: box-shadow .08s linear; }
+.round.mic.on:hover { background: #d93d42; color: #fff; }
+.round.mic.wait { animation: qp-mic-wait 1s ease-in-out infinite; }
+@keyframes qp-mic-wait { 50% { opacity: .35; } }
+.bar textarea.dictating { color: var(--muted); }
+.speechbox { border-radius: 18px; padding: 10px 14px; font-size: 13px; }
+.speechbox .sbt { line-height: 1.4; }
+.speechbox .sbbar { height: 5px; border-radius: 3px; background: var(--faint); margin-top: 8px; overflow: hidden; }
+.speechbox .sbbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+.speechbox .sba { display: flex; gap: 8px; margin-top: 8px; }
+.speechbox .sba:empty { display: none; }
+.speechbox .sba button { font-size: 12.5px; padding: 5px 12px; border-radius: 999px; }
+.speechbox .sba button.primary { background: var(--accent); color: var(--accent-text); }
+
+.spane #speechHints { width: 100%; margin-top: 8px; border: 1px solid var(--faint); border-radius: 10px; padding: 8px 10px; font-size: 13px; min-height: 52px; max-height: 120px; background: var(--chip); }
+
 /* Optional pasted text */
 .ctx { border-radius: 18px; padding: 8px 10px; }
 .ctx textarea { min-height: 60px; max-height: 150px; font-size: 13px; resize: vertical; }
@@ -158,6 +175,7 @@ button.x:hover { color: var(--text); }
 .send.idle { opacity: .45; }
 textarea { flex: 1; width: 100%; resize: none; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; padding: 9px 2px; max-height: 140px; min-height: 40px; }
 .bar textarea { max-height: var(--prompt-max, 140px); }
+.bar textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 textarea::placeholder { color: var(--muted); }
 .bar textarea:focus-visible, .ctx textarea:focus-visible { outline: none; }
 .round[hidden] + textarea { padding-left: 12px; }
@@ -257,7 +275,11 @@ html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outli
 .ftitle { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
 .flist { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 10px; }
 .flist .sfield { margin-top: 6px; }
-.flist .sfield.missing input { box-shadow: inset 0 0 0 1.5px var(--error); }
+.flist .sfield.missing input, .flist .sfield.missing textarea { box-shadow: inset 0 0 0 1.5px var(--error); }
+/* A free-text field takes the whole row and grows with what is typed or pasted (then scrolls). */
+.flist .sfield.wide { grid-column: 1 / -1; }
+.flist textarea { display: block; width: 100%; margin-top: 3px; font: inherit; font-size: 13px; line-height: 1.4; color: var(--text); background: var(--faint); border: 0; border-radius: 9px; padding: 7px 10px; outline: none; resize: none; min-height: 0; max-height: var(--field-max, 220px); overflow-y: auto; }
+.flist textarea:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .aform { padding: 0 6px; }
 .params { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: var(--faint); font-size: 12px; }
 .params .ptitle2 { font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
@@ -443,6 +465,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <button type="button" data-pane="general"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg>General</button>
         <button type="button" data-pane="appearance"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.4-9-7.4z M7.5 12h0 M10 7.5h0 M14.5 7.5h0"/></svg>Appearance</button>
         <button type="button" data-pane="shortcuts"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z M7 10h0 M10.5 10h0 M14 10h0 M17.5 10h0 M8 14h8"/></svg>Shortcuts</button>
+        <button type="button" data-pane="speech"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg>Dictation</button>
         <div class="snav-g">AI</div>
         <button type="button" data-pane="claude"><svg class="plogo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#D97757" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>Claude</button>
         <button type="button" data-pane="chatgpt"><svg class="plogo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10A37F" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>ChatGPT</button>
@@ -479,11 +502,31 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="kbrow"><span class="keys"><kbd>⌘↵</kbd></span><span>With the box empty: paste the answer into the app you were using</span></div>
           <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>Close, or tuck into Pip</span></div>
           <div class="kbrow"><span class="keys"><kbd>↵</kbd> <kbd>⌘↵</kbd></span><span>In a template's fields: next field, send</span></div>
+          <div class="kbgroup">Dictation</div>
+          <div class="kbrow"><span class="keys">Microphone</span><span>Start; click again to stop (the text stays in the box)</span></div>
+          <div class="kbrow"><span class="keys"><kbd>↵</kbd></span><span>While dictating: stop and send</span></div>
+          <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>While dictating: cancel</span></div>
           <div class="kbgroup">Pip</div>
           <div class="kbrow"><span class="keys">Click</span><span>Open, or tuck away</span></div>
           <div class="kbrow"><span class="keys">Drag</span><span>Move it; a quick throw sends it to the corner that way</span></div>
           <div class="kbrow"><span class="keys">Middle click · <kbd>⌥</kbd> click</span><span>To the nearest edge; on an edge, on to the next corner clockwise</span></div>
           <div class="kbrow"><span class="keys">Right click</span><span>Menu: new chat, recent chats, templates, settings</span></div>
+        </section>
+        <section class="spane" data-pane="speech">
+          <h2>Dictation</h2>
+          <div class="shint">Speak instead of typing: click the microphone in the question bar. It runs on this Mac only (Whisper); what you say never leaves it.</div>
+          <div class="sline">
+            <div><div class="sl-t">Language</div><div class="sl-d">Auto picks Turkish or English from the first words. English terms inside Turkish speech come out fine either way.</div></div>
+            <div class="seg" data-name="speechLanguage"><button type="button" data-v="auto">Auto</button><button type="button" data-v="tr">Türkçe</button><button type="button" data-v="en">English</button></div>
+          </div>
+          <div class="sline" style="display:block">
+            <div class="sl-t">Words to expect</div><div class="sl-d">Names and terms you often say, so they come out spelled right. Separate them with commas.</div>
+            <textarea id="speechHints" rows="2" spellcheck="false" placeholder="SAP Business One, Service Layer, ProcessForce, CompuTec"></textarea>
+          </div>
+          <div class="sline">
+            <div><div class="sl-t">Speech model</div><div class="sl-d" id="spModel">Checking…</div></div>
+            <button type="button" id="spModelBtn" hidden>Download</button>
+          </div>
         </section>
         <section class="spane" data-pane="appearance">
           <h2>Appearance</h2>
@@ -611,12 +654,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   <div class="fields glass" id="fieldsBox" hidden><div class="ftitle" id="fieldsTitle"></div><div class="flist" id="fieldList"></div></div>
   <div class="attach glass" id="attachBox" hidden><div class="alist" id="attachList"></div></div>
   <div class="lightbox glass" id="lightbox" hidden><img id="lightImg" alt=""><button type="button" class="x lclose" id="lightClose" title="Close (Esc)">✕</button></div>
+  <div class="speechbox glass" id="speechBox" hidden><div class="sbt" id="sbText"></div><div class="sbbar" id="sbBar" hidden><i id="sbFill"></i></div><div class="sba" id="sbActions"></div></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text or an attachment">+</button><input type="file" id="attachFile" multiple hidden>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
     <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as Pip" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
+    <button type="button" class="round gear mic" id="barMic" title="Dictate: speak, then click again (↵ sends, esc cancels)" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
   </div>
   </div>
@@ -641,6 +686,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // The question grows with what is typed, up to about half the screen (then it scrolls).
   const promptMax = Math.max(140, Math.round((screen.availHeight || 900) * 0.45));
   document.documentElement.style.setProperty("--prompt-max", promptMax + "px");
+  const fieldMax = Math.max(120, Math.round((screen.availHeight || 900) * 0.35));
+  document.documentElement.style.setProperty("--field-max", fieldMax + "px");
   document.documentElement.style.setProperty("--view-max", Math.max(360, Math.round((screen.availHeight || 900) * 0.8) - 20) + "px");
   const els = {
     root: $("root"), card: $("card"), who: $("who"), title: $("title"), status: $("status"), notice: $("notice"),
@@ -1048,6 +1095,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
       setSeg("keepPip", s.keepPip === false ? "false" : "true");
+      setSeg("speechLanguage", s.speechLanguage || "auto");
+      $("speechHints").value = s.speechHints || "";
+      speechPost("probe");
       setHotkey(s.hotkey || "alt+shift+Space");
       setSlider(s.popupScale);
       setIconSlider(s.iconScale);
@@ -1218,6 +1268,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
       keepPip: segValues.keepPip,
+      speechLanguage: segValues.speechLanguage || "auto",
+      speechHints: $("speechHints").value.trim(),
       hotkey: hotkeyValue,
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
@@ -1250,6 +1302,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let lastBusy = false;
 
   function collapse() {
+    // Tucking into Pip ends a dictation (the microphone stops).
+    if (window.__quickPromptSpeech && speech.state !== "idle") cancelDictation();
     if (!collapsed && bridge && !collapse.now) {
       freezePip(() => { collapse.now = true; try { thawNext = true; collapse(); } finally { collapse.now = false; } });
       return;
@@ -2177,8 +2231,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     fieldList.innerHTML = fields.map(f => {
       const control = f.options && f.options.length
         ? '<select data-field="' + esc(f.name) + '">' + f.options.map(o => '<option>' + esc(o) + '</option>').join("") + '</select>'
-        : '<input type="text" data-field="' + esc(f.name) + '" spellcheck="false" autocomplete="off">';
-      return '<label class="sfield">' + esc(label(f.name)) + control + '</label>';
+        : '<textarea rows="1" data-field="' + esc(f.name) + '" spellcheck="false" autocomplete="off"></textarea>';
+      return '<label class="sfield' + (f.options && f.options.length ? '' : ' wide') + '">' + esc(label(f.name)) + control + '</label>';
     }).join("");
     if (fields.length) setTimeout(() => { const first = fieldList.querySelector("[data-field]"); if (first) first.focus(); }, 30);
     updateSendState();
@@ -2188,13 +2242,19 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const values = {}; let missing = null;
     fieldList.querySelectorAll("[data-field]").forEach(el => {
       values[el.dataset.field] = el.value;
-      const empty = el.tagName === "INPUT" && !el.value.trim();
+      const empty = el.tagName === "TEXTAREA" && !el.value.trim();
       el.parentElement.classList.toggle("missing", false);
       if (empty && !missing) missing = el;
     });
     return { values, missing };
   }
-  fieldList.addEventListener("input", e => { e.target.parentElement.classList.remove("missing"); updateSendState(); });
+  function growField(el) {
+    if (el.tagName !== "TEXTAREA") return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, fieldMax) + "px";
+    queueLayout();
+  }
+  fieldList.addEventListener("input", e => { e.target.parentElement.classList.remove("missing"); growField(e.target); updateSendState(); });
   fieldList.addEventListener("keydown", e => {
     if (e.key !== "Enter" || e.isComposing || e.shiftKey) return;
     e.preventDefault(); e.stopPropagation();
@@ -2345,6 +2405,147 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     e.preventDefault();
     files.forEach(addImageFile);
   });
+  // ---------- dictation (native popup: the app runs Whisper on this Mac) ----------
+  // States: idle → starting (model loading) → listening (text streams into the box) → finishing (the final pass).
+  const speech = { available: false, model: "missing", size: 0, received: 0, state: "idle", base: "", sendAfter: false, wantStart: false };
+  const micBtn = $("barMic"), speechBox = $("speechBox");
+  function speechPost(action, extra) { if (bridge) bridge.postMessage(Object.assign({ type: "speech", action }, extra || {})); }
+  const mb = n => Math.round(n / 1000000) + " MB";
+  function showSpeechBox(text, opts) {
+    opts = opts || {};
+    $("sbText").textContent = text;
+    $("sbBar").hidden = opts.progress == null;
+    if (opts.progress != null) $("sbFill").style.width = Math.round(opts.progress * 100) + "%";
+    const actions = $("sbActions");
+    actions.textContent = "";
+    (opts.buttons || []).forEach(b => {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.textContent = b.label;
+      if (b.primary) el.className = "primary";
+      el.addEventListener("click", b.run);
+      actions.appendChild(el);
+    });
+    speechBox.hidden = false;
+    queueLayout();
+  }
+  function hideSpeechBox() { if (!speechBox.hidden) { speechBox.hidden = true; queueLayout(); } }
+  function showModelOffer() {
+    showSpeechBox("Dictation needs a speech model (" + mb(speech.size) + ", downloaded once). It runs on this Mac only.", { buttons: [
+      { label: "Download", primary: true, run: () => { speech.wantStart = true; speechPost("download"); } },
+      { label: "Not now", run: () => { speech.wantStart = false; hideSpeechBox(); } },
+    ] });
+  }
+  function renderSpeechSettings() {
+    const line = $("spModel"), btn = $("spModelBtn");
+    if (!speech.available) { line.textContent = "Dictation needs a Mac with Apple silicon."; btn.hidden = true; return; }
+    btn.hidden = false;
+    if (speech.model === "ready") { line.textContent = "Whisper large-v3-turbo · on this Mac · " + mb(speech.size); btn.textContent = "Delete"; btn.dataset.do = "deleteModel"; }
+    else if (speech.model === "downloading") { line.textContent = "Downloading… " + mb(speech.received) + " of " + mb(speech.size); btn.textContent = "Cancel"; btn.dataset.do = "cancelDownload"; }
+    else { line.textContent = "Not downloaded yet (" + mb(speech.size) + ")."; btn.textContent = "Download"; btn.dataset.do = "download"; }
+  }
+  $("spModelBtn").addEventListener("click", e => speechPost(e.currentTarget.dataset.do));
+  function setSpeechState(next) {
+    speech.state = next;
+    micBtn.classList.toggle("on", next === "listening");
+    micBtn.classList.toggle("wait", next === "starting" || next === "finishing");
+    els.prompt.readOnly = next !== "idle";
+    els.prompt.classList.toggle("dictating", next === "starting" || next === "finishing");
+    micBtn.title = next === "listening" ? "Stop (↵ stops and sends, esc cancels)" : "Dictate: speak, then click again (↵ sends, esc cancels)";
+    if (next === "idle") micBtn.style.removeProperty("--lvl");
+  }
+  function setDictated(text) {
+    const base = speech.base.replace(/\s+$/, "");
+    els.prompt.value = base && text ? base + " " + text : (base || text);
+    autoGrow();
+    els.prompt.scrollTop = els.prompt.scrollHeight;
+  }
+  function startDictation() {
+    if (!speech.available || speech.state !== "idle") return;
+    if (speech.model !== "ready") { speech.model === "downloading" ? renderSpeechBoxProgress() : showModelOffer(); return; }
+    hideSpeechBox();
+    speech.base = els.prompt.value;
+    speech.sendAfter = false;
+    setSpeechState("starting");
+    speechPost("start", { language: (state && state.speechLanguage) || "auto", prompt: (state && state.speechHints) || "" });
+  }
+  function stopDictation(thenSend) {
+    if (speech.state === "listening" || speech.state === "starting") {
+      speech.sendAfter = !!thenSend;
+      setSpeechState("finishing");
+      speechPost("stop");
+    }
+  }
+  function cancelDictation() {
+    if (speech.state === "idle") return;
+    speechPost("cancel");
+    els.prompt.value = speech.base;
+    autoGrow();
+    setSpeechState("idle");
+  }
+  function renderSpeechBoxProgress() {
+    const p = speech.size ? speech.received / speech.size : 0;
+    showSpeechBox("Downloading the speech model… " + mb(speech.received) + " of " + mb(speech.size), { progress: p,
+      buttons: [{ label: "Cancel", run: () => { speech.wantStart = false; speechPost("cancelDownload"); } }] });
+  }
+  window.__quickPromptSpeech = e => {
+    switch (e.type) {
+      case "status":
+        speech.available = !!e.available;
+        speech.model = e.model;
+        speech.size = e.size || speech.size;
+        speech.received = e.received || 0;
+        micBtn.hidden = !speech.available;
+        renderSpeechSettings();
+        if (speech.model === "downloading" && speech.wantStart) renderSpeechBoxProgress();
+        else if (speech.model === "ready" && speech.wantStart) { speech.wantStart = false; hideSpeechBox(); startDictation(); }
+        else if (speech.model !== "downloading" && !speechBox.hidden && $("sbBar").hidden === false) hideSpeechBox();
+        queueLayout();
+        break;
+      case "loading":
+      case "starting":
+        if (speech.state !== "idle") setSpeechState("starting");
+        break;
+      case "listening":
+        if (speech.state === "starting") setSpeechState("listening");
+        break;
+      case "level":
+        if (speech.state === "listening") micBtn.style.setProperty("--lvl", Math.min(1, e.value).toFixed(2));
+        break;
+      case "partial":
+        if (speech.state === "listening") setDictated(e.text || "");
+        break;
+      case "final": {
+        if (speech.state === "idle") break;
+        setDictated(e.text || "");
+        const thenSend = speech.sendAfter;
+        setSpeechState("idle");
+        els.prompt.focus();
+        els.prompt.setSelectionRange(els.prompt.value.length, els.prompt.value.length);
+        if (thenSend && els.prompt.value.trim()) send();
+        break;
+      }
+      case "cancelled":
+        if (speech.state !== "idle") { els.prompt.value = speech.base; autoGrow(); setSpeechState("idle"); }
+        break;
+      case "error":
+        if (speech.state !== "idle") { setSpeechState("idle"); }
+        speech.wantStart = false;
+        if (e.code === "permission") showSpeechBox("Quick Prompt may not use the microphone. Allow it in System Settings → Privacy & Security → Microphone.",
+          { buttons: [{ label: "Open Settings", primary: true, run: () => { speechPost("openPrivacy"); hideSpeechBox(); } }, { label: "Close", run: hideSpeechBox }] });
+        else showSpeechBox(e.message || "Dictation failed.", { buttons: [{ label: "Close", run: hideSpeechBox }] });
+        break;
+    }
+  };
+  micBtn.addEventListener("click", () => speech.state === "idle" ? startDictation() : stopDictation(false));
+  // While dictating, Enter stops and sends and Esc cancels (before the box's own keys).
+  document.addEventListener("keydown", e => {
+    if (speech.state === "idle") return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); cancelDictation(); }
+    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopImmediatePropagation(); stopDictation(true); }
+  }, true);
+  speechPost("probe");
+
   // Text files go into the text box under the question, each under its name.
   const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|xml|ya?ml|toml|ini|log|html?|css|js|mjs|ts|tsx|jsx|cs|swift|py|rb|go|rs|java|kt|c|h|cpp|hpp|m|sh|zsh|sql|ps1|bat|vb|php|lua|r|tex|rtf|srt|vtt)$/i;
   function isTextFile(f) {

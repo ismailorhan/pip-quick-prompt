@@ -17,12 +17,19 @@ outputs=()
 for arch in arm64 x86_64; do
   swiftc -O -swift-version 5 \
     -target "$arch-apple-macos12.0" \
-    -o "build/QuickPromptApp-$arch" App/main.swift App/Updater.swift Shared/PopupController.swift \
-    -framework AppKit -framework WebKit -framework Carbon -framework ServiceManagement
+    -o "build/QuickPromptApp-$arch" App/main.swift App/Updater.swift App/Speech.swift Shared/PopupController.swift \
+    -framework AppKit -framework WebKit -framework Carbon -framework ServiceManagement -framework AVFoundation
   outputs+=("build/QuickPromptApp-$arch")
 done
 lipo -create -output "$app/Contents/MacOS/Quick Prompt" "${outputs[@]}"
 rm -f "${outputs[@]}"
+
+echo "Compiling dictation (whisper.cpp, Apple silicon only)"
+Speech/build-whisper.sh
+swiftc -O -swift-version 5 -target arm64-apple-macos12.0 \
+  -I build/whisper/include -L build/whisper/lib -lwhisper -lggml -lggml-base -lggml-cpu -lggml-metal -lc++ \
+  -framework Metal -framework Foundation -framework Accelerate -framework AVFoundation \
+  -o "$app/Contents/MacOS/QuickPromptSpeech" Speech/main.swift
 
 sed "s/__VERSION__/$version/g" App/Info.plist > "$app/Contents/Info.plist"
 
@@ -84,7 +91,8 @@ while IFS= read -r -d '' file; do
     esac
   fi
 done < <(find "$app/Contents/Resources/agent" -type f -print0)
-sign "$app"
+sign "$app/Contents/MacOS/QuickPromptSpeech" App/App.entitlements
+sign "$app" App/App.entitlements
 codesign --verify --strict --verbose=2 "$app"
 
 mkdir -p "$root/dist"

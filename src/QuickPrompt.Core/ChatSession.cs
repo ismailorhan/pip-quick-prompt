@@ -479,6 +479,8 @@ namespace QuickPrompt.Core
                     iconScale = this._settings().IconScale,
                     glassTint = this._settings().GlassTint,
                     keepPip = this._settings().KeepPip,
+                    speechLanguage = QuickPromptSettings.IsValidSpeechLanguage(this._settings().SpeechLanguage) ? this._settings().SpeechLanguage : "auto",
+                    speechHints = this._settings().SpeechHints ?? "",
                     startCollapsed = this.StartCollapsed,
                     messages = this._messages.Select(m => new
                     {

@@ -75,6 +75,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     var onClosed: ((PopupController) -> Void)?
     /// Called when the engine no longer knows this popup's session (the app opens a fresh Pip).
     var onSessionEnded: (() -> Void)?
+    /// Dictation requests from the page ({action: probe|start|stop|cancel|download|…}); unset = no dictation here.
+    var onSpeech: ((PopupController, [String: Any]) -> Void)?
     private var panel: PopupPanel!
     private var webView: WKWebView!
     private var container: NSView!
@@ -482,6 +484,12 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         webView?.evaluateJavaScript("window.__quickPromptSide && window.__quickPromptSide('\(next)')", completionHandler: nil)
     }
 
+    /// Hands a dictation event to the page.
+    func speechEvent(_ event: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: event), let json = String(data: data, encoding: .utf8) else { return }
+        webView?.evaluateJavaScript("window.__quickPromptSpeech && window.__quickPromptSpeech(\(json))", completionHandler: nil)
+    }
+
     // MARK: context menu (right click on the floating icon)
 
     private func showMenu(_ items: [[String: Any]]) {
@@ -730,6 +738,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             close()
         case "sessionEnded":
             onSessionEnded?()
+        case "speech":
+            onSpeech?(self, body)
         case "drag":
             startDrag()
         case "mode":

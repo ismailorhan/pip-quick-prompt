@@ -24,6 +24,8 @@
     <true/>
     <key>NSHumanReadableCopyright</key>
     <string>© İsmail Orhan. MIT License.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Quick Prompt turns what you say into text on this Mac when you dictate a question.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

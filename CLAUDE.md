@@ -58,7 +58,7 @@ Popup page: one HTML/JS page (src/QuickPrompt.Core/ChatPage.cs) in a WKWebView; 
 - Engine log: `~/Library/Logs/Quick Prompt/agent.log` (the agent's stderr, written by the app; over 1 MB it
   moves to `agent.old.log`). Look here first when the owner reports something odd.
 - Swift can be type-checked on the owner's Mac (Xcode is installed):
-  `cd native/macos && swiftc -typecheck -swift-version 5 -target arm64-apple-macos12.0 App/main.swift App/Updater.swift Shared/PopupController.swift`.
+  `cd native/macos && swiftc -typecheck -swift-version 5 -target arm64-apple-macos12.0 App/main.swift App/Updater.swift App/Speech.swift Shared/PopupController.swift`.
 
 Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 
@@ -72,6 +72,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 | `src/QuickPrompt.DevHost` | Runs Core without Options+ or the app. |
 | `native/macos/Shared/PopupController.swift` | The floating panel: glass, drag/throw, Pip anchoring, Dock avoidance, menus, save/open dialogs. |
 | `native/macos/App/` | Menu bar app (`main.swift`), in-app updater (`Updater.swift`), entitlements, Info.plist. |
+| `native/macos/Speech/` | Dictation helper `QuickPromptSpeech` (Swift + whisper.cpp, arm64): mic → live text → final pass; `build-whisper.sh` builds whisper.cpp v1.9.5 static. `App/Speech.swift` runs it and downloads the model. |
 | `native/macos/build-app.sh` | Builds the app, signs (Developer ID when secrets are set), notarizes, makes the DMG and `QuickPrompt-mac.json`. |
 | `.github/workflows/build.yml` | CI: Linux tests; macOS package + app + DMG; publish the Latest build release. |
 | `tests/QuickPrompt.Tests` | xUnit (≈100 tests), incl. a `node --check` of the page script. |
@@ -142,6 +143,13 @@ the room above runs out (`grow-down`, from the `top` the edge report now carries
 Add Attachment…); pictures and text files (into the text box, under their names) can be added from the menu
 or dropped on the popup or on Pip (Pip opens with them).
 v0.3.45: Pip's toolbar tucks 1.5 s after the mouse leaves (was 3 s).
+On `dev` (not built): dictation. Mic button in the question bar; live text while speaking (turbo, greedy, every
+~0.4 s, commits at pauses), then a final pass over the whole recording (beam search + silero VAD, ~1 s for 30 s).
+Model ggml-large-v3-turbo-q5_0 (574 MB) + silero (0.9 MB) downloaded once into Application Support/Quick
+Prompt/models (size + SHA-256 checked). Auto language = Turkish or English only, decided after 3 s of speech
+(Whisper's own detection picked Russian). Settings → Dictation: language, words to expect, model. Test without a
+mic: QP_SPEECH_FILE=<16 kHz wav> (and QP_SPEECH_HELPER for the app side). Template text fields are full-width
+textareas that grow. Pip's toolbar highlights under the pointer (the panel gets no mouse moves while Pip is alone).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

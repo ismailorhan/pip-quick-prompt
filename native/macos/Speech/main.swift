@@ -1,0 +1,352 @@
+// QuickPromptSpeech: local speech-to-text for Quick Prompt (whisper.cpp, on this Mac only).
+//
+// The app starts it on the first mic press and talks to it with one JSON object per line:
+//   in  (stdin):  {"cmd":"start","language":"auto|tr|en","prompt":"words to expect"}  {"cmd":"stop"}  {"cmd":"cancel"}
+//   out (stdout): {"type":"ready"}  {"type":"listening"}  {"type":"level","value":0.4}
+//                 {"type":"partial","text":"…"}  {"type":"final","text":"…"}  {"type":"error","message":"…"}
+// While listening it writes the text as it hears it (partial: the words so far, the last ones may still change);
+// on stop it transcribes the whole recording once more, with voice detection, and sends the final text.
+// Usage: QuickPromptSpeech <model.bin> <vad.bin>
+import AVFoundation
+import Foundation
+import Whisper
+
+setvbuf(stdout, nil, _IOLBF, 0)
+let output = DispatchQueue(label: "out")
+func send(_ object: [String: Any]) {
+    guard let data = try? JSONSerialization.data(withJSONObject: object), let line = String(data: data, encoding: .utf8) else { return }
+    output.sync { print(line); fflush(stdout) }
+}
+func log(_ text: String) { FileHandle.standardError.write((text + "\n").data(using: .utf8)!) }
+
+let args = CommandLine.arguments
+guard args.count >= 3 else { send(["type": "error", "message": "usage: QuickPromptSpeech <model> <vad>"]); exit(2) }
+
+// whisper.cpp prints a lot while loading; only errors go to the app's log.
+whisper_log_set({ level, text, _ in
+    if level == GGML_LOG_LEVEL_ERROR, let text = text { FileHandle.standardError.write(Data(String(cString: text).utf8)) }
+}, nil)
+
+var contextParams = whisper_context_default_params()
+contextParams.use_gpu = true
+contextParams.flash_attn = true
+guard let ctx = whisper_init_from_file_with_params(args[1], contextParams) else {
+    send(["type": "error", "message": "Could not load the speech model"]); exit(3)
+}
+var vadParams = whisper_vad_default_context_params()
+vadParams.n_threads = 2
+vadParams.use_gpu = false
+guard let vad = whisper_vad_init_from_file_with_params(args[2], vadParams) else {
+    send(["type": "error", "message": "Could not load the voice detector"]); exit(3)
+}
+let vadPath = args[2]
+let threads = Int32(max(2, min(8, ProcessInfo.processInfo.activeProcessorCount - 2)))
+send(["type": "ready"])
+
+// MARK: audio
+
+let rate = 16000.0
+let frame = 512                       // the voice detector's step (32 ms)
+let lock = NSLock()
+var samples: [Float] = []             // everything heard since start, 16 kHz mono
+var speechProbs: [Float] = []         // one per 512 samples
+var vadDone = 0                       // samples given to the voice detector so far
+var engine: AVAudioEngine?
+var listening = false
+var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
+
+/// Test mode (QP_SPEECH_FILE=<16 kHz mono wav>): the file plays in as if spoken, at real-time speed.
+var fileTimer: DispatchSourceTimer?
+func startFile(_ path: String) throws {
+    let file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)) else { return }
+    try file.read(into: buffer)
+    let all = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: Int(buffer.frameLength)))
+    var at = 0
+    let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+    timer.schedule(deadline: .now(), repeating: 0.1)
+    timer.setEventHandler {
+        let n = min(1600, all.count - at)
+        guard n > 0 else { return }
+        lock.lock(); samples.append(contentsOf: all[at..<at + n]); lock.unlock()
+        at += n
+    }
+    timer.resume()
+    fileTimer = timer
+}
+
+func startAudio() throws {
+    if let path = ProcessInfo.processInfo.environment["QP_SPEECH_FILE"] { try startFile(path); return }
+    let engine0 = AVAudioEngine()
+    let input = engine0.inputNode
+    let inFormat = input.outputFormat(forBus: 0)
+    guard inFormat.sampleRate > 0, let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false),
+          let converter = AVAudioConverter(from: inFormat, to: target) else {
+        throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone"])
+    }
+    var lastLevel = 0.0
+    input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { buffer, _ in
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * rate / inFormat.sampleRate) + 32
+        guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
+        var given = false
+        var error: NSError?
+        converter.convert(to: out, error: &error) { _, status in
+            if given { status.pointee = .noDataNow; return nil }
+            given = true
+            status.pointee = .haveData
+            return buffer
+        }
+        guard error == nil, let data = out.floatChannelData?[0], out.frameLength > 0 else { return }
+        let chunk = Array(UnsafeBufferPointer(start: data, count: Int(out.frameLength)))
+        lock.lock(); samples.append(contentsOf: chunk); lock.unlock()
+        // The level for the mic button (about 12 a second).
+        let now = Date().timeIntervalSince1970
+        if now - lastLevel > 0.08 {
+            lastLevel = now
+            let rms = sqrt(chunk.reduce(0) { $0 + $1 * $1 } / Float(chunk.count))
+            send(["type": "level", "value": Double(min(1, rms * 12))])
+        }
+    }
+    engine0.prepare()
+    try engine0.start()
+    engine = engine0
+}
+
+func stopAudio() {
+    fileTimer?.cancel()
+    fileTimer = nil
+    engine?.inputNode.removeTap(onBus: 0)
+    engine?.stop()
+    engine = nil
+}
+
+/// Runs the voice detector over the samples it has not seen yet (whole frames only).
+func updateVoice() {
+    lock.lock()
+    let end = samples.count - (samples.count - vadDone) % frame
+    let fresh = vadDone < end ? Array(samples[vadDone..<end]) : []
+    lock.unlock()
+    guard !fresh.isEmpty else { return }
+    if fresh.withUnsafeBufferPointer({ whisper_vad_detect_speech_no_reset(vad, $0.baseAddress, Int32($0.count)) }) {
+        let n = Int(whisper_vad_n_probs(vad))
+        if let p = whisper_vad_probs(vad) { speechProbs.append(contentsOf: UnsafeBufferPointer(start: p, count: n)) }
+    }
+    vadDone = end
+}
+
+func hasSpeech(from start: Int, to end: Int) -> Bool {
+    let a = start / frame, b = min(speechProbs.count, end / frame)
+    return a < b && speechProbs[a..<b].contains { $0 > 0.5 }
+}
+
+/// Silence at the end of what was heard, in samples (from the voice detector).
+func trailingSilence() -> Int {
+    var n = 0
+    for p in speechProbs.reversed() { if p < 0.35 { n += 1 } else { break } }
+    return n * frame
+}
+
+// MARK: transcription
+
+var language = "auto"
+var hints = ""
+var lockedLanguage: String?           // Auto: decided after the first seconds of speech, then kept
+var provisional = "tr"                // Auto, before that: the better guess so far
+
+/// Auto means Turkish or English: Whisper's own detection over a second of speech picks Russian or Azerbaijani
+/// too easily, so only these two are compared.
+func detectTurkishOrEnglish(_ audio: [Float]) -> String? {
+    let clip = Array(audio.suffix(Int(rate * 30)))
+    guard clip.withUnsafeBufferPointer({ whisper_pcm_to_mel(ctx, $0.baseAddress, Int32($0.count), threads) }) == 0 else { return nil }
+    var probs = [Float](repeating: 0, count: Int(whisper_lang_max_id()) + 1)
+    guard whisper_lang_auto_detect(ctx, 0, threads, &probs) >= 0 else { return nil }
+    return probs[Int(whisper_lang_id("tr"))] >= probs[Int(whisper_lang_id("en"))] ? "tr" : "en"
+}
+
+func speechSeconds() -> Double { Double(speechProbs.filter { $0 > 0.5 }.count * frame) / rate }
+
+/// Phrases Whisper is known to invent over silence or noise (subtitle credits, sign-offs).
+let invented = ["altyazı m.k.", "altyazı m.k", "altyazı", "thank you.", "thanks for watching!", "thanks for watching.",
+                "abone olmayı unutmayın.", "izlediğiniz için teşekkürler.", "teşekkürler.", "you"]
+
+func clean(_ text: String) -> String {
+    var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if t.hasPrefix("[") && t.hasSuffix("]") { return "" }      // [Music], [BLANK_AUDIO]
+    if t.hasPrefix("(") && t.hasSuffix(")") { return "" }
+    if invented.contains(t.lowercased()) { return "" }
+    while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
+    return t
+}
+
+struct Segment { let text: String; let end: Int }   // end in samples, from the start of the decoded audio
+
+/// Transcribes the audio. `prompt` conditions the decoder (expected words, the text before this part).
+func transcribe(_ audio: [Float], prompt: String, useVoiceDetection: Bool) -> [Segment]? {
+    // Live: greedy, fast. The final pass: beam search (as whisper-cli does), which also keeps the punctuation.
+    var p = whisper_full_default_params(useVoiceDetection ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY)
+    if useVoiceDetection { p.beam_search.beam_size = 5; p.greedy.best_of = 5 }
+    p.n_threads = threads
+    p.print_progress = false
+    p.print_realtime = false
+    p.print_special = false
+    p.print_timestamps = false
+    p.no_context = true
+    p.suppress_blank = true
+    p.suppress_nst = !useVoiceDetection
+    p.no_speech_thold = 0.6
+    p.abort_callback = { _ in aborting }
+    let lang = lockedLanguage ?? (language == "auto" ? provisional : language)
+    var segments: [Segment]?
+    lang.withCString { langPtr in
+        prompt.withCString { promptPtr in
+            vadPath.withCString { vadPtr in
+                p.language = langPtr
+                p.detect_language = false
+                p.initial_prompt = prompt.isEmpty ? nil : promptPtr
+                p.vad = useVoiceDetection
+                if useVoiceDetection {
+                    p.vad_model_path = vadPtr
+                    var v = whisper_vad_default_params()
+                    v.min_silence_duration_ms = 300
+                    v.speech_pad_ms = 200
+                    p.vad_params = v
+                }
+                let status = audio.withUnsafeBufferPointer { whisper_full(ctx, p, $0.baseAddress, Int32($0.count)) }
+                guard status == 0, !aborting else { return }
+                var list: [Segment] = []
+                for i in 0..<whisper_full_n_segments(ctx) {
+                    let text = clean(String(cString: whisper_full_get_segment_text(ctx, i)))
+                    let end = Int(whisper_full_get_segment_t1(ctx, i)) * 160     // 10 ms units
+                    if !text.isEmpty { list.append(Segment(text: text, end: end)) }
+                }
+                segments = list
+            }
+        }
+    }
+    return segments
+}
+
+func join(_ parts: [String]) -> String { parts.filter { !$0.isEmpty }.joined(separator: " ") }
+
+// MARK: the live loop
+
+let work = DispatchQueue(label: "work")
+var committed: [String] = []          // finished parts of the live text
+var commitAt = 0                      // where the unfinished audio starts (samples)
+var stopRequested = false
+
+func prompt(after text: [String]) -> String {
+    // The expected words, then the end of what was said so far (keeps names and style consistent).
+    let tail = String(join(text).suffix(180))
+    return join([hints, tail])
+}
+
+func liveStep() {
+    guard listening, !stopRequested else { return }
+    updateVoice()
+    lock.lock(); let total = samples.count; lock.unlock()
+    let pending = total - commitAt
+    if pending >= Int(rate * 0.6), hasSpeech(from: commitAt, to: total) {
+        if language == "auto", lockedLanguage == nil {
+            lock.lock(); let heard = Array(samples[0..<total]); lock.unlock()
+            if let guess = detectTurkishOrEnglish(heard) { provisional = guess }
+            if speechSeconds() >= 3 { lockedLanguage = provisional }
+        }
+        lock.lock(); let audio = Array(samples[commitAt..<total]); lock.unlock()
+        if let segs = transcribe(audio, prompt: prompt(after: committed), useVoiceDetection: false), !stopRequested {
+            let silence = trailingSilence()
+            if silence >= Int(rate * 0.7) || pending >= Int(rate * 14) {
+                // A pause (or a long stretch): what is decoded so far is settled; keep the last segment open
+                // unless the speaker has paused.
+                let keepLast = silence < Int(rate * 0.7) && segs.count > 1
+                let done = keepLast ? Array(segs.dropLast()) : segs
+                if let last = done.last {
+                    committed.append(join(done.map(\.text)))
+                    commitAt += keepLast ? min(last.end, audio.count) : audio.count
+                }
+                let open = keepLast ? segs.last!.text : ""
+                send(["type": "partial", "text": join(committed + [open])])
+            } else {
+                send(["type": "partial", "text": join(committed + segs.map(\.text))])
+            }
+        }
+    }
+    work.asyncAfter(deadline: .now() + 0.35) { liveStep() }
+}
+
+func start(_ body: [String: Any]) {
+    work.async {
+        guard !listening else { return }
+        language = (body["language"] as? String).flatMap { ["auto", "tr", "en"].contains($0) ? $0 : nil } ?? "auto"
+        hints = (body["prompt"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        lockedLanguage = nil
+        provisional = "tr"
+        lock.lock(); samples = []; lock.unlock()
+        speechProbs = []; vadDone = 0; committed = []; commitAt = 0
+        stopRequested = false; aborting = false
+        whisper_vad_reset_state(vad)
+        do {
+            try startAudio()
+        } catch {
+            send(["type": "error", "message": "Could not use the microphone: \(error.localizedDescription)"])
+            return
+        }
+        listening = true
+        send(["type": "listening"])
+        work.asyncAfter(deadline: .now() + 0.4) { liveStep() }
+    }
+}
+
+func stop() {
+    stopRequested = true
+    work.async {
+        guard listening else { return }
+        listening = false
+        stopAudio()
+        aborting = false
+        lock.lock(); let audio = samples; lock.unlock()
+        if language == "auto", lockedLanguage == nil, let guess = detectTurkishOrEnglish(audio) { lockedLanguage = guess }
+        // The whole recording once more, with voice detection: better words and no invented ones over silence.
+        let segs = audio.count > Int(rate * 0.3) ? transcribe(audio, prompt: hints, useVoiceDetection: true) : []
+        send(["type": "final", "text": join((segs ?? []).map(\.text))])
+    }
+}
+
+func cancel() {
+    stopRequested = true
+    aborting = true
+    work.async {
+        if listening { listening = false; stopAudio() }
+        aborting = false
+        send(["type": "cancelled"])
+    }
+}
+
+// MARK: commands
+
+/// Frees the model before leaving: ggml's Metal device asserts at exit if its buffers are still alive.
+func quit() -> Never {
+    stopRequested = true
+    aborting = true
+    work.sync {
+        if listening { listening = false; stopAudio() }
+        whisper_vad_free(vad)
+        whisper_free(ctx)
+    }
+    exit(0)
+}
+
+DispatchQueue.global().async {
+    while let line = readLine() {
+        guard let data = line.data(using: .utf8), let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { continue }
+        switch body["cmd"] as? String {
+        case "start": start(body)
+        case "stop": stop()
+        case "cancel": cancel()
+        case "quit": quit()
+        default: break
+        }
+    }
+    quit()   // the app went away
+}
+dispatchMain()

@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         quitting = true
+        Speech.shared.shutdown()
         stopAgent()
     }
 
@@ -508,6 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         popup.onSessionEnded = { [weak self] in
             self?.send("pip")   // the new Pip takes this popup's place
         }
+        popup.onSpeech = { popup, body in Speech.shared.handle(popup, body) }
         popups.append(popup)
         popup.open(at: anchor, bottomCenter: true)
     }

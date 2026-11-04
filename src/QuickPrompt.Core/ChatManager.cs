@@ -451,6 +451,8 @@ namespace QuickPrompt.Core
                 iconScale = s.IconScale,
                 glassTint = s.GlassTint,
                 keepPip = s.KeepPip,
+                speechLanguage = QuickPromptSettings.IsValidSpeechLanguage(s.SpeechLanguage) ? s.SpeechLanguage : "auto",
+                speechHints = s.SpeechHints ?? "",
                 hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
                 claude = new
                 {
@@ -575,6 +577,16 @@ namespace QuickPrompt.Core
             if (Get("keepPip") is "true" or "false")
             {
                 s.KeepPip = Get("keepPip") == "true";
+            }
+
+            if (QuickPromptSettings.IsValidSpeechLanguage(Get("speechLanguage")))
+            {
+                s.SpeechLanguage = Get("speechLanguage")!;
+            }
+
+            if (Get("speechHints") is { } speechHints)
+            {
+                s.SpeechHints = speechHints.Length > 600 ? speechHints.Substring(0, 600) : speechHints;
             }
 
             if (Int32.TryParse(Get("glassTint"), out var glassTint))
