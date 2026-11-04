@@ -1391,7 +1391,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let tuckTimer = null;
   function scheduleTuck() {
     clearTimeout(tuckTimer);
-    tuckTimer = setTimeout(() => { if (collapsed && presetList.hidden) tuckBar(); }, 3000);
+    tuckTimer = setTimeout(() => { if (collapsed && presetList.hidden) tuckBar(); }, 1500);
   }
   // Where the thin line sits for a toolbar rect (page pixels): under it, or over it when it opens above,
   // lined up like the toolbar.
