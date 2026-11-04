@@ -88,7 +88,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.44, 4 Nov 2026)
+## Status (v0.3.45, 4 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -141,7 +141,8 @@ typed; the question grows up to ~45% of the screen, upward from Pip's bottom, or
 the room above runs out (`grow-down`, from the `top` the edge report now carries); + opens a menu (Add Text,
 Add Attachment…); pictures and text files (into the text box, under their names) can be added from the menu
 or dropped on the popup or on Pip (Pip opens with them).
-CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run it.
+v0.3.45: Pip's toolbar tucks 1.5 s after the mouse leaves (was 3 s).
+CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
 
