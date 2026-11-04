@@ -76,6 +76,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 | `.github/workflows/build.yml` | CI: Linux tests; macOS package + app + DMG; publish the Latest build release. |
 | `tests/QuickPrompt.Tests` | xUnit (≈100 tests), incl. a `node --check` of the page script. |
 | `tools/icon-lab.html` | Stand-alone page used to tune Pip's animation. |
+| `tools/pip-motion-test/` | Native test of how Pip moves (real PopupController, mock engine); `run.sh`. |
 
 ## Release and signing
 
@@ -130,6 +131,11 @@ gone (freeze now waits: the page asks, the native side takes the snapshot of the
 separate still window, hides the web view, then answers `__quickPromptFrozen`; WKWebView snapshots taken while
 the page is changing come back wrong, and CGWindowListCreateImage was not used because of the screen-recording
 permission).
+On `dev` after v0.3.43: Pip's motion rewritten around one rule (Pip's centre is the truth; every move picks a
+target, keeps Pip whole on screen and goes through `glide(to:)`; layouts wait while a glide or drag runs;
+`windowDidMove` ignores our own moves; the panel overrides `constrainFrameRect` so macOS no longer pushes it
+down from the top; no Dock avoidance, the Dock is above Pip). Verified with `tools/pip-motion-test/run.sh`
+(all steps pass on both screens). Run that test after any change to how Pip moves.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run it.
 
 ## Open items / ideas

@@ -47,6 +47,16 @@ The page is plain HTML/JS, so it can be rendered without the app: extract the st
 serve it with Playwright, mock `/state` (and `/settings`, `/actions`, … as needed), and screenshot.
 A fake `window.webkit.messageHandlers.quickPrompt` makes the page behave as in the native popup.
 
+
+## Testing how Pip moves
+
+Chromium does not show the native panel's problems (window rounding, animations, the web view's frames
+after a resize). `tools/pip-motion-test/run.sh` builds the real `PopupController` with a small test app,
+serves the real popup page from a mock engine and moves Pip around every screen: drops, throws in eight
+directions, middle-click rounds of the corners, fast double clicks and hover. Each step must leave Pip whole on
+screen, exactly in the expected corner or edge, without back-and-forth. Run it after any change to how Pip
+moves (it takes about a minute and moves a floating Pip on your screens); exit code 0 means all passed.
+
 ## Branches
 
 Work on `dev`. Pushing `main` builds and publishes the Latest build release, so `main` only moves (fast-forward

@@ -23,6 +23,10 @@ final class PopupPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
+    // The controller keeps the panel on screen itself (Pip right in a corner leaves the panel's transparent
+    // margin past the edge); macOS would push it down from under the menu bar, away from where Pip goes.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+
     // An accessory app has no Edit menu, so route the standard shortcuts ourselves.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -81,8 +85,6 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private var barGlassIndex: Int?
     private var topLeft = NSPoint.zero
     private var visibleArea = NSRect.zero
-    /// Where the Dock is (or slides in when auto-hidden) on the panel's screen; the panel stays off it.
-    private var dockArea: NSRect?
     private var shown = false
     private var closing = false
     private var popupWidth: CGFloat = defaultPopupWidth
@@ -110,19 +112,11 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// Pip's radius in points (the page reports it with each layout).
     private var iconRadius: CGFloat = 28
 
-    /// What a drop, throw or middle click places: Pip itself while it is on its own (its toolbar then opens
-    /// inward, so Pip can sit right in a corner), the whole popup while the conversation is open.
-    private var moveSubject: NSRect {
-        // From the panel's frame (a drag moves the panel, not iconScreenX).
-        guard isMini, let ax = lastAnchorX, let ay = lastAnchorY else { return panel.frame }
-        let x = panel.frame.minX + ax, y = panel.frame.maxY - ay
-        return NSRect(x: x - iconRadius, y: y - iconRadius, width: iconRadius * 2, height: iconRadius * 2)
-    }
+    /// A glide is running (see glide): layouts wait for it, so nothing moves the panel mid-way.
+    private var moving = false
+    private var moveID = 0
+    private var pendingLayout: [String: Any]?
 
-    /// The panel frame that puts the move subject at `target`.
-    private func panelFrame(movingSubject subject: NSRect, to target: NSRect) -> NSRect {
-        panel.frame.offsetBy(dx: target.minX - subject.minX, dy: target.minY - subject.minY)
-    }
     /// Which side of the conversation the icon sits on: away from the nearer screen edge.
     private var side = "left"
 
@@ -303,199 +297,95 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         panel.setFrameOrigin(NSPoint(x: dragOrigin.x + now.x - dragStart.x, y: dragOrigin.y + now.y - dragStart.y))
     }
 
-    /// The screen area the popup may use: the whole screen below the menu bar. The Dock is handled
-    /// separately (dockArea) so the icon can still go right into a corner beside it.
+    /// The screen area the popup and Pip may use (see placement).
     private func updateArea(_ screen: NSScreen) {
-        let (area, dock) = PopupController.placement(on: screen)
-        visibleArea = area
-        dockArea = dock
+        visibleArea = PopupController.placement(on: screen).area
     }
 
+    /// The Dock is always above the popup and Pip (see belowDock). A Dock that hides covers them only while it
+    /// shows, so the whole screen below the menu bar is theirs; one that stays on screen is the edge.
     static func placement(on screen: NSScreen) -> (area: NSRect, dock: NSRect?) {
         let full = screen.frame
         let visible = screen.visibleFrame
-        let defaults = UserDefaults(suiteName: "com.apple.dock")
-        let orientation = defaults?.string(forKey: "orientation") ?? "bottom"
-        let autohide = defaults?.bool(forKey: "autohide") == true
+        let autohide = UserDefaults(suiteName: "com.apple.dock")?.bool(forKey: "autohide") == true
+        guard autohide else { return (visible, nil) }
         var area = full
         area.size.height = visible.maxY - full.minY   // below the menu bar
-        if !autohide {
-            // A Dock that stays on screen is the edge: Pip stops at its top (or side).
-            area = visible
-        }
-
-        // The Dock's real size and place, read through Accessibility (the app has that permission).
-        if let tiles = dockTilesFrame() {
-            let pad: CGFloat = 10
-            var dock: NSRect
-            switch orientation {
-            case "left":
-                dock = NSRect(x: full.minX, y: tiles.minY - pad, width: tiles.width + 2 * pad, height: tiles.height + 2 * pad)
-            case "right":
-                dock = NSRect(x: full.maxX - tiles.width - 2 * pad, y: tiles.minY - pad, width: tiles.width + 2 * pad, height: tiles.height + 2 * pad)
-            default:
-                dock = NSRect(x: tiles.minX - pad, y: full.minY, width: tiles.width + 2 * pad, height: tiles.height + 2 * pad)
-            }
-            if !autohide {
-                // Use what macOS reserves when that is larger (it includes the Dock's margins).
-                switch orientation {
-                case "left": dock.size.width = max(dock.width, visible.minX - full.minX)
-                case "right": dock.origin.x = min(dock.minX, visible.maxX); dock.size.width = full.maxX - dock.minX
-                default: dock.size.height = max(dock.height, visible.minY - full.minY)
-                }
-            }
-            if dock.intersects(full) {
-                return (area, dock)
-            }
-            return (area, nil)
-        }
-
-        // No Accessibility: keep clear of the whole Dock edge (as macOS does for windows).
-        var dockEdge: NSRect?
-        if autohide {
-            let tile = CGFloat(defaults?.double(forKey: "tilesize") ?? 0)
-            let reserve = (tile > 0 ? tile : 48) + 22
-            switch orientation {
-            case "left": dockEdge = NSRect(x: full.minX, y: full.minY, width: reserve, height: full.height)
-            case "right": dockEdge = NSRect(x: full.maxX - reserve, y: full.minY, width: reserve, height: full.height)
-            default: dockEdge = NSRect(x: full.minX, y: full.minY, width: full.width, height: reserve)
-            }
-        } else if visible.minY > full.minY {
-            dockEdge = NSRect(x: full.minX, y: full.minY, width: full.width, height: visible.minY - full.minY)
-        } else if visible.minX > full.minX {
-            dockEdge = NSRect(x: full.minX, y: full.minY, width: visible.minX - full.minX, height: full.height)
-        } else if visible.maxX < full.maxX {
-            dockEdge = NSRect(x: visible.maxX, y: full.minY, width: full.maxX - visible.maxX, height: full.height)
-        }
-        return (area, dockEdge)
+        return (area, nil)
     }
 
-    /// The frame of the Dock's icon row in Cocoa screen coordinates, or nil without Accessibility.
-    static func dockTilesFrame() -> NSRect? {
-        guard AXIsProcessTrusted(),
-              let dockApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { return nil }
-        let app = AXUIElementCreateApplication(dockApp.processIdentifier)
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXChildrenAttribute as CFString, &value) == .success,
-              let children = value as? [AXUIElement] else { return nil }
-        for child in children {
-            var role: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(child, kAXRoleAttribute as CFString, &role) == .success,
-                  (role as? String) == (kAXListRole as String) else { continue }
-            var positionValue: CFTypeRef?
-            var sizeValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(child, kAXPositionAttribute as CFString, &positionValue) == .success,
-                  AXUIElementCopyAttributeValue(child, kAXSizeAttribute as CFString, &sizeValue) == .success,
-                  let positionRef = positionValue, let sizeRef = sizeValue,
-                  CFGetTypeID(positionRef) == AXValueGetTypeID(), CFGetTypeID(sizeRef) == AXValueGetTypeID() else { continue }
-            var position = CGPoint.zero
-            var size = CGSize.zero
-            AXValueGetValue(positionRef as! AXValue, .cgPoint, &position)
-            AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
-            guard size.width > 0, size.height > 0 else { continue }
-            // Accessibility uses top-left coordinates from the primary screen.
-            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-            return NSRect(x: position.x, y: primaryHeight - position.y - size.height, width: size.width, height: size.height)
-        }
-        return nil
-    }
-
-    /// Moves a frame inside the usable area and off the Dock.
-    private func fit(_ frame: NSRect, edge: CGFloat, avoidDock: Bool = true) -> NSRect {
+    /// Moves a frame inside the usable area (`edge` points in from its sides).
+    private func fit(_ frame: NSRect, edge: CGFloat) -> NSRect {
         let area = visibleArea.insetBy(dx: edge, dy: edge)
         var f = frame
-        func clamp() {
-            f.origin.x = min(max(f.minX, area.minX), area.maxX - f.width)
-            f.origin.y = min(max(f.minY, area.minY), area.maxY - f.height)
-        }
-        clamp()
-        if avoidDock, let dock = dockArea?.insetBy(dx: -edge, dy: -edge), f.intersects(dock) {
-            // Step out of the Dock the shortest way that stays on screen.
-            var options: [NSRect] = []
-            var up = f; up.origin.y = dock.maxY; options.append(up)
-            var left = f; left.origin.x = dock.minX - f.width; options.append(left)
-            var right = f; right.origin.x = dock.maxX; options.append(right)
-            var down = f; down.origin.y = dock.minY - f.height; options.append(down)
-            let valid = options.filter { area.contains($0) }
-            if let best = valid.min(by: { hypot($0.minX - f.minX, $0.minY - f.minY) < hypot($1.minX - f.minX, $1.minY - f.minY) }) {
-                f = best
-            } else {
-                f.origin.y = dock.maxY
-                clamp()
-            }
-        }
+        f.origin.x = min(max(f.minX, area.minX), area.maxX - f.width)
+        f.origin.y = min(max(f.minY, area.minY), area.maxY - f.height)
         return f
+    }
+
+    // MARK: moving Pip
+    //
+    // Pip's centre (iconScreenX/Y) is the one truth; the panel follows it through the page's anchors (where
+    // Pip's centre is inside the page). Every move (drop, throw, middle click) picks a target, keeps it on
+    // screen and goes through glide(to:). While a glide runs, layouts from the page wait (pendingLayout),
+    // so nothing else moves the panel half-way; edges, side and the saved place update when it ends.
+
+    /// The rect a move places: Pip's circle while it is on its own (so it can sit right in a corner, its
+    /// toolbar opening inward), the whole popup while the conversation is open.
+    private func moveSubject(atPanel frame: NSRect) -> NSRect {
+        guard isMini, let ax = lastAnchorX, let ay = lastAnchorY else { return frame }
+        let r = iconRadius
+        return NSRect(x: frame.minX + ax - r, y: frame.maxY - ay - r, width: 2 * r, height: 2 * r)
+    }
+
+    /// The panel frame (of `base`'s size) that puts the move subject at `subject`.
+    private func panelFrame(placing subject: NSRect, from base: NSRect) -> NSRect {
+        let current = moveSubject(atPanel: base)
+        return base.offsetBy(dx: subject.minX - current.minX, dy: subject.minY - current.minY)
+    }
+
+    /// Where the panel is headed: the end of a running glide, else where it is.
+    private var restingFrame: NSRect {
+        let f = panel.frame
+        return NSRect(x: topLeft.x, y: topLeft.y - f.height, width: f.width, height: f.height)
     }
 
     private func finishDrag(_ samples: [(time: TimeInterval, point: NSPoint)]) {
         updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
         let screen = visibleArea
-        let frame = moveSubject
-        let margin: CGFloat = 0
-        var target = frame
-
+        let frame = panel.frame   // where the drag left it
+        var subject = moveSubject(atPanel: frame)
         if let first = samples.first, let last = samples.last, last.time - first.time > 0.01 {
             let dt = CGFloat(last.time - first.time)
             let vx = (last.point.x - first.point.x) / dt
             let vy = (last.point.y - first.point.y) / dt
             let speed = hypot(vx, vy)
             if speed > 1400 {
-                // Thrown: go to the corner (or edge) in the direction of the throw.
+                // Thrown: to the corner (or edge) in the direction of the throw.
                 if abs(vx) > speed * 0.3 {
-                    target.origin.x = vx > 0 ? screen.maxX - frame.width - margin : screen.minX + margin
+                    subject.origin.x = vx > 0 ? screen.maxX - subject.width : screen.minX
                 }
                 if abs(vy) > speed * 0.3 {
-                    target.origin.y = vy > 0 ? screen.maxY - frame.height - margin : screen.minY + margin
+                    subject.origin.y = vy > 0 ? screen.maxY - subject.height : screen.minY
                 }
             }
         }
-
-        // Always end fully on screen and off the Dock (Pip itself while it is on its own).
-        target = panelFrame(movingSubject: frame, to: fit(target, edge: 0))
-
-        if target.origin != panel.frame.origin {
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.28
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                self.panel.animator().setFrame(target, display: true)
-            }, completionHandler: { [weak self] in
-                guard let self = self else { return }
-                self.topLeft = NSPoint(x: self.panel.frame.minX, y: self.panel.frame.maxY)
-            })
-        }
-        topLeft = NSPoint(x: target.minX, y: target.maxY)
-        if isMini {
-            miniTopLeft = topLeft
-        }
-        if let anchor = lastAnchorX {
-            iconScreenX = target.minX + anchor
-        }
-        if let anchorY = lastAnchorY {
-            iconScreenY = target.maxY - anchorY
-        }
-        // Dropped on the other half of the screen: the conversation moves to the icon's other side.
-        updateSide()
-        // Remember where Pip was left, for the next start.
-        if let x = iconScreenX, let y = iconScreenY {
-            UserDefaults.standard.set([Double(x), Double(y)], forKey: "pipPosition")
-        }
+        glide(to: panelFrame(placing: fit(subject, edge: 0), from: frame))
     }
 
-    /// Middle click on Pip. Away from the edges: glide to the nearest one. On an edge: go clockwise along it to
-    /// the next corner (bottom → bottom left, left → top left, top → top right, right → bottom right), so
-    /// clicking again goes round the corners. Always off the Dock.
+    /// Middle click (or ⌥-click) on Pip. Away from the edges: glide to the nearest one. On an edge: go
+    /// clockwise along it to the next corner (bottom → bottom left, left → top left, top → top right, right
+    /// → bottom right), so clicking again goes round the corners. A click during a glide counts from its end.
     private func snapToNearestEdge() {
         updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
-        let frame = moveSubject   // Pip itself on its own: it goes right into the corner
-        // On an edge = it cannot move further that way (the screen edge, or the Dock's top / side).
-        func blocked(_ dx: CGFloat, _ dy: CGFloat) -> Bool {
-            let moved = fit(frame.offsetBy(dx: dx, dy: dy), edge: 0)
-            return abs(moved.minX - frame.minX) < 1 && abs(moved.minY - frame.minY) < 1
-        }
-        let left = blocked(-4, 0), right = blocked(4, 0), bottom = blocked(0, -4), top = blocked(0, 4)
-        let minX = visibleArea.minX, maxX = visibleArea.maxX - frame.width
-        let minY = visibleArea.minY, maxY = visibleArea.maxY - frame.height
-        var target = frame
+        let base = restingFrame
+        let subject = fit(moveSubject(atPanel: base), edge: 0)
+        let a = visibleArea
+        let left = subject.minX <= a.minX + 1, right = subject.maxX >= a.maxX - 1
+        let bottom = subject.minY <= a.minY + 1, top = subject.maxY >= a.maxY - 1
+        let minX = a.minX, maxX = a.maxX - subject.width
+        let minY = a.minY, maxY = a.maxY - subject.height
+        var target = subject
         if left && !top {
             target.origin = NSPoint(x: minX, y: maxY)          // up the left edge to the top left
         } else if top && !right {
@@ -506,8 +396,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             target.origin = NSPoint(x: minX, y: minY)          // along the bottom to the bottom left
         } else {
             let distances: [(CGFloat, Int)] = [
-                (frame.minX - visibleArea.minX, 0), (visibleArea.maxX - frame.maxX, 1),
-                (frame.minY - visibleArea.minY, 2), (visibleArea.maxY - frame.maxY, 3),
+                (subject.minX - a.minX, 0), (a.maxX - subject.maxX, 1),
+                (subject.minY - a.minY, 2), (a.maxY - subject.maxY, 3),
             ]
             switch distances.min(by: { $0.0 < $1.0 })?.1 ?? 0 {
             case 0: target.origin.x = minX
@@ -516,37 +406,59 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             default: target.origin.y = maxY
             }
         }
-        target = panelFrame(movingSubject: frame, to: fit(target, edge: 0))
+        glide(to: panelFrame(placing: target, from: base))
+    }
+
+    /// The one way the panel moves on its own: Pip's place is set to the end at once, the panel glides there.
+    private func glide(to target: NSRect) {
+        topLeft = NSPoint(x: target.minX, y: target.maxY)
+        if isMini {
+            miniTopLeft = topLeft
+        }
+        if let anchor = lastAnchorX {
+            iconScreenX = target.minX + anchor
+        }
+        if let anchorY = lastAnchorY {
+            iconScreenY = target.maxY - anchorY
+        }
+        // Remember where Pip was left, for the next start.
+        if let x = iconScreenX, let y = iconScreenY {
+            UserDefaults.standard.set([Double(x), Double(y)], forKey: "pipPosition")
+        }
+        moveID += 1
+        let id = moveID
+        let finish = { [weak self] in
+            guard let self = self, id == self.moveID else { return }   // a newer glide took over
+            self.moving = false
+            // On the other half of the screen the conversation opens on Pip's other side; near an edge its
+            // toolbar turns (the page answers with a layout, which keeps Pip still).
+            self.updateSide()
+            if let body = self.pendingLayout {
+                self.pendingLayout = nil
+                self.handle(body)
+            }
+        }
+        let from = panel.frame
+        guard abs(from.minX - target.minX) > 0.5 || abs(from.minY - target.minY) > 0.5 else {
+            panel.setFrame(target, display: true)
+            finish()
+            return
+        }
+        moving = true
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.28
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             self.panel.animator().setFrame(target, display: true)
-        }, completionHandler: { [weak self] in
-            guard let self = self else { return }
-            // From the requested frame, not the (rounded) one macOS placed.
-            self.topLeft = NSPoint(x: target.minX, y: target.maxY)
-            if let anchor = self.lastAnchorX { self.iconScreenX = target.minX + anchor }
-            if let anchorY = self.lastAnchorY { self.iconScreenY = target.maxY - anchorY }
-            if self.isMini { self.miniTopLeft = self.topLeft }
-            self.updateSide()
-            if let point = self.iconPoint {
-                UserDefaults.standard.set([Double(point.x), Double(point.y)], forKey: "pipPosition")
-            }
-        })
+        }, completionHandler: finish)
     }
 
-    /// Tells the page how much room Pip's middle has to the left, right and below (the Dock counts as the
-    /// edge where Pip is beside it), so its toolbar opens above near the bottom and lines up with Pip near a side.
+    /// Tells the page how much room Pip's middle has to the left, right and below, so its toolbar opens above
+    /// near the bottom and lines up with Pip near a side.
     private func reportEdges() {
         guard let x = iconScreenX, let y = iconScreenY else { return }
-        var left = visibleArea.minX, right = visibleArea.maxX, bottom = visibleArea.minY
-        if let dock = dockArea {
-            if dock.minY <= visibleArea.minY + 1, x >= dock.minX, x <= dock.maxX { bottom = max(bottom, dock.maxY) }
-            if dock.minX <= visibleArea.minX + 1, y >= dock.minY, y <= dock.maxY { left = max(left, dock.maxX) }
-            if dock.maxX >= visibleArea.maxX - 1, y >= dock.minY, y <= dock.maxY { right = min(right, dock.minX) }
-        }
+        let a = visibleArea
         let js = String(format: "window.__quickPromptEdges && window.__quickPromptEdges({left:%.0f,right:%.0f,bottom:%.0f})",
-                        x - left, right - x, y - bottom)
+                        x - a.minX, a.maxX - x, y - a.minY)
         webView?.evaluateJavaScript(js, completionHandler: nil)
     }
 
@@ -761,6 +673,11 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         case "thaw":
             thaw()
         case "layout":
+            // A glide or a drag is moving the panel: this layout waits for its end (the latest one wins).
+            if moving || dragTimer != nil {
+                pendingLayout = body
+                return
+            }
             if let value = body["height"] as? Double {
                 // Keep the floating icon where it is when its column changes width.
                 let anchor = (body["anchorX"] as? Double).map { CGFloat($0) }
@@ -833,9 +750,12 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             // Pip on its own (at start / Show Pip): where it was last left, or near the bottom-right corner.
             updateArea(panel.screen ?? NSScreen.main ?? NSScreen.screens[0])
             if let saved = UserDefaults.standard.array(forKey: "pipPosition") as? [Double], saved.count == 2,
-               NSScreen.screens.contains(where: { NSMouseInRect(NSPoint(x: saved[0], y: saved[1]), $0.frame, false) }) {
-                iconScreenX = CGFloat(saved[0])
-                iconScreenY = CGFloat(saved[1])
+               let screen = NSScreen.screens.first(where: { NSMouseInRect(NSPoint(x: saved[0], y: saved[1]), $0.frame, false) }) {
+                // Kept whole on that screen (older versions could leave Pip half over an edge).
+                updateArea(screen)
+                let r = iconRadius, a = visibleArea
+                iconScreenX = min(max(CGFloat(saved[0]), a.minX + r), a.maxX - r)
+                iconScreenY = min(max(CGFloat(saved[1]), a.minY + r), a.maxY - r)
             } else {
                 iconScreenX = visibleArea.maxX - 70
                 iconScreenY = visibleArea.minY + 150
@@ -938,6 +858,11 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     func windowDidMove(_ notification: Notification) {
+        // Our own moves keep Pip's place themselves: a glide sets it at its start (this fires on every frame
+        // of the glide), and a move to where we put the panel only differs by macOS's rounding. Anything else
+        // (the screen arrangement changed, say) moves Pip with the panel.
+        if moving || dragTimer != nil { return }
+        if abs(panel.frame.minX - topLeft.x) < 1, abs(panel.frame.maxY - topLeft.y) < 1 { return }
         topLeft = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
         if let anchor = lastAnchorX {
             iconScreenX = panel.frame.minX + anchor
