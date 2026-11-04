@@ -61,6 +61,9 @@ namespace QuickPrompt.Core
         /// <summary>Set when a template asks for its first answer on the clipboard; cleared once copied.</summary>
         public Boolean AutoCopyFirstAnswer { get; set; }
 
+        /// <summary>Opened by the dictation shortcut: the page starts listening once it is up.</summary>
+        public Boolean StartDictation { get; set; }
+
         /// <summary>Counts copies made that way, so the page can say so.</summary>
         public Int32 AutoCopied { get; private set; }
 
@@ -191,6 +194,7 @@ namespace QuickPrompt.Core
                 this.DraftImages = new List<ImageAttachment>();
                 this.Notice = "";
                 this.AutoCopyFirstAnswer = false;
+                this.StartDictation = false;
                 this._messages.Clear();
                 this.TouchLocked();
                 return true;
@@ -510,6 +514,7 @@ namespace QuickPrompt.Core
                     glassTint = this._settings().GlassTint,
                     keepPip = this._settings().KeepPip,
                     autoCopied = this.AutoCopied,
+                    startDictation = this.StartDictation,
                     speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(this._settings().SpeechLanguages) ? this._settings().SpeechLanguages : "",
                     speechHints = this._settings().SpeechHints ?? "",
                     startCollapsed = this.StartCollapsed,

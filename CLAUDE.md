@@ -162,6 +162,11 @@ background (scrolling to the end ourselves no longer counts as the user scrollin
 v0.3.46 (5 Nov 2026) has everything above marked "on `dev`": dictation, template autoCopy, Pip hover highlight,
 no sub-point shift, reset on close, no open flash. Checked in the release: helper signed with audio-input,
 notarized, NSMicrophoneUsageDescription present. Not yet confirmed on the owner's Mac.
+On `dev` after v0.3.46: while dictating, the send button is a stop button (■) and Enter only stops (the final
+text shows; Enter again sends) — sending during a recording used to leave the mic on and re-add the text. A
+dictation shortcut (Settings → General, default ⌥⇧M; Carbon hot key id 2; `dictationHotkey`) opens the chat and
+starts listening, again stops; with no popup it opens a new chat with `startDictation`. Recording goes on when the
+chat tucks into Pip; Pip shows a red ring meanwhile (style to be picked from 4 options).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

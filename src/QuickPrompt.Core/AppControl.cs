@@ -109,7 +109,9 @@ namespace QuickPrompt.Core
                     return (200, "{\"ok\":true}");
 
                 case ("POST", "new"):
-                    manager.OpenWindow(manager.CreateSession(String.IsNullOrEmpty(Get("provider")) ? ProviderIds.Claude : Get("provider"), "", ""));
+                    var created = manager.CreateSession(String.IsNullOrEmpty(Get("provider")) ? ProviderIds.Claude : Get("provider"), "", "");
+                    created.StartDictation = Get("dictate") == "true";   // the dictation shortcut with no popup open
+                    manager.OpenWindow(created);
                     return (200, "{\"ok\":true}");
 
                 case ("POST", "history"):
@@ -138,7 +140,8 @@ namespace QuickPrompt.Core
 
                 case ("GET", "status"):
                     var hotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.Hotkey) ? manager.Settings.Hotkey : QuickPromptSettings.DefaultHotkey;
-                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey }));
+                    var dictationHotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.DictationHotkey) ? manager.Settings.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey;
+                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey, dictationHotkey }));
             }
 
             return (404, "{\"error\":\"unknown\"}");

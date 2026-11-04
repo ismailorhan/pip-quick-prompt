@@ -25,8 +25,8 @@ final class Speech {
     ]
     static var totalSize: Int64 { files.reduce(0) { $0 + $1.size } }
 
-    static let modelsDirectory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Quick Prompt/models", isDirectory: true)
+    static let modelsDirectory: URL = ProcessInfo.processInfo.environment["QP_SPEECH_MODELS"].map { URL(fileURLWithPath: $0, isDirectory: true) }   // tests
+        ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Quick Prompt/models", isDirectory: true)
 
     private static var helperURL: URL? {
         #if arch(arm64)

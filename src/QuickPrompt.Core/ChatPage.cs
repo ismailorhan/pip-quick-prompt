@@ -147,6 +147,9 @@ button.x:hover { color: var(--text); }
 /* Dictation */
 .round.mic.on { background: #e5484d; color: #fff; box-shadow: 0 0 0 calc(var(--lvl, 0) * 9px) rgba(229, 72, 77, .28); transition: box-shadow .08s linear; }
 .round.mic.on:hover { background: #d93d42; color: #fff; }
+.send.dictstop { background: #e5484d; color: #fff; opacity: 1; }
+#root.dictating #miniOpen { box-shadow: 0 0 0 2.5px #e5484d, 0 0 14px 2px rgba(229, 72, 77, .55); border-radius: 50%; animation: qp-rec 1.4s ease-in-out infinite; }
+@keyframes qp-rec { 50% { box-shadow: 0 0 0 2.5px #e5484d, 0 0 4px 0 rgba(229, 72, 77, .2); } }
 .round.mic.wait { animation: qp-mic-wait 1s ease-in-out infinite; }
 @keyframes qp-mic-wait { 50% { opacity: .35; } }
 .bar textarea.dictating { color: var(--muted); }
@@ -494,11 +497,16 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div><div class="sl-t">Shortcut</div><div class="sl-d">Opens Quick Prompt with the selected text, in any app. Click, then press the new keys (with ⌘, ⌃ or ⌥). The menu bar icon has the rest.</div></div>
             <button type="button" class="hotkey" id="hotkeyBtn" title="Click, then press the keys">⌥⇧Space</button>
           </div>
+          <div class="sline">
+            <div><div class="sl-t">Dictation shortcut</div><div class="sl-d">Opens the chat and starts listening, in any app; press it again to stop. Click, then press the new keys.</div></div>
+            <button type="button" class="hotkey" id="dictHotkeyBtn" title="Click, then press the keys">⌥⇧M</button>
+          </div>
         </section>
         <section class="spane" data-pane="shortcuts">
           <h2>Shortcuts</h2>
           <div class="kbgroup">Anywhere</div>
           <div class="kbrow"><span class="keys"><kbd id="kbGlobal">⌥⇧Space</kbd></span><span>Ask about the selected text (change it in General)</span></div>
+          <div class="kbrow"><span class="keys"><kbd id="kbDictate">⌥⇧M</kbd></span><span>Open the chat and dictate; again: stop (change it in General)</span></div>
           <div class="kbrow"><span class="keys"><kbd>⌘,</kbd></span><span>Settings, from the menu bar menu</span></div>
           <div class="kbrow"><span class="keys"><kbd>⌘Q</kbd></span><span>Quit Quick Prompt, from the menu bar menu</span></div>
           <div class="kbgroup">In a conversation</div>
@@ -508,8 +516,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>Close, or tuck into Pip</span></div>
           <div class="kbrow"><span class="keys"><kbd>↵</kbd> <kbd>⌘↵</kbd></span><span>In a template's fields: next field, send</span></div>
           <div class="kbgroup">Dictation</div>
-          <div class="kbrow"><span class="keys">Microphone</span><span>Start; click again to stop (the text stays in the box)</span></div>
-          <div class="kbrow"><span class="keys"><kbd>↵</kbd></span><span>While dictating: stop and send</span></div>
+          <div class="kbrow"><span class="keys">Microphone</span><span>Start; click it or ■ to stop (the text stays in the box)</span></div>
+          <div class="kbrow"><span class="keys"><kbd>↵</kbd></span><span>While dictating: stop and show the text; ↵ again sends</span></div>
           <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>While dictating: cancel</span></div>
           <div class="kbgroup">Pip</div>
           <div class="kbrow"><span class="keys">Click</span><span>Open, or tuck away</span></div>
@@ -708,7 +716,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const ICON_STOP = '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>';
   els.send.innerHTML = ICON_SEND;
 
-  let state = null, version = 0, draftApplied = false, lastKey = "", stick = true;
+  let state = null, version = 0, draftApplied = false, lastKey = "", stick = true, dictationAsked = false;
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -1041,20 +1049,28 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const parts = spec.split("+"), code = parts.pop();
     return ["ctrl", "alt", "shift", "cmd"].filter(m => parts.includes(m)).map(m => MOD_SYMBOL[m]).join("") + keyLabel(code);
   }
-  function setHotkey(spec) { hotkeyValue = spec; hotkeyBtn.textContent = hotkeyText(spec); $("kbGlobal").textContent = hotkeyText(spec); hotkeyBtn.classList.remove("recording"); recording = false; }
-  hotkeyBtn.addEventListener("click", () => { recording = true; hotkeyBtn.textContent = "Press keys…"; hotkeyBtn.classList.add("recording"); });
-  hotkeyBtn.addEventListener("blur", () => { if (recording) setHotkey(hotkeyValue); });
-  hotkeyBtn.addEventListener("keydown", e => {
-    if (!recording) return;
-    e.preventDefault(); e.stopPropagation();
-    if (e.key === "Escape") { setHotkey(hotkeyValue); return; }
-    if (["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"].includes(e.key)) return;   // wait for the actual key
-    const supported = /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-9])|Space|Enter|Tab|Backquote|Minus|Equal|BracketLeft|BracketRight|Backslash|Semicolon|Quote|Comma|Period|Slash|Arrow(Up|Down|Left|Right))$/;
-    if (!(e.metaKey || e.ctrlKey || e.altKey)) { hotkeyBtn.textContent = "Add ⌘, ⌃ or ⌥"; return; }
-    if (!supported.test(e.code)) { hotkeyBtn.textContent = "Try another key"; return; }
-    const mods = [e.metaKey && "cmd", e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift"].filter(Boolean);
-    setHotkey(mods.join("+") + "+" + e.code);
-  });
+  // A shortcut button: click, then press the keys. onSet gets the spec ("alt+shift+KeyM").
+  function shortcutPicker(btn, onSet) {
+    let current = "", picking = false;
+    const show = spec => { current = spec; btn.textContent = hotkeyText(spec); btn.classList.remove("recording"); picking = false; onSet(spec); };
+    btn.addEventListener("click", () => { picking = true; btn.textContent = "Press keys…"; btn.classList.add("recording"); });
+    btn.addEventListener("blur", () => { if (picking) show(current); });
+    btn.addEventListener("keydown", e => {
+      if (!picking) return;
+      e.preventDefault(); e.stopPropagation();
+      if (e.key === "Escape") { show(current); return; }
+      if (["Shift", "Control", "Alt", "Meta", "CapsLock", "Fn"].includes(e.key)) return;   // wait for the actual key
+      const supported = /^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-9])|Space|Enter|Tab|Backquote|Minus|Equal|BracketLeft|BracketRight|Backslash|Semicolon|Quote|Comma|Period|Slash|Arrow(Up|Down|Left|Right))$/;
+      if (!(e.metaKey || e.ctrlKey || e.altKey)) { btn.textContent = "Add ⌘, ⌃ or ⌥"; return; }
+      if (!supported.test(e.code)) { btn.textContent = "Try another key"; return; }
+      const mods = [e.metaKey && "cmd", e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift"].filter(Boolean);
+      show(mods.join("+") + "+" + e.code);
+    });
+    return show;
+  }
+  const setHotkey = shortcutPicker(hotkeyBtn, spec => { hotkeyValue = spec; $("kbGlobal").textContent = hotkeyText(spec); });
+  let dictHotkeyValue = "alt+shift+KeyM";
+  const setDictHotkey = shortcutPicker($("dictHotkeyBtn"), spec => { dictHotkeyValue = spec; $("kbDictate").textContent = hotkeyText(spec); });
 
   // ---------- Settings size: drag the grip; remembered on this computer ----------
   var settingsSize = { w: 760, h: 500 };
@@ -1123,6 +1139,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       $("speechHints").value = s.speechHints || "";
       speechPost("probe");
       setHotkey(s.hotkey || "alt+shift+Space");
+      setDictHotkey(s.dictationHotkey || "alt+shift+KeyM");
       setSlider(s.popupScale);
       setIconSlider(s.iconScale);
       savedGlass = s.glassTint; setGlassSlider(s.glassTint);
@@ -1295,6 +1312,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       speechLanguages: speechLangs.join(","),
       speechHints: $("speechHints").value.trim(),
       hotkey: hotkeyValue,
+      dictationHotkey: dictHotkeyValue,
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
       glassTint: String(glassSlider.value),
@@ -1326,8 +1344,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let lastBusy = false;
 
   function collapse() {
-    // Tucking into Pip ends a dictation (the microphone stops).
-    if (window.__quickPromptSpeech && speech.state !== "idle") cancelDictation();
+    // A dictation goes on with only Pip on screen (Pip shows it is listening); opening the chat shows the text.
+    const dictating = !!window.__quickPromptSpeech && speech.state !== "idle";
     if (!collapsed && bridge && !collapse.now) {
       freezePip(() => { collapse.now = true; try { thawNext = true; collapse(); } finally { collapse.now = false; } });
       return;
@@ -1349,7 +1367,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) tuckBar(); }, 1500);
     // Closing the chat starts over: the next open is a plain, empty conversation (no template, its AI or its
     // fields). It is in Recent Chats. A conversation still answering is kept, for Pip's bubble.
-    if (state && !state.busy && (state.messages.length || state.title || state.presetPrompt || state.provider !== "claude")) {
+    if (!dictating && state && !state.busy && (state.messages.length || state.title || state.presetPrompt || state.provider !== "claude")) {
       stick = true;
       post("reset");
       els.prompt.value = ""; els.ctx.value = ""; showCtx(false); pending = []; renderAttachments(); autoGrow();
@@ -2185,8 +2203,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.title.textContent = s.title || "";
     document.title = (s.title ? s.title + " — " : "") + s.providerName;
     els.status.textContent = "";
-    els.send.innerHTML = s.busy ? ICON_STOP : ICON_SEND;
-    els.send.title = s.busy ? "Stop" : "Send (Enter)";
+    const dictatingNow = !!window.__quickPromptSpeech && speech.state !== "idle";
+    if (!dictatingNow) {
+      els.send.innerHTML = s.busy ? ICON_STOP : ICON_SEND;
+      els.send.title = s.busy ? "Stop" : "Send (Enter)";
+    }
     els.notice.hidden = !s.notice;
     els.notice.textContent = s.notice || "";
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
@@ -2196,6 +2217,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const last = s.messages[s.messages.length - 1];
     els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 
+    if (s.startDictation && !dictationAsked) { dictationAsked = true; setTimeout(() => window.__quickPromptDictate(), 0); }
     if (!draftApplied) {
       draftApplied = true;
       const d = s.draft || {};
@@ -2310,6 +2332,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   function updateSendState() {
+    if (window.__quickPromptSpeech && speech.state !== "idle") { els.send.classList.remove("idle"); return; }   // the stop button
     if (fieldsActive()) {
       els.send.classList.toggle("idle", !!state && !state.busy && !!collectFields().missing);
       return;
@@ -2544,6 +2567,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.prompt.classList.toggle("dictating", next === "starting" || next === "finishing");
     micBtn.title = next === "listening" ? "Stop (↵ stops and sends, esc cancels)" : "Dictate: speak, then click again (↵ sends, esc cancels)";
     if (next === "idle") micBtn.style.removeProperty("--lvl");
+    const recording = next !== "idle";
+    els.send.innerHTML = recording ? ICON_STOP : (state && state.busy ? ICON_STOP : ICON_SEND);
+    els.send.title = recording ? "Stop recording (↵)" : (state && state.busy ? "Stop" : "Send (Enter)");
+    els.send.classList.toggle("dictstop", recording);
+    if (recording) els.send.classList.remove("idle"); else updateSendState();
+    els.root.classList.toggle("dictating", next === "listening" || next === "starting");
   }
   function setDictated(text) {
     const base = speech.base.replace(/\s+$/, "");
@@ -2587,6 +2616,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         speech.size = e.size || speech.size;
         speech.received = e.received || 0;
         micBtn.hidden = !speech.available;
+        if (speech.startWhenKnown) { speech.startWhenKnown = false; if (speech.available) setTimeout(startDictation, 0); }
         renderSpeechSettings();
         if (speech.model === "downloading" && speech.wantStart) renderSpeechBoxProgress();
         else if (speech.model === "ready" && speech.wantStart) { speech.wantStart = false; hideSpeechBox(); startDictation(); }
@@ -2629,11 +2659,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
   };
   micBtn.addEventListener("click", () => speech.state === "idle" ? startDictation() : stopDictation(false));
+  // The dictation shortcut (from the app): opens the chat and starts; pressed again, stops.
+  window.__quickPromptDictate = () => {
+    if (speech.state !== "idle") { stopDictation(false); return; }
+    if (collapsed) expand();
+    if (speech.available) startDictation(); else speech.startWhenKnown = true;
+  };
   // While dictating, Enter stops and sends and Esc cancels (before the box's own keys).
   document.addEventListener("keydown", e => {
     if (speech.state === "idle") return;
     if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); cancelDictation(); }
-    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopImmediatePropagation(); stopDictation(true); }
+    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopImmediatePropagation(); if (speech.state !== "finishing") stopDictation(false); }
   }, true);
   speechPost("probe");
 
@@ -2730,6 +2766,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   async function send() {
     if (!state) return;
+    // Dictating: the send button is the stop button; the text stays for a look, the next send sends it.
+    if (window.__quickPromptSpeech && speech.state !== "idle") { stopDictation(false); return; }
     if (state.busy) { post("cancel"); return; }
     const instruction = els.prompt.value.trim();
     const context = els.ctxWrap.hidden ? "" : els.ctx.value;

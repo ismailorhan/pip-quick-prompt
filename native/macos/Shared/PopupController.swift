@@ -490,6 +490,13 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         webView?.evaluateJavaScript("window.__quickPromptSide && window.__quickPromptSide('\(next)')", completionHandler: nil)
     }
 
+    /// The dictation shortcut: the page opens the chat and starts listening (or stops). The panel takes the keys,
+    /// so Enter stops and sends from there.
+    func dictate() {
+        panel?.makeKeyAndOrderFront(nil)   // key without activating: the app you were in stays in front
+        webView?.evaluateJavaScript("window.__quickPromptDictate && window.__quickPromptDictate()", completionHandler: nil)
+    }
+
     /// Hands a dictation event to the page.
     func speechEvent(_ event: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: event), let json = String(data: data, encoding: .utf8) else { return }

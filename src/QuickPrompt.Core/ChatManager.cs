@@ -481,6 +481,7 @@ namespace QuickPrompt.Core
                 speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(s.SpeechLanguages) ? s.SpeechLanguages : "",
                 speechHints = s.SpeechHints ?? "",
                 hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
+                dictationHotkey = QuickPromptSettings.IsValidHotkey(s.DictationHotkey) ? s.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey,
                 claude = new
                 {
                     connection = s.ClaudeConnection,
@@ -599,6 +600,13 @@ namespace QuickPrompt.Core
             {
                 s.Hotkey = hotkey;
                 this.Control?.Publish(new { type = "hotkey", value = hotkey });   // the app registers it right away
+            }
+
+            var dictationHotkey = Get("dictationHotkey");
+            if (QuickPromptSettings.IsValidHotkey(dictationHotkey) && dictationHotkey != s.DictationHotkey)
+            {
+                s.DictationHotkey = dictationHotkey;
+                this.Control?.Publish(new { type = "dictationHotkey", value = dictationHotkey });
             }
 
             if (Get("keepPip") is "true" or "false")

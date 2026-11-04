@@ -208,17 +208,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var askItem: NSMenuItem?
 
     /// Registers the global shortcut. spec: Settings' format, e.g. "alt+shift+Space" (modifiers + a key code).
-    private func registerHotKey(_ spec: String = "alt+shift+Space") {
+    private func registerHotKey(_ spec: String? = "alt+shift+Space") {
         if !hotKeyHandlerInstalled {
             hotKeyHandlerInstalled = true
             var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-            InstallEventHandler(GetApplicationEventTarget(), { _, _, userData -> OSStatus in
+            InstallEventHandler(GetApplicationEventTarget(), { _, event, userData -> OSStatus in
                 guard let userData = userData else { return noErr }
                 let me = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { me.runShortcut() }
+                var hotKey = EventHotKeyID()
+                GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+                                  MemoryLayout<EventHotKeyID>.size, nil, &hotKey)
+                let dictation = hotKey.id == 2
+                DispatchQueue.main.async { if dictation { me.dictate() } else { me.runShortcut() } }
                 return noErr
             }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), nil)
         }
+        guard let spec = spec else { return }
         if let old = hotKeyRef {
             UnregisterEventHotKey(old)
             hotKeyRef = nil
@@ -236,6 +241,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Show it in the menu next to Ask About Selection.
         askItem?.keyEquivalent = menuKey
         askItem?.keyEquivalentModifierMask = menuModifiers
+    }
+
+    private var dictationHotKeyRef: EventHotKeyRef?
+
+    /// The dictation shortcut (default ⌥⇧M): its own Carbon hot key (id 2), handled by the same handler.
+    private func registerDictationHotKey(_ spec: String = "alt+shift+KeyM") {
+        registerHotKey(nil)   // installs the handler once (keeps the main shortcut as it is)
+        if let old = dictationHotKeyRef {
+            UnregisterEventHotKey(old)
+            dictationHotKeyRef = nil
+        }
+        guard let (keyCode, carbonModifiers, _, _) = AppDelegate.parseHotkey(spec) else { return }
+        let id = EventHotKeyID(signature: OSType(0x5150_524D), id: 2)
+        if RegisterEventHotKey(keyCode, carbonModifiers, id, GetApplicationEventTarget(), 0, &dictationHotKeyRef) != noErr {
+            NSLog("Quick Prompt: could not register the dictation shortcut \(spec); another app may be using it.")
+        }
+    }
+
+    /// Opens the chat and starts dictating; pressed again, stops. With no popup, a new chat that starts listening.
+    func dictate() {
+        if let popup = popups.last {
+            popup.dictate()
+        } else {
+            send("new", ["dictate": "true"])
+        }
     }
 
     private static let keyCodes: [String: Int] = [
@@ -287,7 +317,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let data = data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let spec = json["hotkey"] as? String else { return }
-            DispatchQueue.main.async { self?.registerHotKey(spec) }
+            let dictation = json["dictationHotkey"] as? String ?? "alt+shift+KeyM"
+            DispatchQueue.main.async { self?.registerHotKey(spec); self?.registerDictationHotKey(dictation) }
         }.resume()
     }
 
@@ -487,6 +518,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             // Changed in Settings: use it right away.
             if let spec = event["value"] as? String {
                 registerHotKey(spec)
+            }
+        case "dictationHotkey":
+            if let spec = event["value"] as? String {
+                registerDictationHotKey(spec)
             }
         default:
             break

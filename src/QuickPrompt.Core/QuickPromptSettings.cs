@@ -103,6 +103,11 @@ namespace QuickPrompt.Core
 
         public const String DefaultHotkey = "alt+shift+Space";
 
+        /// <summary>The global shortcut that opens the chat and starts dictating (again: stops).</summary>
+        public String DictationHotkey { get; set; } = DefaultDictationHotkey;
+
+        public const String DefaultDictationHotkey = "alt+shift+KeyM";
+
         /// <summary>"cmd|ctrl|alt|shift" (at least one of cmd, ctrl, alt) + a key code like KeyK, Digit1, Space, F5.</summary>
         public static Boolean IsValidHotkey(String value) =>
             !String.IsNullOrEmpty(value)
