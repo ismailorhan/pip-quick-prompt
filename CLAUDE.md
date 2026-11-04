@@ -136,6 +136,11 @@ target, keeps Pip whole on screen and goes through `glide(to:)`; layouts wait wh
 `windowDidMove` ignores our own moves; the panel overrides `constrainFrameRect` so macOS no longer pushes it
 down from the top; no Dock avoidance, the Dock is above Pip). Verified with `tools/pip-motion-test/run.sh`
 (all steps pass on both screens). Run that test after any change to how Pip moves.
+Also on `dev` (not built): the question bar has no Settings button; the history button hides while text is
+typed; the question grows up to ~45% of the screen, upward from Pip's bottom, or downward from Pip's top when
+the room above runs out (`grow-down`, from the `top` the edge report now carries); + opens a menu (Add Text,
+Add Attachment…); pictures and text files (into the text box, under their names) can be added from the menu
+or dropped on the popup or on Pip (Pip opens with them).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run it.
 
 ## Open items / ideas

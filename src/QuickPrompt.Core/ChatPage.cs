@@ -45,6 +45,8 @@ html.native, html.native body { background: transparent; min-height: 0; }
 #root:not(.is-mini) .plist, #root:not(.is-mini) .bubble { display: none; }
 /* Beside the conversation the icon sits at the bottom, next to the input; the conversation grows upward. */
 #root:not(.is-mini) { align-items: flex-end; }
+/* No room above Pip for the conversation: it lines up with Pip's top and grows downward. */
+#root:not(.is-mini).grow-down { align-items: flex-start; }
 /* The conversation slides out of the icon and back into it. */
 #root { --reveal-dx: -26px; } #root.side-right { --reveal-dx: 26px; }
 #main.reveal-pending { opacity: 0; }
@@ -155,6 +157,7 @@ button.x:hover { color: var(--text); }
 .round.gear:hover { color: var(--text); background: var(--faint); }
 .send.idle { opacity: .45; }
 textarea { flex: 1; width: 100%; resize: none; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; padding: 9px 2px; max-height: 140px; min-height: 40px; }
+.bar textarea { max-height: var(--prompt-max, 140px); }
 textarea::placeholder { color: var(--muted); }
 .bar textarea:focus-visible, .ctx textarea:focus-visible { outline: none; }
 .round[hidden] + textarea { padding-left: 12px; }
@@ -244,6 +247,10 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 .lightbox img { max-width: 100%; max-height: calc(var(--view-max, 760px) - 60px); border-radius: 10px; display: block; cursor: zoom-out; }
 .lightbox .lclose { position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; }
 html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; border-radius: 22px; }
+html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 50%; }
+.addmenu { position: absolute; z-index: 30; min-width: 170px; padding: 4px; border-radius: 12px; background: rgb(var(--tint-rgb)); border: 1px solid var(--edge); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.addmenu button { display: block; width: 100%; text-align: left; background: transparent; border-radius: 8px; padding: 7px 10px; font-size: 13px; color: var(--text); }
+.addmenu button:hover { background: var(--faint); }
 
 /* Fields of a prompt template */
 .fields { border-radius: 20px; padding: 9px 14px 12px; }
@@ -606,11 +613,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   <div class="lightbox glass" id="lightbox" hidden><img id="lightImg" alt=""><button type="button" class="x lclose" id="lightClose" title="Close (Esc)">✕</button></div>
   <div class="ctx glass" id="ctxWrap" hidden><textarea id="ctx" rows="3" placeholder="Paste the text here…"></textarea></div>
   <div class="bar glass" id="bar" data-drag>
-    <button type="button" class="round" id="ctxBtn" title="Add text">+</button>
+    <button type="button" class="round" id="ctxBtn" title="Add text or an attachment">+</button><input type="file" id="attachFile" multiple hidden>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
     <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as Pip" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
-    <button type="button" class="round gear" id="barGear" title="Settings"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7.5 7.5 0 0 1-2 1.2l-.3 2h-3.9l-.3-2a7.5 7.5 0 0 1-2-1.2l-1.9.7-2-3.4 1.6-1.2a7.6 7.6 0 0 1 0-3l-1.6-1.2 2-3.4 1.9.7a7.5 7.5 0 0 1 2-1.2l.3-2h3.9l.3 2a7.5 7.5 0 0 1 2 1.2l1.9-.7 2 3.4-1.6 1.2a7.6 7.6 0 0 1 0 3z"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
   </div>
   </div>
@@ -632,6 +638,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   const $ = id => document.getElementById(id);
   // The panel cannot be taller than ~85% of the screen; long views scroll inside that.
+  // The question grows with what is typed, up to about half the screen (then it scrolls).
+  const promptMax = Math.max(140, Math.round((screen.availHeight || 900) * 0.45));
+  document.documentElement.style.setProperty("--prompt-max", promptMax + "px");
   document.documentElement.style.setProperty("--view-max", Math.max(360, Math.round((screen.availHeight || 900) * 0.8) - 20) + "px");
   const els = {
     root: $("root"), card: $("card"), who: $("who"), title: $("title"), status: $("status"), notice: $("notice"),
@@ -735,6 +744,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     requestAnimationFrame(() => {
       layoutQueued = false;
       if (revealing) { layoutAfterReveal = true; return; }   // the slide started meanwhile
+      updateGrowDirection();
       const view = els.thread.getBoundingClientRect();
       const scrolling = els.thread.classList.contains("scrolling");
       const main = $("main");
@@ -778,6 +788,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       if (revealNext) startRevealWhenSized(revealNext, width);
       if (thawNext) { thawNext = false; whenSized(width, thawPip); }
     });
+  }
+  // Beside Pip the conversation ends at Pip's bottom and grows upward; when the room above Pip runs out,
+  // it lines up with Pip's top and grows downward instead (Pip itself never moves for it).
+  function updateGrowDirection() {
+    if (collapsed || mini.hidden || !pipEdges || pipEdges.top == null) { els.root.classList.remove("grow-down"); return; }
+    const icon = $("miniOpen").getBoundingClientRect();
+    const need = $("main").getBoundingClientRect().height - icon.height / 2 + 18;
+    const down = els.root.classList.contains("grow-down");
+    els.root.classList.toggle("grow-down", down ? need > pipEdges.top - 40 : need > pipEdges.top);
   }
   const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;
   if (bridge && window.ResizeObserver) {
@@ -1214,7 +1233,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   $("gear").addEventListener("click", () => openSettings(false));
-  $("barGear").addEventListener("click", () => openSettings(false));
   $("errSettings").addEventListener("click", () => openSettings(false, state && state.provider === "codex" ? "chatgpt" : "claude"));
   $("setSave").addEventListener("click", saveSettings);
   $("setBack").addEventListener("click", closeSettings);
@@ -1490,6 +1508,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     bridge.postMessage({ type: "menu", items: menuItems() });
   });
   window.__quickPromptMenu = async id => {
+    if (id.startsWith("add-")) { runAddItem(id); return; }
     if (id.startsWith("tpl-")) {
       const preset = menuTemplates[+id.slice(4)];
       if (!preset) return;
@@ -1518,8 +1537,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   if (nativeInfo.side) els.root.classList.toggle("side-right", nativeInfo.side === "right");
 
   // Room around Pip's middle (screen points, from the native panel): where the toolbar goes.
-  let toolbarSize = null;
+  let toolbarSize = null, pipEdges = null;
   window.__quickPromptEdges = edges => {
+    pipEdges = edges;
     const bar = $("minibar"), icon = $("miniOpen").getBoundingClientRect();
     if (bar.offsetWidth) toolbarSize = { w: bar.getBoundingClientRect().width, h: bar.getBoundingClientRect().height };
     const zoom = parseFloat(getComputedStyle(mini).zoom) || 1;
@@ -2060,8 +2080,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.notice.hidden = !s.notice;
     els.notice.textContent = s.notice || "";
     els.card.hidden = !(s.messages.length || s.notice || s.busy);
-    $("barGear").hidden = !els.card.hidden;
-    $("barHistory").hidden = !els.card.hidden;
+    updateBarButtons();
     $("barPin").hidden = true;
     $("pinBtn").hidden = true;
     const last = s.messages[s.messages.length - 1];
@@ -2316,19 +2335,51 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     e.preventDefault();
     files.forEach(addImageFile);
   });
+  // Text files go into the text box under the question, each under its name.
+  const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|xml|ya?ml|toml|ini|log|html?|css|js|mjs|ts|tsx|jsx|cs|swift|py|rb|go|rs|java|kt|c|h|cpp|hpp|m|sh|zsh|sql|ps1|bat|vb|php|lua|r|tex|rtf|srt|vtt)$/i;
+  function isTextFile(f) {
+    return /^text\//.test(f.type) || /json|xml|javascript|yaml|x-sh|sql/.test(f.type) || TEXT_EXT.test(f.name || "");
+  }
+  async function addTextFile(f) {
+    if (f.size > 512 * 1024) { toast("Text files up to 512 KB"); return; }
+    try {
+      const text = await f.text();
+      const part = "--- " + f.name + " ---\n" + text.replace(/\s+$/, "");
+      els.ctx.value = els.ctx.value.trim() ? els.ctx.value.replace(/\s+$/, "") + "\n\n" + part : part;
+      showCtx(true);
+      updateSendState();
+    } catch (err) {
+      toast("Could not read " + f.name);
+    }
+  }
+  async function addFiles(files) {
+    let skipped = 0;
+    for (const f of files) {
+      if (/^image\//.test(f.type)) await addImageFile(f);
+      else if (isTextFile(f)) await addTextFile(f);
+      else skipped++;
+    }
+    if (skipped) toast("Only pictures and text files can be added");
+    if (!collapsed) els.prompt.focus();
+  }
+  const hasFiles = e => e.dataTransfer && [...e.dataTransfer.items].some(it => it.kind === "file");
   document.addEventListener("dragover", e => {
-    if (collapsed || !e.dataTransfer || ![...e.dataTransfer.items].some(it => it.kind === "file")) return;
+    if (!hasFiles(e)) return;
+    // Always taken, or the web view would open the file itself.
     e.preventDefault();
+    if (settingsOpen || historyOpen || actionsOpen) { e.dataTransfer.dropEffect = "none"; return; }
     document.documentElement.classList.add("dropping");
   });
   document.addEventListener("dragleave", e => { if (!e.relatedTarget) document.documentElement.classList.remove("dropping"); });
-  document.addEventListener("drop", e => {
+  document.addEventListener("drop", async e => {
     document.documentElement.classList.remove("dropping");
-    if (collapsed || !e.dataTransfer) return;
-    const files = [...e.dataTransfer.files].filter(f => /^image\//.test(f.type));
-    if (!files.length) return;
+    if (!hasFiles(e)) return;
     e.preventDefault();
-    files.forEach(addImageFile);
+    if (settingsOpen || historyOpen || actionsOpen) return;
+    const files = [...e.dataTransfer.files];
+    // Dropped on Pip: the conversation opens with them.
+    if (collapsed) expand();
+    await addFiles(files);
   });
 
   // ---------- large preview ----------
@@ -2362,14 +2413,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   function showCtx(show) {
     els.ctxWrap.hidden = !show;
-    els.ctxBtn.textContent = show ? "−" : "+";
-    els.ctxBtn.title = show ? "Remove text" : "Add text";
     queueLayout();
   }
 
   function autoGrow() {
     els.prompt.style.height = "auto";
-    els.prompt.style.height = Math.min(els.prompt.scrollHeight, 140) + "px";
+    els.prompt.style.height = Math.min(els.prompt.scrollHeight, promptMax) + "px";
+    updateBarButtons();
     updateSendState();
     queueLayout();
   }
@@ -2403,11 +2453,51 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   $("copy").addEventListener("click", () => { const t = lastAnswer(); if (t != null) copyText(t); });
   $("paste").addEventListener("click", pasteAndClose);
   els.send.addEventListener("click", send);
-  els.ctxBtn.addEventListener("click", () => {
+  // The history button gives its room to the question while something is typed.
+  function updateBarButtons() {
+    $("barHistory").hidden = !els.card.hidden || !!els.prompt.value;
+  }
+  function toggleText() {
     const show = els.ctxWrap.hidden;
     showCtx(show);
-    if (show) els.ctx.focus(); else els.ctx.value = "";
+    if (show) els.ctx.focus(); else { els.ctx.value = ""; els.prompt.focus(); }
     updateSendState();
+  }
+  function addMenuItems() {
+    return [
+      { id: "add-text", title: els.ctxWrap.hidden ? "Add Text" : "Remove Text" },
+      { id: "add-file", title: "Add Attachment…" },
+    ];
+  }
+  function runAddItem(id) {
+    if (id === "add-text") toggleText();
+    else if (id === "add-file") $("attachFile").click();
+  }
+  // In the native popup the + opens a native menu; in a browser tab a small menu of the page.
+  let addMenu = null;
+  function closeAddMenu() { if (addMenu) { addMenu.remove(); addMenu = null; } }
+  els.ctxBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (bridge) { bridge.postMessage({ type: "menu", items: addMenuItems() }); return; }
+    if (addMenu) { closeAddMenu(); return; }
+    addMenu = document.createElement("div");
+    addMenu.className = "addmenu";
+    addMenuItems().forEach(it => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.title;
+      b.addEventListener("click", () => { closeAddMenu(); runAddItem(it.id); });
+      addMenu.appendChild(b);
+    });
+    const r = els.ctxBtn.getBoundingClientRect();
+    addMenu.style.left = Math.round(r.left + window.scrollX) + "px";
+    document.body.appendChild(addMenu);
+    addMenu.style.top = Math.round(r.top + window.scrollY - addMenu.offsetHeight - 6) + "px";
+  });
+  document.addEventListener("click", e => { if (addMenu && !addMenu.contains(e.target)) closeAddMenu(); });
+  $("attachFile").addEventListener("change", e => {
+    addFiles([...e.target.files]);
+    e.target.value = "";
   });
   els.prompt.addEventListener("input", autoGrow);
   els.ctx.addEventListener("input", () => { updateSendState(); queueLayout(); });

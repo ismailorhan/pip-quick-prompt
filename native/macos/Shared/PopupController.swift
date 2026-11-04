@@ -457,8 +457,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     private func reportEdges() {
         guard let x = iconScreenX, let y = iconScreenY else { return }
         let a = visibleArea
-        let js = String(format: "window.__quickPromptEdges && window.__quickPromptEdges({left:%.0f,right:%.0f,bottom:%.0f})",
-                        x - a.minX, a.maxX - x, y - a.minY)
+        let js = String(format: "window.__quickPromptEdges && window.__quickPromptEdges({left:%.0f,right:%.0f,bottom:%.0f,top:%.0f})",
+                        x - a.minX, a.maxX - x, y - a.minY, a.maxY - y)
         webView?.evaluateJavaScript(js, completionHandler: nil)
     }
 
@@ -842,7 +842,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         webView.load(URLRequest(url: url))
     }
 
-    /// <input type="file"> (Import): the standard Open dialog.
+    /// <input type="file"> (Import, Add Attachment…): the standard Open dialog.
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping ([URL]?) -> Void) {
         let openPanel = NSOpenPanel()
