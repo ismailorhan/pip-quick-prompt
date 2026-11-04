@@ -434,6 +434,13 @@ namespace QuickPrompt.Core
             return true;
         }
 
+        /// <summary>A plain, empty conversation with Claude as set in Settings (Pip's chat closed, or New Chat).</summary>
+        public Boolean ResetSession(ChatSession session)
+        {
+            var connection = this.ResolveConnection(ProviderIds.Claude, ConnectionModes.Default);
+            return session.Reset(this.GetProvider(ProviderIds.Claude, connection), connection);
+        }
+
         /// <summary>Loads a saved conversation into the popup so it can be continued.</summary>
         public Boolean ResumeConversation(ChatSession session, String historyId)
         {
@@ -471,7 +478,7 @@ namespace QuickPrompt.Core
                 iconScale = s.IconScale,
                 glassTint = s.GlassTint,
                 keepPip = s.KeepPip,
-                speechLanguage = QuickPromptSettings.IsValidSpeechLanguage(s.SpeechLanguage) ? s.SpeechLanguage : "auto",
+                speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(s.SpeechLanguages) ? s.SpeechLanguages : "",
                 speechHints = s.SpeechHints ?? "",
                 hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
                 claude = new
@@ -599,9 +606,9 @@ namespace QuickPrompt.Core
                 s.KeepPip = Get("keepPip") == "true";
             }
 
-            if (QuickPromptSettings.IsValidSpeechLanguage(Get("speechLanguage")))
+            if (QuickPromptSettings.IsValidSpeechLanguages(Get("speechLanguages")))
             {
-                s.SpeechLanguage = Get("speechLanguage")!;
+                s.SpeechLanguages = Get("speechLanguages")!;
             }
 
             if (Get("speechHints") is { } speechHints)

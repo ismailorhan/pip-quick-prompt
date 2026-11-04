@@ -184,8 +184,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         let config = WKWebViewConfiguration()
         config.userContentController.add(self, name: "quickPrompt")
         let glassKind = glassViewClass != nil ? "liquid" : "vibrancy"
+        // The Mac's region (e.g. "TR"): dictation offers its language next to English the first time.
+        let region = (Locale.current.regionCode ?? "").filter { $0.isLetter }
         config.userContentController.addUserScript(WKUserScript(
-            source: "window.__quickPromptNative = { glass: '\(glassKind)', side: '\(side)' };",
+            source: "window.__quickPromptNative = { glass: '\(glassKind)', side: '\(side)', region: '\(region)' };",
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true))
         webView = ClickThroughWebView(frame: container.bounds, configuration: config)
@@ -275,7 +277,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         // The full popup stays on screen with a small gap. Pip on its own is never pushed: it was placed on
         // screen and off the Dock when dropped, and near an edge its toolbar opens inward (reportEdges), so
         // pushing the panel would only move Pip away from the edge while the toolbar opens or turns.
-        let requested = NSRect(x: topLeft.x, y: topLeft.y - height, width: popupWidth, height: height)
+        // Rounded here, not by macOS: it cuts 2424.9997 down to 2424, a point away from where Pip belongs.
+        let requested = NSRect(x: topLeft.x.rounded(), y: topLeft.y.rounded() - height, width: popupWidth, height: height)
         let frame = isMini ? requested : fit(requested, edge: 8)
         topLeft = NSPoint(x: frame.minX, y: frame.maxY)
         panel.setFrame(frame, display: true, animate: false)
@@ -422,7 +425,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     /// The one way the panel moves on its own: Pip's place is set to the end at once, the panel glides there.
-    private func glide(to target: NSRect) {
+    private func glide(to wanted: NSRect) {
+        // On whole points: macOS puts windows there anyway, and the page keeps Pip's centre on a whole point
+        // too, so Pip is drawn exactly where it is meant to be whatever the panel's size.
+        let target = NSRect(x: wanted.minX.rounded(), y: wanted.maxY.rounded() - wanted.height, width: wanted.width, height: wanted.height)
         topLeft = NSPoint(x: target.minX, y: target.maxY)
         if isMini {
             miniTopLeft = topLeft

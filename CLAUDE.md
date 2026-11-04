@@ -146,13 +146,19 @@ v0.3.45: Pip's toolbar tucks 1.5 s after the mouse leaves (was 3 s).
 On `dev` (not built): dictation. Mic button in the question bar; live text while speaking (turbo, greedy, every
 ~0.4 s, commits at pauses), then a final pass over the whole recording (beam search + silero VAD, ~1 s for 30 s).
 Model ggml-large-v3-turbo-q5_0 (574 MB) + silero (0.9 MB) downloaded once into Application Support/Quick
-Prompt/models (size + SHA-256 checked). Auto language = Turkish or English only, decided after 3 s of speech
-(Whisper's own detection picked Russian). Settings → Dictation: language, words to expect, model. Test without a
+Prompt/models (size + SHA-256 checked). Languages: Settings → Dictation lists the ones you speak (up to 8; default English + the Mac's language, else its
+region's: an English Mac in Turkey gets Turkish); each recording picks among them after 3 s of speech (Whisper's
+open detection picked Russian). Settings → Dictation: language, words to expect, model. Test without a
 mic: QP_SPEECH_FILE=<16 kHz wav> (and QP_SPEECH_HELPER for the app side). Template text fields are full-width
 textareas that grow. Pip's toolbar highlights under the pointer (the panel gets no mouse moves while Pip is alone).
 Also on `dev`: templates have "Copy the first answer" (autoCopy; the first complete answer goes onto the
 clipboard, the page toasts "Answer copied"); a template picked from Pip's list or right-click menu opens on its
 fields and the question bar, closing any Settings / template list / history view left open.
+Also on `dev`: Pip no longer shifts by a fraction of a point on open/close (the page keeps Pip's centre on a whole
+point with a translate of its column; the native side rounds the panel itself; measured: identical in all states).
+Closing the chat (collapse) resets the popup to a plain Claude conversation (no template, its AI or fields; it stays
+in Recent Chats; kept while answering); New Chat does the same. Opening no longer flashes the bubbles' flat
+background (scrolling to the end ourselves no longer counts as the user scrolling).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

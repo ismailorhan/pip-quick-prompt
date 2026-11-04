@@ -127,7 +127,7 @@ final class Speech {
         idleTimer?.invalidate()
         launchIfNeeded()
         popup.speechEvent(["type": ready ? "starting" : "loading"])
-        command(["cmd": "start", "language": body["language"] as? String ?? "auto", "prompt": body["prompt"] as? String ?? ""])
+        command(["cmd": "start", "languages": body["languages"] as? [String] ?? ["en"], "prompt": body["prompt"] as? String ?? ""])
     }
 
     private func command(_ body: [String: Any]) {

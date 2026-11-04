@@ -71,6 +71,30 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task Resetting_a_popup_drops_the_template_and_its_AI()
+        {
+            var dir = TempDir.Create();
+            using var manager = new ChatManager(dir, new FakeHost(), new IAiProvider[] { new FakeProvider(ProviderIds.Claude), new FakeProvider(ProviderIds.Codex) }, new IAiProvider[0]);
+            manager.Launcher.OverrideOpen = _ => { };
+            var saved = JsonDocument.Parse(manager.SaveAction(new Dictionary<string, string>
+            {
+                ["title"] = "Rephrase (gpt)", ["instruction"] = "Rephrase: {source}", ["provider"] = "codex",
+            })).RootElement;
+            var id = saved.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Rephrase (gpt)").GetProperty("id").GetString();
+            var session = manager.CreateSession(ProviderIds.Claude, "", "");
+            Assert.True(manager.UsePreset(session, id));
+            Assert.True(session.StartTurnFromPopup("", "", new Dictionary<string, string> { ["source"] = "x" }));
+            await session.CurrentTurn;
+
+            Assert.True(manager.ResetSession(session));
+            using var state = JsonDocument.Parse(session.ToJson(false));
+            Assert.Equal("claude", state.RootElement.GetProperty("provider").GetString());
+            Assert.Equal("", state.RootElement.GetProperty("title").GetString());
+            Assert.Equal("", state.RootElement.GetProperty("presetPrompt").GetString());
+            Assert.Equal(0, state.RootElement.GetProperty("messages").GetArrayLength());
+        }
+
+        [Fact]
         public async Task A_session_a_window_is_watching_is_kept_overnight_and_an_idle_one_is_forgotten()
         {
             var dir = TempDir.Create();

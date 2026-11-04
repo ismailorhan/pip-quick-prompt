@@ -153,6 +153,26 @@ namespace QuickPrompt.Core
             }
         }
 
+        /// <summary>Back to a plain, empty conversation with the given AI: no template, title, model or setup.</summary>
+        public Boolean Reset(IAiProvider provider, String connection)
+        {
+            lock (this._lock)
+            {
+                if (this._busy)
+                {
+                    return false;
+                }
+
+                this.Provider = provider;
+                this.Connection = connection;
+                this.Title = "";
+                this.Model = "";
+                this.Setup = null;
+            }
+
+            return this.StartNew();
+        }
+
         /// <summary>Starts a new, empty conversation in this popup (same provider and preset title).</summary>
         public Boolean StartNew()
         {
@@ -490,7 +510,7 @@ namespace QuickPrompt.Core
                     glassTint = this._settings().GlassTint,
                     keepPip = this._settings().KeepPip,
                     autoCopied = this.AutoCopied,
-                    speechLanguage = QuickPromptSettings.IsValidSpeechLanguage(this._settings().SpeechLanguage) ? this._settings().SpeechLanguage : "auto",
+                    speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(this._settings().SpeechLanguages) ? this._settings().SpeechLanguages : "",
                     speechHints = this._settings().SpeechHints ?? "",
                     startCollapsed = this.StartCollapsed,
                     messages = this._messages.Select(m => new

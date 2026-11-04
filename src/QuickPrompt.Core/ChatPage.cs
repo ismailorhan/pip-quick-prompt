@@ -159,6 +159,11 @@ button.x:hover { color: var(--text); }
 .speechbox .sba button { font-size: 12.5px; padding: 5px 12px; border-radius: 999px; }
 .speechbox .sba button.primary { background: var(--accent); color: var(--accent-text); }
 
+.langs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+.langs .lang { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; padding: 4px 6px 4px 11px; border-radius: 999px; background: var(--chip); }
+.langs .lang button { background: transparent; color: var(--muted); width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 12px; line-height: 1; }
+.langs .lang button:hover { color: var(--text); background: var(--faint); }
+.langs select { font: inherit; font-size: 12.5px; color: var(--text); background: var(--faint); border: 0; border-radius: 999px; padding: 4px 10px; }
 .spane #speechHints { width: 100%; margin-top: 8px; border: 1px solid var(--faint); border-radius: 10px; padding: 8px 10px; font-size: 13px; min-height: 52px; max-height: 120px; background: var(--chip); }
 
 /* Optional pasted text */
@@ -515,9 +520,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <section class="spane" data-pane="speech">
           <h2>Dictation</h2>
           <div class="shint">Speak instead of typing: click the microphone in the question bar. It runs on this Mac only (Whisper); what you say never leaves it.</div>
-          <div class="sline">
-            <div><div class="sl-t">Language</div><div class="sl-d">Auto picks Turkish or English from the first words. English terms inside Turkish speech come out fine either way.</div></div>
-            <div class="seg" data-name="speechLanguage"><button type="button" data-v="auto">Auto</button><button type="button" data-v="tr">Türkçe</button><button type="button" data-v="en">English</button></div>
+          <div class="sline" style="display:block">
+            <div class="sl-t">Languages you speak</div><div class="sl-d">Each recording picks one of these from its first seconds; with one, it is always that one. Keep the list short: similar languages (Turkish and Azerbaijani, Spanish and Portuguese) get mixed up. English words inside another language come out fine.</div>
+            <div class="langs" id="speechLangs"></div>
           </div>
           <div class="sline" style="display:block">
             <div class="sl-t">Words to expect</div><div class="sl-d">Names and terms you often say, so they come out spelled right. Separate them with commas.</div>
@@ -785,6 +790,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   let layoutQueued = false, lastLayout = "", layoutAfterReveal = false;
+  const pipNudge = { x: 0, y: 0 };
   let thawNext = false;   // after this layout: show the web view again once it is drawn at the new size
   let barOpening = false;   // the toolbar is opening: the next layout lets its glass grow from the line
   let revealing = false, revealNext = null;
@@ -825,8 +831,22 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const icon = mini.hidden ? null : $("miniOpen").getBoundingClientRect();
       const anchorY = icon ? icon.top + icon.height / 2 - box.top : null;
       const anchorX = !icon ? null
-        : els.root.classList.contains("side-right") ? width - (box.right - (icon.left + icon.width / 2))
+        // Pip alone: the page sits at the panel's left, whose width is rounded up; measure from the left then.
+        : els.root.classList.contains("side-right") && !els.root.classList.contains("is-mini") ? width - (box.right - (icon.left + icon.width / 2))
         : icon.left + icon.width / 2 - box.left;
+      // Pip's centre on a whole point of the panel: the panel itself sits on whole points, so a fraction here
+      // (from the icon's zoom) would be rounded differently for each panel size and Pip would shift a little
+      // whenever the conversation opens or closes. A small translate of Pip's column takes the fraction away.
+      if (icon) {
+        const dx = Math.round(anchorX) - anchorX, dy = Math.round(anchorY) - anchorY;
+        if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+          const zoom = parseFloat(getComputedStyle(mini).zoom) || 1;
+          pipNudge.x += dx; pipNudge.y += dy;
+          mini.style.transform = "translate(" + (pipNudge.x / zoom).toFixed(3) + "px," + (pipNudge.y / zoom).toFixed(3) + "px)";
+          queueLayout();
+          return;
+        }
+      }
       // pending: the conversation is about to slide in, so its glass waits hidden for the slide.
       const pending = main.classList.contains("reveal-pending");
       const key = JSON.stringify([width, height, rects, anchorX, anchorY, pending]);
@@ -1099,7 +1119,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
       setSeg("keepPip", s.keepPip === false ? "false" : "true");
-      setSeg("speechLanguage", s.speechLanguage || "auto");
+      speechLangs = parseLangs(s.speechLanguages); renderLangs();
       $("speechHints").value = s.speechHints || "";
       speechPost("probe");
       setHotkey(s.hotkey || "alt+shift+Space");
@@ -1272,7 +1292,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
       keepPip: segValues.keepPip,
-      speechLanguage: segValues.speechLanguage || "auto",
+      speechLanguages: speechLangs.join(","),
       speechHints: $("speechHints").value.trim(),
       hotkey: hotkeyValue,
       popupScale: String(sizeSlider.value),
@@ -1321,11 +1341,19 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     settingsOpen = false; historyOpen = false;
     els.root.classList.add("is-mini");
     mini.hidden = false;
+    if (actionsOpen) { actionsOpen = false; act.view.hidden = true; }
     lastLayout = "";
     queueLayout();
     $("minibar").classList.remove("tucked");
     clearTimeout(window.__qpTuck);
-    window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) tuckBar(); }, 3000);
+    window.__qpTuck = setTimeout(() => { if (collapsed && $("presetList").hidden) tuckBar(); }, 1500);
+    // Closing the chat starts over: the next open is a plain, empty conversation (no template, its AI or its
+    // fields). It is in Recent Chats. A conversation still answering is kept, for Pip's bubble.
+    if (state && !state.busy && (state.messages.length || state.title || state.presetPrompt || state.provider !== "claude")) {
+      stick = true;
+      post("reset");
+      els.prompt.value = ""; els.ctx.value = ""; showCtx(false); pending = []; renderAttachments(); autoGrow();
+    }
   }
 
   // Before a change that resizes the panel: the native side puts a picture of Pip over the web view (its
@@ -1584,7 +1612,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       return;
     }
     if (id === "open") expand();
-    else if (id === "new") { const res = await post("new"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
+    else if (id === "new") { const res = await post("reset"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
     else if (id === "recent") { expand(); openHistory(false); }
     else if (id === "settings") { expand(); openSettings(false); }
     else if (id === "actions") { expand(); openActions(false); }
@@ -1634,7 +1662,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   };
   if (bridge) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
   $("miniNew").addEventListener("click", async () => {
-    const res = await post("new");
+    const res = await post("reset");
     if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }
   });
 
@@ -2229,7 +2257,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         lastBubble.appendChild(els.errActions);
       }
       if (bridge && window.ResizeObserver) els.thread.querySelectorAll(".glass").forEach(el => threadObserver.observe(el));
-      if (stick) els.thread.scrollTop = els.thread.scrollHeight;
+      if (stick) { autoScrollAt = performance.now(); els.thread.scrollTop = els.thread.scrollHeight; }
     }
     queueLayout();
   }
@@ -2341,10 +2369,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   // Scrolling: the bubbles switch to their own background until it stops, then the glass returns.
-  let scrollIdle = 0;
+  // Only the user's own scrolling: following the answer to the bottom (on open, while it streams) keeps the
+  // glass, or every open would flash the bubbles' flat background for a moment.
+  let scrollIdle = 0, autoScrollAt = -1e9;
   els.thread.addEventListener("scroll", () => {
     const t = els.thread;
     stick = t.scrollHeight - t.scrollTop - t.clientHeight < 30;
+    if (performance.now() - autoScrollAt < 150) return;
     if (!t.classList.contains("scrolling")) { t.classList.add("scrolling"); lastLayout = ""; queueLayout(); }
     clearTimeout(scrollIdle);
     scrollIdle = setTimeout(() => { t.classList.remove("scrolling"); lastLayout = ""; queueLayout(); }, 160);
@@ -2429,6 +2460,48 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const micBtn = $("barMic"), speechBox = $("speechBox");
   function speechPost(action, extra) { if (bridge) bridge.postMessage(Object.assign({ type: "speech", action }, extra || {})); }
   const mb = n => Math.round(n / 1000000) + " MB";
+  // The languages Whisper knows (code: name). Settings keeps a short list of the ones the user speaks.
+  const WHISPER_LANGS = Object.fromEntries("en:English,zh:Chinese,de:German,es:Spanish,ru:Russian,ko:Korean,fr:French,ja:Japanese,pt:Portuguese,tr:Turkish,pl:Polish,ca:Catalan,nl:Dutch,ar:Arabic,sv:Swedish,it:Italian,id:Indonesian,hi:Hindi,fi:Finnish,vi:Vietnamese,he:Hebrew,uk:Ukrainian,el:Greek,ms:Malay,cs:Czech,ro:Romanian,da:Danish,hu:Hungarian,ta:Tamil,no:Norwegian,th:Thai,ur:Urdu,hr:Croatian,bg:Bulgarian,lt:Lithuanian,la:Latin,mi:Maori,ml:Malayalam,cy:Welsh,sk:Slovak,te:Telugu,fa:Persian,lv:Latvian,bn:Bengali,sr:Serbian,az:Azerbaijani,sl:Slovenian,kn:Kannada,et:Estonian,mk:Macedonian,br:Breton,eu:Basque,is:Icelandic,hy:Armenian,ne:Nepali,mn:Mongolian,bs:Bosnian,kk:Kazakh,sq:Albanian,sw:Swahili,gl:Galician,mr:Marathi,pa:Punjabi,si:Sinhala,km:Khmer,sn:Shona,yo:Yoruba,so:Somali,af:Afrikaans,oc:Occitan,ka:Georgian,be:Belarusian,tg:Tajik,sd:Sindhi,gu:Gujarati,am:Amharic,yi:Yiddish,lo:Lao,uz:Uzbek,fo:Faroese,ht:Haitian Creole,ps:Pashto,tk:Turkmen,nn:Nynorsk,mt:Maltese,sa:Sanskrit,lb:Luxembourgish,my:Myanmar,bo:Tibetan,tl:Tagalog,mg:Malagasy,as:Assamese,tt:Tatar,haw:Hawaiian,ln:Lingala,ha:Hausa,ba:Bashkir,jw:Javanese,su:Sundanese,yue:Cantonese".split(",").map(x => x.split(":")));
+  // Not chosen yet: English, and the Mac's language, or else its region's (an English Mac in Turkey: Turkish).
+  const REGION_LANG = { TR: "tr", DE: "de", AT: "de", CH: "de", FR: "fr", BE: "fr", ES: "es", MX: "es", AR: "es", CO: "es", IT: "it",
+    NL: "nl", PT: "pt", BR: "pt", RU: "ru", PL: "pl", JP: "ja", CN: "zh", TW: "zh", HK: "yue", KR: "ko", SA: "ar", AE: "ar", EG: "ar",
+    GR: "el", SE: "sv", NO: "no", DK: "da", FI: "fi", CZ: "cs", HU: "hu", RO: "ro", UA: "uk", IL: "he", IN: "hi", ID: "id", VN: "vi",
+    TH: "th", AZ: "az", IR: "fa", BG: "bg", HR: "hr", RS: "sr", SK: "sk", SI: "sl", MY: "ms", PK: "ur", KZ: "kk" };
+  function defaultLangs() {
+    const sys = (navigator.languages || [navigator.language || "en"]).map(l => (l || "").toLowerCase().split("-")[0]).find(c => c !== "en" && WHISPER_LANGS[c])
+      || REGION_LANG[String(nativeInfo.region || "").toUpperCase()];
+    return sys && sys !== "en" ? ["en", sys] : ["en"];
+  }
+  function parseLangs(value) {
+    const list = String(value || "").split(",").filter(c => WHISPER_LANGS[c]);
+    return list.length ? list : defaultLangs();
+  }
+  let speechLangs = defaultLangs();
+  function renderLangs() {
+    const box = $("speechLangs");
+    box.textContent = "";
+    speechLangs.forEach(code => {
+      const chip = document.createElement("span");
+      chip.className = "lang";
+      chip.textContent = WHISPER_LANGS[code];
+      if (speechLangs.length > 1) {
+        const x = document.createElement("button");
+        x.type = "button"; x.textContent = "✕"; x.title = "Remove";
+        x.addEventListener("click", () => { speechLangs = speechLangs.filter(c => c !== code); renderLangs(); });
+        chip.appendChild(x);
+      }
+      box.appendChild(chip);
+    });
+    if (speechLangs.length < 8) {
+      const add = document.createElement("select");
+      add.appendChild(new Option("Add a language…", ""));
+      Object.entries(WHISPER_LANGS).filter(([c]) => !speechLangs.includes(c)).sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([c, n]) => add.appendChild(new Option(n, c)));
+      add.addEventListener("change", () => { if (add.value) { speechLangs.push(add.value); renderLangs(); } });
+      box.appendChild(add);
+    }
+    queueLayout();
+  }
   function showSpeechBox(text, opts) {
     opts = opts || {};
     $("sbText").textContent = text;
@@ -2485,7 +2558,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     speech.base = els.prompt.value;
     speech.sendAfter = false;
     setSpeechState("starting");
-    speechPost("start", { language: (state && state.speechLanguage) || "auto", prompt: (state && state.speechHints) || "" });
+    speechPost("start", { languages: parseLangs(state && state.speechLanguages), prompt: (state && state.speechHints) || "" });
   }
   function stopDictation(thenSend) {
     if (speech.state === "listening" || speech.state === "starting") {
@@ -2648,6 +2721,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   function autoGrow() {
     els.prompt.style.height = "auto";
     els.prompt.style.height = Math.min(els.prompt.scrollHeight, promptMax) + "px";
+    // A scroll bar only once it is as tall as it gets (else WebKit flashes one whenever the box resizes).
+    els.prompt.style.overflowY = els.prompt.scrollHeight > promptMax ? "auto" : "hidden";
     updateBarButtons();
     updateSendState();
     queueLayout();

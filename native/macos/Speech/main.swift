@@ -1,7 +1,7 @@
 // QuickPromptSpeech: local speech-to-text for Quick Prompt (whisper.cpp, on this Mac only).
 //
 // The app starts it on the first mic press and talks to it with one JSON object per line:
-//   in  (stdin):  {"cmd":"start","language":"auto|tr|en","prompt":"words to expect"}  {"cmd":"stop"}  {"cmd":"cancel"}
+//   in  (stdin):  {"cmd":"start","languages":["en","tr"],"prompt":"words to expect"}  {"cmd":"stop"}  {"cmd":"cancel"}
 //   out (stdout): {"type":"ready"}  {"type":"listening"}  {"type":"level","value":0.4}
 //                 {"type":"partial","text":"…"}  {"type":"final","text":"…"}  {"type":"error","message":"…"}
 // While listening it writes the text as it hears it (partial: the words so far, the last ones may still change);
@@ -148,19 +148,19 @@ func trailingSilence() -> Int {
 
 // MARK: transcription
 
-var language = "auto"
+var languages = ["en"]                // the ones the user speaks (Settings → Dictation)
 var hints = ""
-var lockedLanguage: String?           // Auto: decided after the first seconds of speech, then kept
-var provisional = "tr"                // Auto, before that: the better guess so far
+var lockedLanguage: String?           // several languages: decided after the first seconds of speech, then kept
+var provisional = "en"                // before that: the better guess so far
 
-/// Auto means Turkish or English: Whisper's own detection over a second of speech picks Russian or Azerbaijani
-/// too easily, so only these two are compared.
-func detectTurkishOrEnglish(_ audio: [Float]) -> String? {
+/// Picks among the user's languages only: Whisper's open detection over a second of speech picks Russian or
+/// Azerbaijani for Turkish too easily.
+func detectLanguage(_ audio: [Float]) -> String? {
     let clip = Array(audio.suffix(Int(rate * 30)))
     guard clip.withUnsafeBufferPointer({ whisper_pcm_to_mel(ctx, $0.baseAddress, Int32($0.count), threads) }) == 0 else { return nil }
     var probs = [Float](repeating: 0, count: Int(whisper_lang_max_id()) + 1)
     guard whisper_lang_auto_detect(ctx, 0, threads, &probs) >= 0 else { return nil }
-    return probs[Int(whisper_lang_id("tr"))] >= probs[Int(whisper_lang_id("en"))] ? "tr" : "en"
+    return languages.max { probs[Int(whisper_lang_id($0))] < probs[Int(whisper_lang_id($1))] }
 }
 
 func speechSeconds() -> Double { Double(speechProbs.filter { $0 > 0.5 }.count * frame) / rate }
@@ -174,6 +174,8 @@ func clean(_ text: String) -> String {
     if t.hasPrefix("[") && t.hasSuffix("]") { return "" }      // [Music], [BLANK_AUDIO]
     if t.hasPrefix("(") && t.hasSuffix(")") { return "" }
     if invented.contains(t.lowercased()) { return "" }
+    // "- " starts a new speaker in Whisper's subtitles style; dictation is one speaker.
+    while t.hasPrefix("-") { t = String(t.dropFirst()).trimmingCharacters(in: .whitespaces) }
     while t.contains("  ") { t = t.replacingOccurrences(of: "  ", with: " ") }
     return t
 }
@@ -195,7 +197,7 @@ func transcribe(_ audio: [Float], prompt: String, useVoiceDetection: Bool) -> [S
     p.suppress_nst = !useVoiceDetection
     p.no_speech_thold = 0.6
     p.abort_callback = { _ in aborting }
-    let lang = lockedLanguage ?? (language == "auto" ? provisional : language)
+    let lang = lockedLanguage ?? provisional
     var segments: [Segment]?
     lang.withCString { langPtr in
         prompt.withCString { promptPtr in
@@ -206,10 +208,7 @@ func transcribe(_ audio: [Float], prompt: String, useVoiceDetection: Bool) -> [S
                 p.vad = useVoiceDetection
                 if useVoiceDetection {
                     p.vad_model_path = vadPtr
-                    var v = whisper_vad_default_params()
-                    v.min_silence_duration_ms = 300
-                    v.speech_pad_ms = 200
-                    p.vad_params = v
+                    p.vad_params = whisper_vad_default_params()
                 }
                 let status = audio.withUnsafeBufferPointer { whisper_full(ctx, p, $0.baseAddress, Int32($0.count)) }
                 guard status == 0, !aborting else { return }
@@ -247,9 +246,9 @@ func liveStep() {
     lock.lock(); let total = samples.count; lock.unlock()
     let pending = total - commitAt
     if pending >= Int(rate * 0.6), hasSpeech(from: commitAt, to: total) {
-        if language == "auto", lockedLanguage == nil {
+        if lockedLanguage == nil {
             lock.lock(); let heard = Array(samples[0..<total]); lock.unlock()
-            if let guess = detectTurkishOrEnglish(heard) { provisional = guess }
+            if let guess = detectLanguage(heard) { provisional = guess }
             if speechSeconds() >= 3 { lockedLanguage = provisional }
         }
         lock.lock(); let audio = Array(samples[commitAt..<total]); lock.unlock()
@@ -277,10 +276,11 @@ func liveStep() {
 func start(_ body: [String: Any]) {
     work.async {
         guard !listening else { return }
-        language = (body["language"] as? String).flatMap { ["auto", "tr", "en"].contains($0) ? $0 : nil } ?? "auto"
+        let asked = (body["languages"] as? [String] ?? []).filter { whisper_lang_id($0) >= 0 }
+        languages = asked.isEmpty ? ["en"] : Array(asked.prefix(8))
         hints = (body["prompt"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        lockedLanguage = nil
-        provisional = "tr"
+        lockedLanguage = languages.count == 1 ? languages[0] : nil
+        provisional = languages[0]
         lock.lock(); samples = []; lock.unlock()
         speechProbs = []; vadDone = 0; committed = []; commitAt = 0
         stopRequested = false; aborting = false
@@ -305,7 +305,7 @@ func stop() {
         stopAudio()
         aborting = false
         lock.lock(); let audio = samples; lock.unlock()
-        if language == "auto", lockedLanguage == nil, let guess = detectTurkishOrEnglish(audio) { lockedLanguage = guess }
+        if lockedLanguage == nil, let guess = detectLanguage(audio) { lockedLanguage = guess }
         // The whole recording once more, with voice detection: better words and no invented ones over silence.
         let segs = audio.count > Int(rate * 0.3) ? transcribe(audio, prompt: hints, useVoiceDetection: true) : []
         send(["type": "final", "text": join((segs ?? []).map(\.text))])

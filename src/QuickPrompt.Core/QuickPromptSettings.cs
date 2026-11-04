@@ -88,13 +88,15 @@ namespace QuickPrompt.Core
         /// <summary>Keep Pip (the floating icon) on screen: closing a conversation leaves Pip, and Pip shows at start.</summary>
         public Boolean KeepPip { get; set; } = true;
 
-        /// <summary>Dictation language: "auto" (detected once per recording), "tr" or "en".</summary>
-        public String SpeechLanguage { get; set; } = "auto";
+        /// <summary>Dictation languages, Whisper codes ("en,tr"). One: always that language; several: each
+        /// recording picks among them. Empty: English and the system's language (the page fills it in).</summary>
+        public String SpeechLanguages { get; set; } = "";
 
         /// <summary>Words dictation should expect (names, product terms), given to the speech model as a hint.</summary>
         public String SpeechHints { get; set; } = "";
 
-        public static Boolean IsValidSpeechLanguage(String? value) => value is "auto" or "tr" or "en";
+        public static Boolean IsValidSpeechLanguages(String? value) =>
+            value != null && System.Text.RegularExpressions.Regex.IsMatch(value, "^([a-z]{2,3}|haw|yue)(,([a-z]{2,3}|haw|yue)){0,7}$");
 
         /// <summary>The global shortcut that asks about the selection: modifiers and a key code, e.g. "alt+shift+Space".</summary>
         public String Hotkey { get; set; } = DefaultHotkey;
