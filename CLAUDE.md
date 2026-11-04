@@ -89,7 +89,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.45, 4 Nov 2026)
+## Status (v0.3.46, 5 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -159,6 +159,9 @@ point with a translate of its column; the native side rounds the panel itself; m
 Closing the chat (collapse) resets the popup to a plain Claude conversation (no template, its AI or fields; it stays
 in Recent Chats; kept while answering); New Chat does the same. Opening no longer flashes the bubbles' flat
 background (scrolling to the end ourselves no longer counts as the user scrolling).
+v0.3.46 (5 Nov 2026) has everything above marked "on `dev`": dictation, template autoCopy, Pip hover highlight,
+no sub-point shift, reset on close, no open flash. Checked in the release: helper signed with audio-input,
+notarized, NSMicrophoneUsageDescription present. Not yet confirmed on the owner's Mac.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
