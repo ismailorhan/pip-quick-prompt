@@ -2545,7 +2545,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       peak = Math.max(api.level, peak * 0.996, 0.12);
       const target = api.level < 0.04 ? 0 : Math.min(1, api.level / peak);
       shown += (target - shown) * 0.25;
-      const r = icon.width / 2, inner = r + 6, reach = r * 0.85, size = Math.ceil((inner + reach + 4) * 2);
+      // The rays start on the disc's rim (the button is larger than the disc it shows), reaching as far as before.
+      const r = icon.width / 2, disc = $("miniOpen").querySelector("circle").getBoundingClientRect().width / 2 || r;
+      const lw = Math.max(2, r * 0.1), inner = disc + lw / 2 + 0.5, reach = r * 0.85 + (r + 6 - inner), size = Math.ceil((inner + reach + 4) * 2);
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== size * dpr) { canvas.width = canvas.height = size * dpr; canvas.style.width = canvas.style.height = size + "px"; }
       canvas.style.left = (icon.left + icon.width / 2 - size / 2) + "px";
@@ -2560,7 +2562,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         bins[i] += (v - bins[i]) * 0.3;
       }
       ctx.lineCap = "round";
-      ctx.lineWidth = Math.max(2, r * 0.1);
+      ctx.lineWidth = lw;
       for (let i = 0; i < N; i++) {
         const v = bins[i < half ? i : N - 1 - i];
         const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 3 + v * reach;
