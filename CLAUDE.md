@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.48, 6 Nov 2026)
+## Status (v0.3.50, 6 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -198,7 +198,8 @@ app) and About. Rebuild: `sh tools/autolex/fetch_data.sh && python3 -I tools/aut
 `tools/autolex/exceptions.tr.json` (abbreviations, product names). Origin: Forganise branch `claude/tts-watch` (owner approved the readings by
 ear). Checked with a fake speech engine in Playwright; not yet on the owner's Mac. Next: conversation mode (send on silence or on a manual
 "done", the owner's choice; its own shortcut and a long press on the mic; barge-in needs echo cancellation).
-On `dev` after v0.3.48 (6 Nov 2026), not built: **local voices replace the system voices** (the owner: no system voices;
+v0.3.50 (6 Nov 2026), built and notarized (the arm64 engine carries libonnxruntime and libqp_normalizer, signed), not yet
+confirmed on the owner's Mac: **local voices replace the system voices** (the owner: no system voices;
 EMA for Turkish and the English model we discussed). `src/QuickPrompt.Voice` (ONNX Runtime 1.31.1, Apple silicon only: no
 macOS x64 library) makes each sentence's WAV in the engine (`POST /s/{token}/speak {lang,text,voice,speed}`, `GET|POST voice`
 for state and the one-time download); the page plays them with Web Audio, the next one made while one plays
