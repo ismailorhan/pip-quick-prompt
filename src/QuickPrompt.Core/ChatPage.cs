@@ -288,7 +288,10 @@ html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; b
 html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 50%; }
 /* The agent picker: a small line under the question, right-aligned (like the model line under a chat box). */
 /* The agent picker: a small glass pill under the question bar, on the right (the bar keeps its size). */
-.barfoot { display: flex; justify-content: flex-end; margin-top: -5px; padding-right: 14px; }
+/* Out of the column's flow, so Pip beside the column still lines up with the question bar; the root keeps room for it. */
+#main { position: relative; }
+.barfoot { position: absolute; left: 0; right: 0; top: 100%; margin-top: 5px; display: flex; justify-content: flex-end; padding-right: 14px; }
+#root.has-foot:not(.is-mini) { padding-bottom: 39px; }
 .barfoot[hidden] { display: none; }
 .agentpick { display: inline-flex; align-items: center; gap: 6px; height: 24px; max-width: 70%; padding: 0 9px 0 10px; border-radius: 12px; color: var(--muted); font-size: 12px; font-weight: 500; }
 .agentpick:hover, .agentpick.hov { color: var(--text); }
@@ -3080,14 +3083,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // ---------- the chat's agent chip ----------
   function renderAgentChip(s) {
     const foot = $("barFoot"), chip = $("barAgent");
-    if (!s.agent) { if (!foot.hidden) { foot.hidden = true; queueLayout(); } return; }
+    if (!s.agent) { if (!foot.hidden) { foot.hidden = true; $("root").classList.remove("has-foot"); queueLayout(); } return; }
     chip.style.setProperty("--agent", s.agent.color || "");
     chip.querySelector(".aname").textContent = s.agent.name;
     // The model, unless the agent's name already says it (or it uses the CLI's own default).
     const model = s.model ? (MODEL_NAMES[s.model] || s.model) : "";
     chip.querySelector(".amodel").textContent = model && !s.agent.name.toLowerCase().includes(model.toLowerCase().split(" ")[0]) ? model : "";
     chip.title = "Agent: " + s.agent.name + " — click to switch";
-    if (foot.hidden) { foot.hidden = false; queueLayout(); }
+    if (foot.hidden) { foot.hidden = false; $("root").classList.add("has-foot"); queueLayout(); }
   }
   async function switchAgent(id) {
     if (state && state.agent && state.agent.id === id) return;
