@@ -122,7 +122,9 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 html:not(.native) .stackcard { background: var(--glass); }
 /* While the conversation scrolls, the bubbles draw their own background (the native glass cannot
    follow a scroll smoothly); the glass comes back as soon as it stops. */
-html.native .thread.scrolling .msg { background: rgba(var(--tint-rgb), max(.62, var(--glass-tint, .3))); border-color: var(--edge); }
+html.native .thread.scrolling .msg { background: rgba(var(--tint-rgb), max(.62, var(--glass-tint, .3))); border-color: var(--edge); transition: none; }
+/* When it stops, that background fades out over the glass coming back (removing it at once left a frame with neither). */
+html.native .thread .msg { transition: background-color .25s ease, border-color .25s ease; }
 .a.scroll { overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
 .pager { align-self: center; font-size: 11.5px; padding: 3px 12px; border-radius: 999px; color: var(--muted); }
 .thread:empty { display: none; }
@@ -3206,12 +3208,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     return map;
   }
   // The chosen voice, else the best one installed: Premium, then Enhanced, then the default.
+  // macOS lists one voice several times (compact, enhanced, premium) under the same name: the better first.
+  const voiceQuality = v => /premium/i.test(v.voiceURI + v.name) ? 3 : /enhanced/i.test(v.voiceURI + v.name) ? 2 : /super-?compact/i.test(v.voiceURI) ? 0 : 1;
+  function voicesFor(lang) {
+    const seen = new Set();
+    return localVoices().filter(v => voiceLang(v) === lang)
+      .sort((a, b) => voiceQuality(b) - voiceQuality(a) || (b.default ? 1 : 0) - (a.default ? 1 : 0))
+      .filter(v => !seen.has(v.name) && seen.add(v.name));
+  }
   function voiceFor(lang, choice) {
-    const all = localVoices().filter(v => voiceLang(v) === lang);
-    const wanted = (choice || {})[lang];
-    const quality = v => /premium/i.test(v.voiceURI + v.name) ? 2 : /enhanced/i.test(v.voiceURI + v.name) ? 1 : 0;
-    return all.find(v => v.name === wanted)
-      || all.slice().sort((a, b) => quality(b) - quality(a) || (b.default ? 1 : 0) - (a.default ? 1 : 0))[0] || null;
+    const all = voicesFor(lang), wanted = (choice || {})[lang];
+    return all.find(v => v.name === wanted) || all[0] || null;
   }
   // The answer's language: Turkish letters or words, English words, else the first language from Dictation's list.
   function guessLang(text) {
@@ -3355,7 +3362,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const langs = speechLangs.slice();
     if (!synth) { box.innerHTML = '<span class="none">This system offers no voices here.</span>'; return; }
     langs.forEach(code => {
-      const voices = localVoices().filter(v => voiceLang(v) === code).sort((a, b) => a.name.localeCompare(b.name));
+      const voices = voicesFor(code).sort((a, b) => a.name.localeCompare(b.name));
       const name = document.createElement("span");
       name.textContent = WHISPER_LANGS[code] || code;
       box.appendChild(name);
