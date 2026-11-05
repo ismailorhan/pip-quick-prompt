@@ -2328,6 +2328,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       bridge.postMessage({ type: "home" });
       collapse();
       updateMini(s);
+      // The dictation shortcut with no popup open: Pip appears and listens.
+      if (s.startDictation && !dictationAsked) { dictationAsked = true; setTimeout(() => window.__quickPromptDictate(), 0); }
       return;
     }
     if (collapsed) { updateMini(s); return; }
@@ -2837,11 +2839,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     switch (e.type) {
       case "status":
         speech.available = !!e.available;
+        speech.known = true;
         speech.model = e.model;
         speech.size = e.size || speech.size;
         speech.received = e.received || 0;
         micBtn.hidden = !speech.available || speech.state !== "idle";
-        if (speech.startWhenKnown) { speech.startWhenKnown = false; if (speech.available) setTimeout(startDictation, 0); }
+        if (speech.startWhenKnown) { speech.startWhenKnown = false; setTimeout(dictateNow, 0); }
         renderSpeechSettings();
         if (speech.model === "downloading" && speech.wantStart) renderSpeechBoxProgress();
         else if (speech.model === "ready" && speech.wantStart) { speech.wantStart = false; hideSpeechBox(); startDictation(); }
@@ -2877,6 +2880,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       case "error":
         if (speech.state !== "idle") { setSpeechState("idle"); }
         speech.wantStart = false;
+        if (collapsed) expand();   // listening on Pip alone: the message needs the chat
         if (e.code === "permission") showSpeechBox("Quick Prompt may not use the microphone. Allow it in System Settings → Privacy & Security → Microphone.",
           { buttons: [{ label: "Open Settings", primary: true, run: () => { speechPost("openPrivacy"); hideSpeechBox(); } }, { label: "Close", run: hideSpeechBox }] });
         else showSpeechBox(e.message || "Dictation failed.", { buttons: [{ label: "Close", run: hideSpeechBox }] });
@@ -2884,12 +2888,21 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
   };
   micBtn.addEventListener("click", () => speech.state === "idle" ? startDictation() : stopDictation(false));
-  // The dictation shortcut (from the app): opens the chat and starts; pressed again, stops.
+  // The dictation shortcut (from the app). With only Pip on screen, Pip listens on its own, like an assistant:
+  // no chat opens (clicking Pip opens it, the recording goes on). Pressed again, it stops and the chat opens
+  // with the text. With the chat open, it starts there. Returns "quiet" when the panel must not take the keys.
   window.__quickPromptDictate = () => {
-    if (speech.state !== "idle") { stopDictation(false); return; }
-    if (collapsed) expand();
-    if (speech.available) startDictation(); else speech.startWhenKnown = true;
+    if (speech.state !== "idle") { if (collapsed) expand(); stopDictation(false); return "open"; }
+    if (!speech.known) { speech.startWhenKnown = true; return collapsed ? "quiet" : "open"; }
+    return dictateNow();
   };
+  function dictateNow() {
+    if (!speech.available) { if (collapsed) expand(); return "open"; }
+    // Nothing to say on Pip (model download, errors): those need the chat.
+    if (collapsed && speech.model !== "ready") expand();
+    startDictation();
+    return collapsed ? "quiet" : "open";
+  }
   // While dictating, Enter stops and sends and Esc cancels (before the box's own keys).
   document.addEventListener("keydown", e => {
     if (speech.state === "idle") return;

@@ -113,6 +113,7 @@ namespace QuickPrompt.Core
                     // The default agent, unless an AI is named (older callers).
                     var created = manager.CreateSession(String.IsNullOrEmpty(Get("provider")) ? null : manager.AgentForProvider(Get("provider")), "");
                     created.StartDictation = Get("dictate") == "true";   // the dictation shortcut with no popup open
+                    created.StartCollapsed = created.StartDictation;      // …which opens as Pip, listening
                     manager.OpenWindow(created);
                     return (200, "{\"ok\":true}");
 

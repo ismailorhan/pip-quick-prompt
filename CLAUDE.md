@@ -181,6 +181,12 @@ editor picks an agent; the question bar has an agent chip (a native menu; just i
 New Chat lists the agents when there are several. Older settings become agents "Claude" (default) and "ChatGPT";
 older templates point at the matching agent or a new one ("Claude Haiku 5.5 · API"). Exports are version 2 (they carry
 the template's agent). Checked with the real engine (DevHost) and Playwright; not yet on the owner's Mac.
+On `dev` after v0.3.47: the agent picker is a small glass pill under the question bar (outside it, the bar keeps its
+size). PDFs can be added (drop on Pip or the popup, paste, Add Attachment; up to ~18 MB; a card with the name as the
+preview): Claude CLI (stream-json document block, verified with the real CLI) and API, and the OpenAI API (file part)
+read them; the Codex CLI answers that it cannot. The dictation shortcut with only Pip on screen listens on Pip alone
+(no chat, the panel does not take the keys; `__quickPromptDictate` returns "quiet"); clicking Pip opens the chat and
+the recording goes on; pressing it again stops and opens the chat with the text. With no popup, it opens Pip listening.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
