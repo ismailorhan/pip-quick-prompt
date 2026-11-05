@@ -276,12 +276,17 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 .lightbox .lclose { position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; }
 html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; border-radius: 22px; }
 html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 50%; }
-.agentchip { flex: none; align-self: center; display: inline-flex; align-items: center; gap: 6px; height: 28px; max-width: 132px; padding: 0 10px 0 9px; border-radius: 999px; background: var(--faint); color: var(--muted); font-size: 12px; font-weight: 500; }
-.agentchip:hover, .agentchip.hov { color: var(--text); background: rgba(128,128,128,.2); }
-.agentchip .aname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agentchip.slim { padding: 0; width: 28px; justify-content: center; }
-.agentchip.slim .aname { display: none; }
-.agentchip .dot, .aglist .dot, .afagent .dot { background: var(--agent, var(--accent)); }
+/* The agent picker: a small line under the question, right-aligned (like the model line under a chat box). */
+.bar { flex-wrap: wrap; row-gap: 0; }
+.barfoot { flex: 0 0 100%; display: flex; justify-content: flex-end; margin: -1px 0 -3px; padding-right: 8px; }
+.agentpick { display: inline-flex; align-items: center; gap: 6px; height: 22px; max-width: 70%; padding: 0 6px; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; }
+.agentpick:hover, .agentpick.hov { color: var(--text); background: var(--faint); }
+.agentpick .aname, .agentpick .amodel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agentpick .amodel { font-weight: 400; opacity: .75; }
+.agentpick .amodel:empty { display: none; }
+.agentpick .dot { width: 6px; height: 6px; }
+.agentpick svg { flex: none; opacity: .7; }
+.agentpick .dot, .aglist .dot, .afagent .dot { background: var(--agent, var(--accent)); }
 .swatches { display: flex; gap: 7px; }
 .swatches button { width: 20px; height: 20px; padding: 0; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
 .swatches button.on { box-shadow: 0 0 0 2px rgb(var(--tint-rgb)), 0 0 0 4px var(--c); }
@@ -690,11 +695,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text or an attachment">+</button><input type="file" id="attachFile" multiple hidden>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
-    <button type="button" class="agentchip" id="barAgent" title="Agent: click to switch" hidden><span class="dot"></span><span class="aname"></span></button>
     <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as Pip" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
     <button type="button" class="round gear mic" id="barMic" title="Dictate: speak, then click again (↵ sends, esc cancels)" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
+    <div class="barfoot" id="barFoot" hidden><button type="button" class="agentpick" id="barAgent" title="Agent: click to switch"><span class="dot"></span><span class="aname"></span><span class="amodel"></span><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button></div>
   </div>
   </div>
   <div class="plist glass" id="presetList" hidden><div class="ptitle">Prompt templates</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit templates…</span></button></div>
@@ -2984,16 +2989,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // The history button gives its room to the question while something is typed.
   function updateBarButtons() {
     $("barHistory").hidden = !els.card.hidden || !!els.prompt.value;
-    $("barAgent").classList.toggle("slim", !!els.prompt.value);   // typing: just its dot, more room for the text
   }
   // ---------- the chat's agent chip ----------
   function renderAgentChip(s) {
-    const chip = $("barAgent");
-    if (!s.agent) { chip.hidden = true; return; }
-    chip.hidden = false;
+    const foot = $("barFoot"), chip = $("barAgent");
+    if (!s.agent) { if (!foot.hidden) { foot.hidden = true; queueLayout(); } return; }
     chip.style.setProperty("--agent", s.agent.color || "");
     chip.querySelector(".aname").textContent = s.agent.name;
+    // The model, unless the agent's name already says it (or it uses the CLI's own default).
+    const model = s.model ? (MODEL_NAMES[s.model] || s.model) : "";
+    chip.querySelector(".amodel").textContent = model && !s.agent.name.toLowerCase().includes(model.toLowerCase().split(" ")[0]) ? model : "";
     chip.title = "Agent: " + s.agent.name + " — click to switch";
+    if (foot.hidden) { foot.hidden = false; queueLayout(); }
   }
   async function switchAgent(id) {
     if (state && state.agent && state.agent.id === id) return;
