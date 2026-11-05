@@ -79,6 +79,16 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 .mh .ok { width: 15px; height: 15px; border-radius: 50%; background: #2fbf71; color: #fff; display: grid; place-items: center; font-size: 9.5px; flex: none; }
 .mh .ok.err { background: #e5533d; }
 .mh .spin { margin-right: 0; }
+.mh .spk { margin-left: auto; width: 24px; height: 20px; padding: 0; border: 0; border-radius: 6px; display: grid; place-items: center; background: transparent; color: var(--muted); opacity: .6; cursor: pointer; }
+.mh .spk:hover { opacity: 1; background: var(--faint); }
+.mh .spk.on { opacity: 1; color: var(--accent); }
+.mh .spk.on .w1 { animation: qp-wave 1.1s ease-in-out infinite; }
+.mh .spk.on .w2 { animation: qp-wave 1.1s ease-in-out .25s infinite; }
+@keyframes qp-wave { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.vlist { display: grid; grid-template-columns: max-content 1fr auto; gap: 6px 10px; align-items: center; margin-top: 8px; font-size: 12.5px; }
+.vlist select { font: inherit; font-size: 12.5px; color: var(--text); background: var(--faint); border: 0; border-radius: 8px; padding: 4px 8px; min-width: 0; }
+.vlist .none { color: var(--muted); }
+.vlist button { font-size: 12px; padding: 3px 10px; }
 .mh .live { background: linear-gradient(90deg, var(--muted) 0%, var(--text) 50%, var(--muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: qp-shimmer 1.6s linear infinite; }
 @keyframes qp-shimmer { to { background-position: -200% 0; } }
 .msg.bot.thinking { align-self: flex-start; border-radius: 999px; padding: 6px 14px; }
@@ -497,6 +507,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <button type="button" data-pane="appearance"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-4.1-4-7.4-9-7.4z M7.5 12h0 M10 7.5h0 M14.5 7.5h0"/></svg>Appearance</button>
         <button type="button" data-pane="shortcuts"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z M7 10h0 M10.5 10h0 M14 10h0 M17.5 10h0 M8 14h8"/></svg>Shortcuts</button>
         <button type="button" data-pane="speech"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg>Dictation</button>
+        <button type="button" data-pane="voice"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z M15.5 9a4 4 0 0 1 0 6 M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>Read Aloud</button>
         <div class="snav-g">AI</div>
         <button type="button" data-pane="agents"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.6 4.4 4.4 1.6-4.4 1.6L12 15.5l-1.6-4.4L6 9.5l4.4-1.6z M5 17.5c1.6-1.4 4-2.2 7-2.2s5.4.8 7 2.2 M8.5 21h7"/></svg>Agents</button>
         <button type="button" data-pane="keys"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9.5a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z M13.2 12.7L20 19.5 M17 16.5l2-2 M18.8 18.3l1.7-1.7"/></svg>API keys</button>
@@ -563,6 +574,23 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div><div class="sl-t">Speech model</div><div class="sl-d" id="spModel">Checking…</div></div>
             <button type="button" id="spModelBtn" hidden>Download</button>
           </div>
+        </section>
+        <section class="spane" data-pane="voice">
+          <h2>Read Aloud</h2>
+          <div class="shint">Answers can be read to you with this Mac's own voices: click the speaker on an answer, or have every answer read as it comes. Nothing leaves this Mac.</div>
+          <div class="sline">
+            <div><div class="sl-t">Read answers aloud</div><div class="sl-d">Every new answer is read while it is written. Off: only when you click the speaker on an answer.</div></div>
+            <div class="seg" data-name="readAloud"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div>
+          </div>
+          <div class="sline" style="display:block">
+            <div class="sl-t">Voices</div><div class="sl-d">One for each language in Dictation's list. More and better voices: System Settings → Accessibility → Spoken Content → System voice → Manage Voices; the Enhanced and Premium ones sound best.</div>
+            <div class="vlist" id="readVoices"></div>
+          </div>
+          <div class="sline">
+            <div style="margin-right:16px"><div class="sl-t">Speed</div></div>
+            <div class="slider"><span class="sz small" title="Slower">Slow</span><input type="range" id="readRate" min="50" max="200" step="5" aria-label="Reading speed"><span class="sz small" title="Faster">Fast</span></div>
+          </div>
+          <div class="shint">In Turkish answers, English words are read the way they are said: “Service Layer” as “sörvis leyır”, “API” as “ey pi ay”. Code, tables and links are skipped.</div>
         </section>
         <section class="spane" data-pane="appearance">
           <h2>Appearance</h2>
@@ -633,6 +661,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="sline"><div><div class="sl-t">Quick Prompt</div><div class="sl-d" id="aboutVersion"></div></div></div>
           <div class="sline"><div><div class="sl-t">Your keys</div><div class="sl-d">API keys are stored encrypted on this computer and are only sent to Anthropic or OpenAI. A prompt template can override CLI or API for itself.</div></div></div>
           <div class="sline"><div><div class="sl-t">Source and updates</div><div class="sl-d">github.com/ismailorhan/pip-quick-prompt, under Releases → Latest build</div></div></div>
+          <div class="sline"><div><div class="sl-t">Pronunciation data</div><div class="sl-d">Reading English words in Turkish answers uses the CMU Pronouncing Dictionary (© 1993-2015 Carnegie Mellon University, BSD licence) and Zemberek's Turkish dictionaries (Apache 2.0). Full notices: THIRD-PARTY-NOTICES.md in the app.</div></div></div>
         </section>
       </div>
     </div>
@@ -1158,6 +1187,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setSeg("keepPip", s.keepPip === false ? "false" : "true");
       speechLangs = parseLangs(s.speechLanguages); renderLangs();
       $("speechHints").value = s.speechHints || "";
+      setSeg("readAloud", s.readAloud ? "true" : "false");
+      readVoiceChoice = parseVoices(s.readVoices); renderReadVoices();
+      $("readRate").value = s.readRate || 100;
       speechPost("probe");
       setHotkey(s.hotkey || "alt+shift+Space");
       setDictHotkey(s.dictationHotkey || "alt+shift+KeyM");
@@ -1445,6 +1477,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       keepPip: segValues.keepPip,
       speechLanguages: speechLangs.join(","),
       speechHints: $("speechHints").value.trim(),
+      readAloud: segValues.readAloud,
+      readVoices: Object.entries(readVoiceChoice).filter(([, v]) => v).map(([k, v]) => k + "=" + v).join(";"),
+      readRate: String($("readRate").value),
       hotkey: hotkeyValue,
       dictationHotkey: dictHotkeyValue,
       popupScale: String(sizeSlider.value),
@@ -2405,10 +2440,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         }
         if (m.state === "streaming") {
           const label = m.text ? "Writing…" : (last && s.status ? s.status : "Thinking…");
-          return `<div class="msg bot glass${m.text ? "" : " thinking"}"><div class="mh" data-drag><span class="spin"></span><span class="live">${esc(label)}</span></div>`
+          return `<div class="msg bot glass${m.text ? "" : " thinking"}"><div class="mh" data-drag><span class="spin"></span><span class="live">${esc(label)}</span>${m.text ? speakerButton(i) : ""}</div>`
             + `<div class="a">${m.text ? md(m.text) + '<span class="cursor"></span>' : ""}</div></div>`;
         }
-        return `<div class="msg bot glass"><div class="mh" data-drag><span class="ok">✓</span>Answered</div><div class="a">${md(m.text || "")}</div></div>`;
+        return `<div class="msg bot glass"><div class="mh" data-drag><span class="ok">✓</span>Answered${speakerButton(i)}</div><div class="a">${md(m.text || "")}</div></div>`;
       }).join("");
       applyStack(s.messages);
       const lastBubble = els.thread.lastElementChild;
@@ -2416,6 +2451,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         lastBubble.appendChild(els.actions);
         lastBubble.appendChild(els.errActions);
       }
+      reader.paint();
       if (bridge && window.ResizeObserver) els.thread.querySelectorAll(".glass").forEach(el => threadObserver.observe(el));
       if (stick) { autoScrollAt = performance.now(); els.thread.scrollTop = els.thread.scrollHeight; }
     }
@@ -2694,6 +2730,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       add.addEventListener("change", () => { if (add.value) { speechLangs.push(add.value); renderLangs(); } });
       box.appendChild(add);
     }
+    renderReadVoices();
     queueLayout();
   }
   // Pip while dictating: 36 rays around it, mirrored left and right, red fading to coral at the tips, turning
@@ -2811,6 +2848,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (!speech.available || speech.state !== "idle") return;
     if (speech.model !== "ready") { speech.model === "downloading" ? renderSpeechBoxProgress() : showModelOffer(); return; }
     hideSpeechBox();
+    reader.stop();   // the microphone would hear the voice
     speech.base = els.prompt.value;
     speech.sendAfter = false;
     setSpeechState("starting");
@@ -3023,6 +3061,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       images: pending.length ? JSON.stringify(pending) : "" });
     els.send.disabled = false;
     if (res.ok) {
+      reader.stop();
       els.prompt.value = ""; els.ctx.value = ""; showCtx(false); pending = []; renderAttachments(); autoGrow(); stick = true;
     } else {
       toast(fields ? "Paste the text first" : "Could not send");
@@ -3144,6 +3183,204 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
   window.addEventListener("pagehide", () => { try { navigator.sendBeacon(base + "closed"); } catch (e) {} });
 
+  // ---------- read aloud: the system's voices (speechSynthesis), sentence by sentence ----------
+  // Local voices only, so nothing leaves the computer (WKWebView on the Mac, WebView2 on Windows).
+  // An answer is read while it streams: each finished sentence (or line) goes to the voice, code
+  // blocks, tables and links are left out. Turkish goes through autolex first, which respells
+  // English words for the Turkish voice ("Service Layer" -> "Sörvis Leyır"); it loads on first use.
+  const synth = window.speechSynthesis || null;
+  const reader = { index: -1, done: 0, prefix: "", lang: "", queue: [], current: null, complete: false,
+                   autoFrom: null, lex: null, lexLoading: null };
+  const SPEAKER_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path class="w1" d="M15.5 9a4 4 0 0 1 0 6"/><path class="w2" d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
+  function speakerButton(i) {
+    return synth ? `<button type="button" class="spk${reader.index === i ? " on" : ""}" data-read="${i}" title="${reader.index === i ? "Stop reading" : "Read aloud"}" aria-label="Read aloud">${SPEAKER_ICON}</button>` : "";
+  }
+  function localVoices() { return synth ? synth.getVoices().filter(v => v.localService !== false) : []; }
+  const voiceLang = v => String(v.lang || "").toLowerCase().replace("_", "-").split("-")[0];
+  function parseVoices(value) {
+    const map = {};
+    String(value || "").split(";").forEach(p => { const k = p.indexOf("="); if (k > 0) map[p.slice(0, k)] = p.slice(k + 1); });
+    return map;
+  }
+  // The chosen voice, else the best one installed: Premium, then Enhanced, then the default.
+  function voiceFor(lang, choice) {
+    const all = localVoices().filter(v => voiceLang(v) === lang);
+    const wanted = (choice || {})[lang];
+    const quality = v => /premium/i.test(v.voiceURI + v.name) ? 2 : /enhanced/i.test(v.voiceURI + v.name) ? 1 : 0;
+    return all.find(v => v.name === wanted)
+      || all.slice().sort((a, b) => quality(b) - quality(a) || (b.default ? 1 : 0) - (a.default ? 1 : 0))[0] || null;
+  }
+  // The answer's language: Turkish letters or words, English words, else the first language from Dictation's list.
+  function guessLang(text) {
+    const t = " " + text.toLowerCase().slice(0, 600) + " ";
+    const count = rx => (t.match(rx) || []).length;
+    const tr = count(/[ğış]/g) * 2 + count(/[\s,]+(ve|bir|bu|için|ile|ama|çok|olarak|var|yok|daha|gibi|değil|sonra|şimdi)[\s,.]/g);
+    const en = count(/[\s,]+(the|and|is|are|of|to|for|with|that|this|you|it|can|will)[\s,.]/g);
+    if (tr > en) return "tr";
+    if (en > 0) return "en";
+    const langs = parseLangs(state && state.speechLanguages);
+    return langs.find(c => c !== "en") || "en";
+  }
+  // Markdown -> what is worth hearing.
+  function speakable(src) {
+    return src
+      .replace(/```[\s\S]*?(```|$)/g, "\n")
+      .replace(/^\s*\|.*$/gm, "")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/<https?:[^>]+>|https?:\/\/\S+|www\.\S+/g, "")
+      .replace(/`([^`\n]+)`/g, (m, c) => /^[\p{L}\p{N} .'’-]{1,30}$/u.test(c) ? c : "")
+      .replace(/<[^>\n]+>/g, "")
+      .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+      .replace(/^\s*(?:[-*+•]|\d+[.)])\s+/gm, "")
+      .replace(/^\s*>\s?/gm, "")
+      .replace(/^\s*[-*_]{3,}\s*$/gm, "")
+      .replace(/(\*\*|__|~~|\*)(?=\S)([^\n]+?)\1/g, "$2")
+      .replace(/[ \t]{2,}/g, " ");
+  }
+  function sentences(text) {
+    return text.split(/(?<=[.!?…])\s+|\n+/).map(x => x.trim()).filter(x => /[\p{L}\p{N}]/u.test(x));
+  }
+  // How much of the answer from `from` on can be read now: up to the last finished sentence or line,
+  // and never into a code block still open.
+  function readyPart(src, from, complete) {
+    if (complete) return src.length - from;
+    const rest = src.slice(from);
+    let cut = 0, m;
+    const rx = /[.!?…:;]["'’”)\]]*\s|\n/g;
+    while ((m = rx.exec(rest))) cut = m.index + m[0].length;
+    if (cut && ((src.slice(0, from + cut).match(/```/g) || []).length % 2)) cut = Math.max(0, src.lastIndexOf("```", from + cut) - from);
+    return cut;
+  }
+  function loadLex() {
+    if (!reader.lexLoading) {
+      reader.lexLoading = new Promise((ok, fail) => {
+        const tag = document.createElement("script");
+        tag.src = base + "autolex.js";
+        tag.onload = () => fetch(base + "autolex-tr.json").then(r => r.json()).then(t => { reader.lex = new window.AutoLex(t); ok(); }).catch(fail);
+        tag.onerror = fail;
+        document.head.appendChild(tag);
+        setTimeout(fail, 5000);   // never wait longer than this for it
+      }).catch(() => { if (!reader.lex) reader.lex = false; });   // without it, read the Turkish as written
+    }
+    return reader.lexLoading;
+  }
+  function utter(text, lang, choice) {
+    if (lang === "tr" && reader.lex) { try { text = reader.lex.apply(text); } catch (e) {} }
+    const u = new SpeechSynthesisUtterance(text);
+    const v = voiceFor(lang, choice);
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = lang;
+    u.rate = Math.min(2, Math.max(0.5, ((choice === readVoiceChoice ? +$("readRate").value : state && state.readRate) || 100) / 100));
+    return u;
+  }
+  function pump() {
+    if (reader.current) return;
+    if (!reader.queue.length) { if (reader.complete && reader.index >= 0) finish(); return; }
+    const item = reader.queue[0];
+    if (item.lang === "tr" && reader.lex === null) { loadLex().then(pump); return; }
+    reader.queue.shift();
+    const u = utter(item.text, item.lang, parseVoices(state && state.readVoices));
+    u.onend = u.onerror = () => { if (reader.current === u) { reader.current = null; pump(); } };
+    reader.current = u;   // also keeps the utterance from being collected before it ends
+    synth.speak(u);
+  }
+  reader.update = function (s) {
+    if (!synth || !s) return;
+    const msgs = s.messages || [];
+    if (reader.autoFrom === null) {
+      // Answers already there when the window opens are not read; one still being written is.
+      reader.autoFrom = -1;
+      msgs.forEach((m, i) => { if (m.role !== "user" && m.state !== "streaming") reader.autoFrom = i; });
+    }
+    const lastI = msgs.length - 1, last = msgs[lastI];
+    if (s.readAloud && last && last.role !== "user" && last.state !== "error" && lastI > reader.autoFrom && (last.text || last.state !== "streaming")) {
+      reader.autoFrom = lastI;
+      start(lastI);
+      return;
+    }
+    if (reader.index < 0) return;
+    const m = msgs[reader.index], text = (m && m.text) || "";
+    if (!m || m.role === "user" || m.state === "error" || !text.startsWith(reader.prefix)) { reader.stop(); return; }
+    reader.complete = m.state !== "streaming";
+    const n = readyPart(text, reader.done, reader.complete);
+    if (n > 0) {
+      if (!reader.lang) reader.lang = guessLang(text);
+      sentences(speakable(text.slice(reader.done, reader.done + n))).forEach(t => reader.queue.push({ text: t, lang: reader.lang }));
+      reader.done += n;
+      reader.prefix = text.slice(0, reader.done);
+    }
+    pump();
+  };
+  function start(i) {
+    reader.stop();
+    Object.assign(reader, { index: i, done: 0, prefix: "", lang: "", queue: [], complete: false });
+    reader.paint();
+    reader.update(state);
+  }
+  function finish() { reader.index = -1; reader.paint(); }
+  reader.stop = function () {
+    const busy = reader.index >= 0 || reader.current;
+    Object.assign(reader, { index: -1, queue: [], current: null });
+    if (busy && synth) synth.cancel();
+    reader.paint();
+  };
+  reader.paint = function () {
+    els.thread.querySelectorAll("[data-read]").forEach(b => {
+      const on = +b.dataset.read === reader.index;
+      b.classList.toggle("on", on);
+      b.title = on ? "Stop reading" : "Read aloud";
+    });
+  };
+  els.thread.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("[data-read]");
+    if (!b) return;
+    e.stopPropagation();
+    if (reader.index === +b.dataset.read) { reader.autoFrom = Math.max(reader.autoFrom, reader.index); reader.stop(); }
+    else start(+b.dataset.read);
+  });
+  if (synth) synth.onvoiceschanged = () => { if (settingsOpen) renderReadVoices(); };
+  // Turkish answers read aloud on their own: have autolex ready before the first one.
+  setTimeout(() => { if (synth && state && state.readAloud && parseLangs(state.speechLanguages).includes("tr")) loadLex(); }, 1500);
+
+  // Settings → Read Aloud: a voice for each of Dictation's languages, with a test.
+  let readVoiceChoice = {};
+  const SAMPLE = { tr: "Merhaba, cevapları ben okuyacağım. Service Layer bağlantısı hazır.", en: "Hello, I will read the answers to you." };
+  function renderReadVoices() {
+    const box = $("readVoices");
+    if (!box) return;
+    box.textContent = "";
+    const langs = speechLangs.slice();
+    if (!synth) { box.innerHTML = '<span class="none">This system offers no voices here.</span>'; return; }
+    langs.forEach(code => {
+      const voices = localVoices().filter(v => voiceLang(v) === code).sort((a, b) => a.name.localeCompare(b.name));
+      const name = document.createElement("span");
+      name.textContent = WHISPER_LANGS[code] || code;
+      box.appendChild(name);
+      if (!voices.length) {
+        const none = document.createElement("span");
+        none.className = "none"; none.textContent = "No voice installed for this language";
+        box.appendChild(none); box.appendChild(document.createElement("span"));
+        return;
+      }
+      const sel = document.createElement("select");
+      const best = voiceFor(code, {});
+      sel.appendChild(new Option(best ? "Auto: " + best.name : "Auto", ""));
+      voices.forEach(v => sel.appendChild(new Option(v.name, v.name)));
+      sel.value = voices.some(v => v.name === readVoiceChoice[code]) ? readVoiceChoice[code] : "";
+      sel.addEventListener("change", () => { readVoiceChoice[code] = sel.value; });
+      box.appendChild(sel);
+      const test = document.createElement("button");
+      test.type = "button"; test.textContent = "Test";
+      test.addEventListener("click", async () => {
+        reader.stop();
+        if (code === "tr" && reader.lex === null) await loadLex();
+        synth.speak(utter(SAMPLE[code] || SAMPLE.en, code, readVoiceChoice));
+      });
+      box.appendChild(test);
+    });
+    queueLayout();
+  }
+
   // ---------- long-poll ----------
   async function poll() {
     while (true) {
@@ -3153,6 +3390,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         state = await res.json();
         version = state.v;
         render();
+        reader.update(state);
       } catch (e) {
         els.card.hidden = false;
         if (!sizeKnown) applySize(30);

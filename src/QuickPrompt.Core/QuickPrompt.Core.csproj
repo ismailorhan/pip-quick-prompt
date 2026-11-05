@@ -9,5 +9,10 @@
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="13.3.0" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Read aloud: Turkish respelling of English words (tools/autolex builds the table). -->
+    <EmbeddedResource Include="Voice/autolex.js" LogicalName="QuickPrompt.Voice.autolex.js" />
+    <EmbeddedResource Include="Voice/autolex-tr.json.gz" LogicalName="QuickPrompt.Voice.autolex-tr.json.gz" />
+  </ItemGroup>
 
 </Project>

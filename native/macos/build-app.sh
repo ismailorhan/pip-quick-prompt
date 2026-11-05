@@ -43,6 +43,7 @@ for size in 16 32 128 256; do
   sips -z $double $double "$source_png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/AppIcon.icns"
+cp "$root/THIRD-PARTY-NOTICES.md" "$app/Contents/Resources/"   # data licences (CMUdict, Zemberek)
 
 echo "Publishing the engine"
 for rid in osx-arm64 osx-x64; do

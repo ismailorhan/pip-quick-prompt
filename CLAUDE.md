@@ -187,6 +187,17 @@ preview): Claude CLI (stream-json document block, verified with the real CLI) an
 read them; the Codex CLI answers that it cannot. The dictation shortcut with only Pip on screen listens on Pip alone
 (no chat, the panel does not take the keys; `__quickPromptDictate` returns "quiet"); clicking Pip opens the chat and
 the recording goes on; pressing it again stops and opens the chat with the text. With no popup, it opens Pip listening.
+On `dev` (not built): **Read aloud** (step 1 of voice; plan in Hindsight "Quick Prompt: read-aloud and conversation mode"). A speaker
+button on every answer, Settings → Read Aloud (read every answer as it comes, a voice per Dictation language with Test, speed);
+system voices through speechSynthesis in the page, local voices only (works in WKWebView; WebView2 later), read sentence by sentence
+while streaming, code blocks, tables and link addresses left out; stops on send and when dictation starts, goes on when tucked into Pip.
+Turkish goes through **autolex** first (`src/QuickPrompt.Core/Voice/autolex.js` + `autolex-tr.json.gz`, served at `/s/{token}/autolex.js`
+and `autolex-tr.json`; CSP allows `script-src 'self'`): English words respelled for the Turkish voice ("Service Layer" → "Sörvis Leyır",
+API → "ey pi ay"); built by `tools/autolex` from CMUdict (BSD-2) + Zemberek (Apache-2.0), notices in `THIRD-PARTY-NOTICES.md` (copied into the
+app) and About. Rebuild: `sh tools/autolex/fetch_data.sh && python3 -I tools/autolex/build_tables.py`; the exceptions list
+`tools/autolex/exceptions.tr.json` (abbreviations, product names). Origin: Forganise branch `claude/tts-watch` (owner approved the readings by
+ear). Checked with a fake speech engine in Playwright; not yet on the owner's Mac. Next: conversation mode (send on silence or on a manual
+"done", the owner's choice; its own shortcut and a long press on the mic; barge-in needs echo cancellation).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

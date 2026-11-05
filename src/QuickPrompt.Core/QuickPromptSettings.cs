@@ -97,6 +97,31 @@ namespace QuickPrompt.Core
         /// <summary>Words dictation should expect (names, product terms), given to the speech model as a hint.</summary>
         public String SpeechHints { get; set; } = "";
 
+        /// <summary>Read every new answer aloud as it is written (the speaker button on an answer works either way).</summary>
+        public Boolean ReadAloud { get; set; }
+
+        /// <summary>The voice per language for reading aloud, "tr=Yelda;en=Samantha" (names of the system's voices).
+        /// A language not listed uses the system's best local voice for it.</summary>
+        public String ReadVoices { get; set; } = "";
+
+        /// <summary>Reading speed, 50–200 (percent of the voice's normal speed).</summary>
+        public Int32 ReadRate { get; set; } = 100;
+
+        public static String CleanReadVoices(String? value)
+        {
+            if (String.IsNullOrWhiteSpace(value))
+            {
+                return "";
+            }
+
+            var parts = value.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Split('=', 2))
+                .Where(p => p.Length == 2 && System.Text.RegularExpressions.Regex.IsMatch(p[0], "^[a-z]{2,3}$") && p[1].Length is > 0 and <= 120 && p[1].IndexOfAny(new[] { ';', '=' }) < 0)
+                .Take(20)
+                .Select(p => p[0] + "=" + p[1].Trim());
+            return String.Join(";", parts);
+        }
+
         public static Boolean IsValidSpeechLanguages(String? value) =>
             value != null && System.Text.RegularExpressions.Regex.IsMatch(value, "^([a-z]{2,3}|haw|yue)(,([a-z]{2,3}|haw|yue)){0,7}$");
 

@@ -140,6 +140,14 @@ namespace QuickPrompt.Core
                 return HttpResponse.Html(ChatPage.Html);
             }
 
+            if (request.Method == "GET" && (action == "autolex.js" || action == "autolex-tr.json"))
+            {
+                // Read aloud: the Turkish respelling script and its table (loaded only when reading Turkish).
+                return action == "autolex.js"
+                    ? new HttpResponse { ContentType = "text/javascript; charset=utf-8", Body = VoiceAssets.Script }
+                    : new HttpResponse { ContentType = "application/json; charset=utf-8", Body = VoiceAssets.TurkishTable };
+            }
+
             if (request.Method == "GET" && action == "state")
             {
                 Int64.TryParse(request.Query("v"), out var since);
@@ -499,7 +507,7 @@ namespace QuickPrompt.Core
                 .Append("Cache-Control: no-store\r\n")
                 .Append("X-Content-Type-Options: nosniff\r\n")
                 .Append("Referrer-Policy: no-referrer\r\n")
-                .Append("Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data: blob: 'self'; base-uri 'none'; form-action 'none'\r\n")
+                .Append("Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data: blob: 'self'; base-uri 'none'; form-action 'none'\r\n")
                 .Append("Connection: close\r\n\r\n")
                 .ToString();
 

@@ -552,6 +552,9 @@ namespace QuickPrompt.Core
                     startDictation = this.StartDictation,
                     speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(this._settings().SpeechLanguages) ? this._settings().SpeechLanguages : "",
                     speechHints = this._settings().SpeechHints ?? "",
+                    readAloud = this._settings().ReadAloud,
+                    readVoices = QuickPromptSettings.CleanReadVoices(this._settings().ReadVoices),
+                    readRate = Math.Clamp(this._settings().ReadRate, 50, 200),
                     startCollapsed = this.StartCollapsed,
                     messages = this._messages.Select(m => new
                     {

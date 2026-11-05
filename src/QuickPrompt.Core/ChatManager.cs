@@ -800,6 +800,9 @@ namespace QuickPrompt.Core
                 keepPip = s.KeepPip,
                 speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(s.SpeechLanguages) ? s.SpeechLanguages : "",
                 speechHints = s.SpeechHints ?? "",
+                readAloud = s.ReadAloud,
+                readVoices = QuickPromptSettings.CleanReadVoices(s.ReadVoices),
+                readRate = Math.Clamp(s.ReadRate, 50, 200),
                 hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
                 dictationHotkey = QuickPromptSettings.IsValidHotkey(s.DictationHotkey) ? s.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey,
                 claude = new
@@ -942,6 +945,21 @@ namespace QuickPrompt.Core
             if (Get("speechHints") is { } speechHints)
             {
                 s.SpeechHints = speechHints.Length > 600 ? speechHints.Substring(0, 600) : speechHints;
+            }
+
+            if (Get("readAloud") is "true" or "false")
+            {
+                s.ReadAloud = Get("readAloud") == "true";
+            }
+
+            if (Get("readVoices") is { } readVoices)
+            {
+                s.ReadVoices = QuickPromptSettings.CleanReadVoices(readVoices);
+            }
+
+            if (Int32.TryParse(Get("readRate"), out var readRate))
+            {
+                s.ReadRate = Math.Clamp(readRate, 50, 200);
             }
 
             if (Int32.TryParse(Get("glassTint"), out var glassTint))
