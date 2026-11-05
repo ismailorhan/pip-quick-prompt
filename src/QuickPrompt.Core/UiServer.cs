@@ -298,7 +298,7 @@ namespace QuickPrompt.Core
         private Boolean IsAllowedHost(String host) =>
             host == $"127.0.0.1:{this.Port}" || host == $"localhost:{this.Port}";
 
-        /// <summary>Pasted or dropped pictures, sent as a JSON array string of { mediaType, data, thumb }.</summary>
+        /// <summary>Pasted or dropped pictures and PDFs, sent as a JSON array string of { mediaType, data, thumb, name }.</summary>
         private static List<ImageAttachment> ParseImages(String json)
         {
             var result = new List<ImageAttachment>();
@@ -315,7 +315,9 @@ namespace QuickPrompt.Core
                     var mediaType = item.TryGetProperty("mediaType", out var mt) ? mt.GetString() : "";
                     var data = item.TryGetProperty("data", out var d) ? d.GetString() ?? "" : "";
                     var thumb = item.TryGetProperty("thumb", out var t) ? t.GetString() ?? "" : "";
-                    if (!ImageAttachment.IsSupported(mediaType) || data.Length == 0 || data.Length > 12 * 1024 * 1024)
+                    var name = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                    var limit = mediaType == ImageAttachment.Pdf ? 24 * 1024 * 1024 : 12 * 1024 * 1024;   // PDFs: up to ~18 MB
+                    if (!ImageAttachment.IsAllowed(mediaType) || data.Length == 0 || data.Length > limit)
                     {
                         continue;
                     }
@@ -324,6 +326,7 @@ namespace QuickPrompt.Core
                     result.Add(new ImageAttachment
                     {
                         MediaType = mediaType,
+                        Name = name.Length > 200 ? name.Substring(0, 200) : name,
                         Data = data,
                         Thumb = thumb.StartsWith("data:image/", StringComparison.Ordinal) && thumb.Length < 400_000 ? thumb : "",
                     });

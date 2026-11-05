@@ -2564,6 +2564,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (t.dataset.dropDraft != null) { await post("dropimage", { i: t.dataset.dropDraft }); return; }
     const box = t.closest(".athumb");
     if (!box) return;
+    if (box.dataset.pending != null && pending[+box.dataset.pending].mediaType === "application/pdf") return;   // the card says it all
     if (box.dataset.pending != null) openPreview("data:" + pending[+box.dataset.pending].mediaType + ";base64," + pending[+box.dataset.pending].data);
     else openPreview(base + "image?m=-1&i=" + box.dataset.draft, box.querySelector("img").src);
   });
@@ -2590,7 +2591,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   async function addImageFile(file) {
     if (!file || !/^image\//.test(file.type)) return;
-    if (pending.length >= 8) { toast("Up to 8 pictures"); return; }
+    if (pending.length >= 8) { toast("Up to 8 pictures and PDFs"); return; }
     try {
       const img = await loadImage(file);
       let url = draw(img, 1568, "image/png");
@@ -2603,15 +2604,47 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       toast("Could not read that picture");
     }
   }
+  // PDFs go to the AI whole (Claude and the OpenAI API read them); the preview is a small card with the name.
+  function pdfThumb(name) {
+    const c = document.createElement("canvas"); c.width = 240; c.height = 240;
+    const g = c.getContext("2d");
+    g.fillStyle = "#2a2833"; g.fillRect(0, 0, 240, 240);
+    g.fillStyle = "#f2f0f5"; g.beginPath(); g.moveTo(78, 22); g.lineTo(144, 22); g.lineTo(170, 48); g.lineTo(170, 140); g.lineTo(78, 140); g.closePath(); g.fill();
+    g.fillStyle = "#c9c6d1"; g.beginPath(); g.moveTo(144, 22); g.lineTo(170, 48); g.lineTo(144, 48); g.closePath(); g.fill();
+    g.fillStyle = "#E5484D"; g.fillRect(62, 92, 70, 32);
+    g.fillStyle = "#fff"; g.font = "bold 22px -apple-system, Helvetica, Arial"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("PDF", 97, 109);
+    // The name in up to two lines, cut in the middle of the second.
+    g.fillStyle = "#f2f0f5"; g.font = "600 25px -apple-system, Helvetica, Arial";
+    const text = (name || "document.pdf").replace(/\.pdf$/i, "");
+    let a = text; while (a.length > 1 && g.measureText(a).width > 220) a = a.slice(0, -1);
+    let b = text.slice(a.length);
+    if (b && g.measureText(b).width > 220) { while (b.length > 1 && g.measureText(b + "…").width > 220) b = b.slice(0, -1); b += "…"; }
+    g.fillText(a, 120, b ? 176 : 190);
+    if (b) g.fillText(b, 120, 208);
+    return c.toDataURL("image/jpeg", 0.85);
+  }
+  const isPdf = f => f.type === "application/pdf" || /\.pdf$/i.test(f.name || "");
+  async function addPdfFile(f) {
+    if (pending.length >= 8) { toast("Up to 8 pictures and PDFs"); return; }
+    if (f.size > 18 * 1024 * 1024) { toast("PDFs up to 18 MB"); return; }
+    try {
+      const url = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(f); });
+      pending.push({ mediaType: "application/pdf", name: f.name || "document.pdf", data: url.slice(url.indexOf(",") + 1), thumb: pdfThumb(f.name) });
+      renderAttachments();
+      els.prompt.focus();
+    } catch (err) {
+      toast("Could not read " + (f.name || "that PDF"));
+    }
+  }
   document.addEventListener("paste", e => {
     if (collapsed || settingsOpen || historyOpen || actionsOpen) return;
     const items = [...(e.clipboardData ? e.clipboardData.items : [])];
     // Text wins when the clipboard has both (e.g. spreadsheet cells also come as a picture).
     if (items.some(it => it.kind === "string" && it.type === "text/plain")) return;
-    const files = items.filter(it => it.kind === "file" && /^image\//.test(it.type)).map(it => it.getAsFile());
+    const files = items.filter(it => it.kind === "file" && (/^image\//.test(it.type) || it.type === "application/pdf")).map(it => it.getAsFile());
     if (!files.length) return;
     e.preventDefault();
-    files.forEach(addImageFile);
+    files.forEach(f => isPdf(f) ? addPdfFile(f) : addImageFile(f));
   });
   // ---------- dictation (native popup: the app runs Whisper on this Mac) ----------
   // States: idle → starting (model loading) → listening (text streams into the box) → finishing (the final pass).
@@ -2886,10 +2919,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     let skipped = 0;
     for (const f of files) {
       if (/^image\//.test(f.type)) await addImageFile(f);
+      else if (isPdf(f)) await addPdfFile(f);
       else if (isTextFile(f)) await addTextFile(f);
       else skipped++;
     }
-    if (skipped) toast("Only pictures and text files can be added");
+    if (skipped) toast("Only pictures, PDFs and text files can be added");
     if (!collapsed) els.prompt.focus();
   }
   const hasFiles = e => e.dataTransfer && [...e.dataTransfer.items].some(it => it.kind === "file");

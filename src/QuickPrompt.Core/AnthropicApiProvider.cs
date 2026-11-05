@@ -87,13 +87,23 @@ namespace QuickPrompt.Core
             var blocks = new List<BetaContentBlockParam>();
             foreach (var image in images)
             {
+                if (image.IsPdf)
+                {
+                    blocks.Add(new BetaRequestDocumentBlock
+                    {
+                        Source = new BetaBase64PdfSource { Data = image.Data },
+                        Title = String.IsNullOrEmpty(image.Name) ? null : image.Name,
+                    });
+                    continue;
+                }
+
                 blocks.Add(new BetaImageBlockParam
                 {
                     Source = new BetaBase64ImageSource { Data = image.Data, MediaType = MediaTypeOf(image.MediaType) },
                 });
             }
 
-            blocks.Add(new BetaTextBlockParam { Text = String.IsNullOrWhiteSpace(text) ? "(see the image)" : text });
+            blocks.Add(new BetaTextBlockParam { Text = String.IsNullOrWhiteSpace(text) ? (images.All(i => i.IsPdf) ? "(see the document)" : "(see the image)") : text });
             return blocks;
         }
 

@@ -405,7 +405,9 @@ namespace QuickPrompt.Core
 
             if (instruction.Length == 0 && context.Trim().Length == 0)
             {
-                instruction = pictures.Count == 1 ? "Look at this image." : "Look at these images.";
+                instruction = pictures.All(p => p.IsPdf) ? (pictures.Count == 1 ? "Look at this document." : "Look at these documents.")
+                    : pictures.Any(p => p.IsPdf) ? "Look at these files."
+                    : pictures.Count == 1 ? "Look at this image." : "Look at these images.";
             }
 
             ChatMessage answer;
@@ -686,10 +688,10 @@ namespace QuickPrompt.Core
         /// </summary>
         private static List<ImageAttachment> ForHistory(List<ImageAttachment> images)
         {
-            const Int32 MaxKept = 600 * 1024;
+            const Int32 MaxKept = 600 * 1024, MaxKeptPdf = 8 * 1024 * 1024;
             return (images ?? new List<ImageAttachment>()).Select(i =>
             {
-                if (i.Data.Length <= MaxKept || !i.Thumb.StartsWith("data:image/", StringComparison.Ordinal))
+                if (i.Data.Length <= (i.IsPdf ? MaxKeptPdf : MaxKept) || !i.Thumb.StartsWith("data:image/", StringComparison.Ordinal))
                 {
                     return i;
                 }

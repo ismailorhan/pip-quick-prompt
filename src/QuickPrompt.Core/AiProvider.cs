@@ -44,10 +44,17 @@ namespace QuickPrompt.Core
         public override String ToString() => $"{this.Kind}: {this.Text}";
     }
 
-    /// <summary>A picture sent with a message (pasted, dropped, or from the clipboard).</summary>
+    /// <summary>A picture or a PDF sent with a message (pasted, dropped, added from the menu, or from the clipboard).</summary>
     public sealed class ImageAttachment
     {
+        public const String Pdf = "application/pdf";
+
         public String MediaType { get; set; } = "image/png";
+
+        /// <summary>The file's name (PDFs; pictures usually have none).</summary>
+        public String Name { get; set; } = "";
+
+        public Boolean IsPdf => this.MediaType == Pdf;
 
         /// <summary>Base64 picture sent to the AI (already scaled down by whoever made it).</summary>
         public String Data { get; set; } = "";
@@ -58,11 +65,15 @@ namespace QuickPrompt.Core
         public static Boolean IsSupported(String mediaType) =>
             mediaType is "image/png" or "image/jpeg" or "image/gif" or "image/webp";
 
+        /// <summary>What can be sent: the pictures above and PDFs.</summary>
+        public static Boolean IsAllowed(String mediaType) => IsSupported(mediaType) || mediaType == Pdf;
+
         public static String Extension(String mediaType) => mediaType switch
         {
             "image/jpeg" => ".jpg",
             "image/gif" => ".gif",
             "image/webp" => ".webp",
+            Pdf => ".pdf",
             _ => ".png",
         };
     }

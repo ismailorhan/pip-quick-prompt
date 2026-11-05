@@ -42,6 +42,10 @@ namespace QuickPrompt.Core
                 new CodexStreamParser(() => ReadAndDelete(lastFile)));
         }
 
+        protected override String CannotSend(AiRequest request) => request.AllImages().Any(i => i.IsPdf)
+            ? "ChatGPT through the Codex CLI cannot read PDFs. Switch this chat to a Claude agent, or to a ChatGPT agent that uses the API."
+            : null;
+
         /// <summary>codex takes pictures as files (--image): written next to the run, removed after an hour.</summary>
         private IReadOnlyList<String> WriteImages(AiRequest request)
         {

@@ -45,7 +45,9 @@ namespace QuickPrompt.Core
             var parts = new List<Object>();
             foreach (var image in images)
             {
-                parts.Add(new { type = "image_url", image_url = new { url = "data:" + image.MediaType + ";base64," + image.Data } });
+                parts.Add(image.IsPdf
+                    ? new { type = "file", file = new { filename = String.IsNullOrEmpty(image.Name) ? "document.pdf" : image.Name, file_data = "data:application/pdf;base64," + image.Data } }
+                    : (Object)new { type = "image_url", image_url = new { url = "data:" + image.MediaType + ";base64," + image.Data } });
             }
 
             parts.Add(new { type = "text", text = String.IsNullOrWhiteSpace(text) ? "(see the image)" : text });

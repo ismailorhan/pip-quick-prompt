@@ -50,13 +50,15 @@ namespace QuickPrompt.Core
         }
 
         /// <param name="setup">The tool / MCP flags for "use my setup"; null for plain question and answer.</param>
-        /// <summary>The stdin line for --input-format stream-json: a user message with image blocks and the text.</summary>
+        /// <summary>The stdin line for --input-format stream-json: a user message with image / PDF blocks and the text.</summary>
         public static String BuildImageMessage(String prompt, IReadOnlyList<ImageAttachment> images)
         {
             var content = new List<Object>();
             foreach (var image in images)
             {
-                content.Add(new { type = "image", source = new { type = "base64", media_type = image.MediaType, data = image.Data } });
+                content.Add(image.IsPdf
+                    ? new { type = "document", source = new { type = "base64", media_type = image.MediaType, data = image.Data }, title = String.IsNullOrEmpty(image.Name) ? "document.pdf" : image.Name }
+                    : (Object)new { type = "image", source = new { type = "base64", media_type = image.MediaType, data = image.Data } });
             }
 
             content.Add(new { type = "text", text = prompt });

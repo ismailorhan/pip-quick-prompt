@@ -63,6 +63,9 @@ namespace QuickPrompt.Core
         /// <summary>Arguments, stdin text and a fresh parser for one run.</summary>
         protected abstract CliInvocation CreateInvocation(AiRequest request);
 
+        /// <summary>Why this request cannot be sent with this CLI (e.g. a PDF it cannot read), or null.</summary>
+        protected virtual String CannotSend(AiRequest request) => null;
+
         public String LocateExecutable() => CliLocator.Find(this.ExecutableName, this.GetOverridePath(this.Settings));
 
         public async IAsyncEnumerable<AiEvent> RunAsync(AiRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -71,6 +74,13 @@ namespace QuickPrompt.Core
             if (executable == null)
             {
                 yield return new AiEvent(AiEventKind.Error, this.InstallHint);
+                yield break;
+            }
+
+            var cannot = this.CannotSend(request);
+            if (cannot != null)
+            {
+                yield return new AiEvent(AiEventKind.Error, cannot);
                 yield break;
             }
 
