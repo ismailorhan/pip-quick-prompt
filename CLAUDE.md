@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.46, 5 Nov 2026)
+## Status (v0.3.47, 5 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -174,7 +174,7 @@ starts listening, again stops; with no popup it opens a new chat with `startDict
 chat tucks into Pip; Pip shows a mirrored spectrum of red rays (option A1, picked by the owner) drawn on #pipWave
 from the mic loudness (dB scale −50…−10, with automatic gain in the page); #root.dictating pads 30 px so the rays
 fit, the anchors keep Pip still. The mic button hides while recording.
-On `dev` after v0.3.46 (5 Nov 2026), not built: Pip's dictation rays start on the disc's rim (no gap). **Agents**
+v0.3.47 (5 Nov 2026), built, not yet confirmed on the owner's Mac: Pip's dictation rays start on the disc's rim (no gap). **Agents**
 (the owner's design): Settings → Agents (list, Make default, editor: name, colour, AI, CLI/API, model, effort for the
 Claude API, plugins/skills/MCP, instruction) and Settings → API keys replace the Claude / ChatGPT panes; the template
 editor picks an agent; the question bar has an agent chip (a native menu; just its dot while typing); Pip's right-click
