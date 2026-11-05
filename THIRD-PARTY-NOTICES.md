@@ -70,7 +70,7 @@ limitations under the License.
 | Component | Use | Licence | Source |
 |---|---|---|---|
 | EMA Lightning 1.1.2 (model weights; frontend, chunker and engine ported to C#) | Turkish voice | Apache-2.0 | https://github.com/canberk7/ema-lightning, https://huggingface.co/canberkkkkkk/ema-lightning (e7c96f2) |
-| Kokoro-82M v1.0 (ONNX, int8) and its voices | English voice | Apache-2.0 | https://huggingface.co/hexgrad/Kokoro-82M, https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX (1939ad2) |
+| Kokoro-82M v1.0 (ONNX, fp32) and its voices | English voice | Apache-2.0 | https://huggingface.co/hexgrad/Kokoro-82M, https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX (1939ad2) |
 | misaki US lexicons (us_gold, us_silver) | English pronunciations | Apache-2.0 | https://github.com/hexgrad/misaki (fba1236) |
 | normalizer-tr 0.8.0 | Turkish numbers, dates, symbols | Apache-2.0 | https://github.com/erdemtuna/normalizer-tr |
 | Rust crates in native/normalizer: regex, regex-automata, regex-syntax, unicode-normalization, unicode-segmentation, tinyvec, aho-corasick, memchr | the normalizer library | MIT or Apache-2.0 (tinyvec also Zlib; aho-corasick and memchr also Unlicense) | crates.io |

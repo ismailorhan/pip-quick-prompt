@@ -205,8 +205,8 @@ for state and the one-time download); the page plays them with Web Audio, the ne
 (`mediaTypesRequiringUserActionForPlayback = []`). Turkish: autolex in the page, then normalizer-tr 0.8 (`native/normalizer`,
 a Rust cdylib with a C ABI, built by `build-app.sh` with cargo), then a C# port of EMA Lightning 1.1.2's frontend, chunker and
 engine over our ONNX export (`tools/voice/export_ema.py`; checked against PyTorch: audio within 2e-4; 7 s of speech in ~160 ms).
-English: Kokoro-82M int8 with an eSpeak-free G2P (misaki lexicons + CMUdict, `tools/voice/build_en_lexicon.py`; inflections,
-compounds, letters; numbers as words); voices Heart, Bella, Michael (US), Emma, George (UK). Models (~131 MB) download once into
+English: Kokoro-82M fp32 (owner's pick over int8; first sentence 0.4–0.75 s) with an eSpeak-free G2P (misaki lexicons + CMUdict, `tools/voice/build_en_lexicon.py`; inflections,
+compounds, letters; numbers as words); voices Heart, Bella, Michael (US), Emma, George (UK). Models (~363 MB) download once into
 `models/voice` (size + SHA-256, `VoiceModels.cs`): Kokoro from Hugging Face at a fixed revision, EMA from this repo's
 `voice-models-1` release (pre-release, created 6 Nov 2026 with the owner's OK: the four files + EMA's LICENSE; verified: a fresh
 download of all ~130 MB took ~12 s, checks passed, both languages spoke). Other languages are not read. Licences in THIRD-PARTY-NOTICES.md and About. Also: Pip lines up with the bar again (the agent

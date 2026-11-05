@@ -6,7 +6,7 @@ build time: the models are downloaded once by the app (`VoiceModels.cs`, size an
 | Voice | Language | Source | Licence | Files |
 |---|---|---|---|---|
 | EMA Lightning 1.1.2 | Turkish | `canberkkkkkk/ema-lightning` at `e7c96f2` (Hugging Face), our ONNX export | Apache-2.0 | `voice-models-1` release of this repository |
-| Kokoro-82M v1.0, int8 | English | `onnx-community/Kokoro-82M-v1.0-ONNX` at `1939ad2` | Apache-2.0 | Hugging Face, fixed revision |
+| Kokoro-82M v1.0, fp32 | English | `onnx-community/Kokoro-82M-v1.0-ONNX` at `1939ad2` | Apache-2.0 | Hugging Face, fixed revision |
 
 Text frontends:
 - Turkish: `autolex` in the page (English words respelled, `tools/autolex`), then normalizer-tr 0.8 (numbers, dates,

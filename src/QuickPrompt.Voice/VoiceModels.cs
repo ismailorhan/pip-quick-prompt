@@ -13,7 +13,8 @@ namespace QuickPrompt.Voice
     /// The voice model files, downloaded once into &lt;data&gt;/models/voice and checked by size and SHA-256.
     /// EMA Lightning: our ONNX export of the original weights (canberkkkkkk/ema-lightning e7c96f2, Apache-2.0;
     /// tools/voice/export_ema.py), published on this repository's "voice-models-1" release.
-    /// Kokoro-82M: onnx-community/Kokoro-82M-v1.0-ONNX at a fixed revision (Apache-2.0), int8.
+    /// Kokoro-82M: onnx-community/Kokoro-82M-v1.0-ONNX at a fixed revision (Apache-2.0), full precision (fp32: the
+    /// owner's pick over int8; about twice the work, first sentence in under a second).
     /// </summary>
     public sealed class VoiceModels
     {
@@ -28,7 +29,7 @@ namespace QuickPrompt.Voice
             new ModelFile("ema", "ema-text.onnx", Ema + "ema-text.onnx", 4808026, "571bb40499b7573331514fc99ce46a984d0ed2382696c6998aa38f4794a0084f"),
             new ModelFile("ema", "ema-sound.onnx", Ema + "ema-sound.onnx", 18134408, "198cfee514ccb76f3574ed0f4f91ba057935008c394c6a78223a35cca1217cfb"),
             new ModelFile("ema", "ema-decoder.onnx", Ema + "ema-decoder.onnx", 12031945, "396c06a8e5711fd40bfd2c3f4f33851feb2ad07a86485833844e0ae8ff637b17"),
-            new ModelFile("kokoro", "model_quantized.onnx", Kokoro + "onnx/model_quantized.onnx", 92361116, "fbae9257e1e05ffc727e951ef9b9c98418e6d79f1c9b6b13bd59f5c9028a1478"),
+            new ModelFile("kokoro", "model.onnx", Kokoro + "onnx/model.onnx", 325532232, "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb"),
             new ModelFile("kokoro", "af_heart.bin", Kokoro + "voices/af_heart.bin", 522240, "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"),
             new ModelFile("kokoro", "af_bella.bin", Kokoro + "voices/af_bella.bin", 522240, "f69d836209b78eb8c66e75e3cda491e26ea838a3674257e9d4e5703cbaf55c8b"),
             new ModelFile("kokoro", "am_michael.bin", Kokoro + "voices/am_michael.bin", 522240, "1d1f21dd8da39c30705cd4c75d039d265e9bc4a2a93ed09bc9e1b1225eb95ba1"),

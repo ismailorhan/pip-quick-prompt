@@ -10,7 +10,7 @@ namespace QuickPrompt.Voice
     using Microsoft.ML.OnnxRuntime.Tensors;
 
     /// <summary>
-    /// Kokoro-82M (English, Apache-2.0) on ONNX Runtime, int8: phonemes (EnglishG2P) -> token ids -> 24 kHz audio,
+    /// Kokoro-82M (English, Apache-2.0) on ONNX Runtime, fp32: phonemes (EnglishG2P) -> token ids -> 24 kHz audio,
     /// with a voice's style vector picked by the number of tokens, as kokoro-js does.
     /// </summary>
     public sealed class KokoroVoice : IDisposable
@@ -30,7 +30,7 @@ namespace QuickPrompt.Voice
         private readonly String _folder;
         private readonly EnglishG2P _g2p = new EnglishG2P();
 
-        public KokoroVoice(String folder, SessionOptions options, String model = "model_quantized.onnx")
+        public KokoroVoice(String folder, SessionOptions options, String model = "model.onnx")
         {
             this._folder = folder;
             this._session = new InferenceSession(Path.Combine(folder, model), options);
