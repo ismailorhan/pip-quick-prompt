@@ -277,10 +277,11 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; border-radius: 22px; }
 html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 50%; }
 /* The agent picker: a small line under the question, right-aligned (like the model line under a chat box). */
-.bar { flex-wrap: wrap; row-gap: 0; }
-.barfoot { flex: 0 0 100%; display: flex; justify-content: flex-end; margin: -1px 0 -3px; padding-right: 8px; }
-.agentpick { display: inline-flex; align-items: center; gap: 6px; height: 22px; max-width: 70%; padding: 0 6px; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; }
-.agentpick:hover, .agentpick.hov { color: var(--text); background: var(--faint); }
+/* The agent picker: a small glass pill under the question bar, on the right (the bar keeps its size). */
+.barfoot { display: flex; justify-content: flex-end; margin-top: -5px; padding-right: 14px; }
+.barfoot[hidden] { display: none; }
+.agentpick { display: inline-flex; align-items: center; gap: 6px; height: 24px; max-width: 70%; padding: 0 9px 0 10px; border-radius: 12px; color: var(--muted); font-size: 12px; font-weight: 500; }
+.agentpick:hover, .agentpick.hov { color: var(--text); }
 .agentpick .aname, .agentpick .amodel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agentpick .amodel { font-weight: 400; opacity: .75; }
 .agentpick .amodel:empty { display: none; }
@@ -699,8 +700,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
     <button type="button" class="round gear mic" id="barMic" title="Dictate: speak, then click again (↵ sends, esc cancels)" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg></button>
     <button type="button" class="send idle" id="send" title="Send (Enter)"></button>
-    <div class="barfoot" id="barFoot" hidden><button type="button" class="agentpick" id="barAgent" title="Agent: click to switch"><span class="dot"></span><span class="aname"></span><span class="amodel"></span><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button></div>
   </div>
+  <div class="barfoot" id="barFoot" hidden><button type="button" class="agentpick glass" id="barAgent" title="Agent: click to switch"><span class="dot"></span><span class="aname"></span><span class="amodel"></span><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button></div>
   </div>
   <div class="plist glass" id="presetList" hidden><div class="ptitle">Prompt templates</div><div id="plistItems"></div><button type="button" class="pitem pedit" id="plistEdit"><span class="pname">Edit templates…</span></button></div>
   <div class="bubble glass" id="bubble" hidden><button type="button" class="bclose" id="bubbleClose" title="Dismiss">✕</button><div class="bt"><span class="ok" id="bubbleIcon">✓</span><span id="bubbleTitle"></span></div><div class="bb" id="bubbleText"></div></div>
