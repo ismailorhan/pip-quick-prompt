@@ -113,7 +113,8 @@ namespace QuickPrompt.Core
                     // The default agent, unless an AI is named (older callers).
                     var created = manager.CreateSession(String.IsNullOrEmpty(Get("provider")) ? null : manager.AgentForProvider(Get("provider")), "");
                     created.StartDictation = Get("dictate") == "true";   // the dictation shortcut with no popup open
-                    created.StartCollapsed = created.StartDictation;      // …which opens as Pip, listening
+                    created.StartConversation = Get("converse") == "true"; // the conversation shortcut, likewise
+                    created.StartCollapsed = created.StartDictation || created.StartConversation;   // …which open as Pip, listening
                     manager.OpenWindow(created);
                     return (200, "{\"ok\":true}");
 
@@ -144,7 +145,8 @@ namespace QuickPrompt.Core
                 case ("GET", "status"):
                     var hotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.Hotkey) ? manager.Settings.Hotkey : QuickPromptSettings.DefaultHotkey;
                     var dictationHotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.DictationHotkey) ? manager.Settings.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey;
-                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey, dictationHotkey }));
+                    var conversationHotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.ConversationHotkey) ? manager.Settings.ConversationHotkey : QuickPromptSettings.DefaultConversationHotkey;
+                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey, dictationHotkey, conversationHotkey }));
             }
 
             return (404, "{\"error\":\"unknown\"}");

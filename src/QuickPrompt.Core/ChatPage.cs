@@ -540,12 +540,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div><div class="sl-t">Dictation shortcut</div><div class="sl-d">Opens the chat and starts listening, in any app; press it again to stop. Click, then press the new keys.</div></div>
             <button type="button" class="hotkey" id="dictHotkeyBtn" title="Click, then press the keys">⌥⇧M</button>
           </div>
+          <div class="sline">
+            <div><div class="sl-t">Conversation shortcut</div><div class="sl-d">Talk with Pip: it listens, sends what you said, reads the answer aloud and listens again. Press it again to send (or, while Pip speaks, to cut in); with nothing said, it ends the conversation.</div></div>
+            <button type="button" class="hotkey" id="convHotkeyBtn" title="Click, then press the keys">⌥⇧K</button>
+          </div>
         </section>
         <section class="spane" data-pane="shortcuts">
           <h2>Shortcuts</h2>
           <div class="kbgroup">Anywhere</div>
           <div class="kbrow"><span class="keys"><kbd id="kbGlobal">⌥⇧Space</kbd></span><span>Ask about the selected text (change it in General)</span></div>
           <div class="kbrow"><span class="keys"><kbd id="kbDictate">⌥⇧M</kbd></span><span>Open the chat and dictate; again: stop (change it in General)</span></div>
+          <div class="kbrow"><span class="keys"><kbd id="kbConverse">⌥⇧K</kbd></span><span>Conversation: start; again: send, or cut in while Pip speaks; with nothing said: end</span></div>
           <div class="kbrow"><span class="keys"><kbd>⌘,</kbd></span><span>Settings, from the menu bar menu</span></div>
           <div class="kbrow"><span class="keys"><kbd>⌘Q</kbd></span><span>Quit Quick Prompt, from the menu bar menu</span></div>
           <div class="kbgroup">In a conversation</div>
@@ -558,6 +563,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="kbrow"><span class="keys">Microphone</span><span>Start; click it or ■ to stop (the text stays in the box)</span></div>
           <div class="kbrow"><span class="keys"><kbd>↵</kbd></span><span>While dictating: stop and show the text; ↵ again sends</span></div>
           <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>While dictating: cancel</span></div>
+          <div class="kbgroup">Conversation</div>
+          <div class="kbrow"><span class="keys">Hold the microphone</span><span>Start a conversation</span></div>
+          <div class="kbrow"><span class="keys">Speak over Pip</span><span>Pip stops reading and listens</span></div>
+          <div class="kbrow"><span class="keys"><kbd>↵</kbd> · click Pip</span><span>Send what you said (or cut in while Pip speaks)</span></div>
+          <div class="kbrow"><span class="keys"><kbd>esc</kbd></span><span>End the conversation</span></div>
           <div class="kbgroup">Pip</div>
           <div class="kbrow"><span class="keys">Click</span><span>Open, or tuck away</span></div>
           <div class="kbrow"><span class="keys">Drag</span><span>Move it; a quick throw sends it to the corner that way</span></div>
@@ -594,6 +604,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="sline" style="display:block">
             <div class="sl-t">Voice for each language</div><div class="sl-d">Turkish and English for now; answers in other languages are not read yet.</div>
             <div class="vlist" id="readVoices"></div>
+          </div>
+          <div class="sline">
+            <div><div class="sl-t">In a conversation, send</div><div class="sl-d">When you pause for a moment, or only when you say so (the shortcut, ↵, or a click on Pip), so a pause to think never sends it.</div></div>
+            <div class="seg" data-name="conversationEnd"><button type="button" data-v="silence">On a pause</button><button type="button" data-v="manual">When I say</button></div>
           </div>
           <div class="sline">
             <div style="margin-right:16px"><div class="sl-t">Speed</div></div>
@@ -1131,6 +1145,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const setHotkey = shortcutPicker(hotkeyBtn, spec => { hotkeyValue = spec; $("kbGlobal").textContent = hotkeyText(spec); });
   let dictHotkeyValue = "alt+shift+KeyM";
   const setDictHotkey = shortcutPicker($("dictHotkeyBtn"), spec => { dictHotkeyValue = spec; $("kbDictate").textContent = hotkeyText(spec); });
+  let convHotkeyValue = "alt+shift+KeyK";
+  const setConvHotkey = shortcutPicker($("convHotkeyBtn"), spec => { convHotkeyValue = spec; $("kbConverse").textContent = hotkeyText(spec); });
 
   // ---------- Settings size: drag the grip; remembered on this computer ----------
   var settingsSize = { w: 760, h: 500 };
@@ -1202,6 +1218,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       speechPost("probe");
       setHotkey(s.hotkey || "alt+shift+Space");
       setDictHotkey(s.dictationHotkey || "alt+shift+KeyM");
+      setConvHotkey(s.conversationHotkey || "alt+shift+KeyK");
+      setSeg("conversationEnd", s.conversationEnd === "manual" ? "manual" : "silence");
       setSlider(s.popupScale);
       setIconSlider(s.iconScale);
       savedGlass = s.glassTint; setGlassSlider(s.glassTint);
@@ -1491,6 +1509,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       readRate: String($("readRate").value),
       hotkey: hotkeyValue,
       dictationHotkey: dictHotkeyValue,
+      conversationHotkey: convHotkeyValue,
+      conversationEnd: segValues.conversationEnd || "silence",
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
       glassTint: String(glassSlider.value),
@@ -1773,6 +1793,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       ...(menuAgents.length > 1
         ? [{ title: "New Chat", items: menuAgents.map(a => ({ id: "newagent-" + a.id, title: a.name + (a.isDefault ? " (default)" : "") })) }]
         : [{ id: "new", title: "New Chat" }]),
+      ...(speech.available ? [{ id: "converse", title: convo.on ? "End Conversation" : "Start Conversation" }] : []),
       { id: "recent", title: "Recent Chats" },
       { title: "Prompt Templates", items: [
         ...menuTemplates.map((p, i) => ({ id: "tpl-" + i, title: p.title })),
@@ -1817,6 +1838,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       if (res.ok) runTemplateView(); else if (res.status !== 404) toast("Still answering");
       return;
     }
+    if (id === "converse") { convo.on ? endConversation() : startConversation(); return; }
     if (id === "open") expand();
     else if (id === "new") { const res = await post("reset"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
     else if (id === "recent") { expand(); openHistory(false); }
@@ -2088,6 +2110,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   $("miniOpen").addEventListener("click", e => {
     if (e.altKey && bridge) { bridge.postMessage({ type: "snap" }); return; }
     if (downAt && Math.abs(e.screenX - downAt.x) + Math.abs(e.screenY - downAt.y) > 4) return;
+    // In a conversation a click on Pip is "done": it sends what was said, or cuts in while Pip speaks.
+    if (convo.on && collapsed && (speech.state === "listening" || reader.index >= 0)) { speech.state === "listening" ? sendTurn() : bargeIn(); return; }
     if (collapsed) expand(); else collapseAnimated();   // the icon beside the conversation tucks it away
   });
 
@@ -2374,6 +2398,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       updateMini(s);
       // The dictation shortcut with no popup open: Pip appears and listens.
       if (s.startDictation && !dictationAsked) { dictationAsked = true; setTimeout(() => window.__quickPromptDictate(), 0); }
+      if (s.startConversation && !conversationAsked) { conversationAsked = true; setTimeout(() => window.__quickPromptConverse(), 0); }
       return;
     }
     if (collapsed) { updateMini(s); return; }
@@ -2400,6 +2425,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.errActions.hidden = !(last && last.state === "error" && !s.busy);
 
     if (s.startDictation && !dictationAsked) { dictationAsked = true; setTimeout(() => window.__quickPromptDictate(), 0); }
+    if (s.startConversation && !conversationAsked) { conversationAsked = true; setTimeout(() => window.__quickPromptConverse(), 0); }
     if (!draftApplied) {
       draftApplied = true;
       const d = s.draft || {};
@@ -2755,8 +2781,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       if (!icon.width || mini.hidden) { canvas.hidden = true; return; }
       t += 1 / 60;
       // Automatic gain: relative to the loudest of the last few seconds, so a quiet voice moves the rays too.
-      peak = Math.max(api.level, peak * 0.996, 0.12);
-      const target = api.level < 0.04 ? 0 : Math.min(1, api.level / peak);
+      // Speaking (conversation): the rays move on their own, in the speaking colours.
+      const level = api.tone === "speak" ? 0.45 + 0.3 * Math.abs(Math.sin(t * 7.3) * Math.cos(t * 2.9)) : api.level;
+      peak = Math.max(level, peak * 0.996, 0.12);
+      const target = level < 0.04 ? 0 : Math.min(1, level / peak);
       shown += (target - shown) * 0.25;
       // The rays start on the disc's rim (the button is larger than the disc it shows), reaching as far as before.
       const r = icon.width / 2, disc = $("miniOpen").querySelector("circle").getBoundingClientRect().width / 2 || r;
@@ -2781,14 +2809,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 3 + v * reach;
         const x0 = c + Math.cos(a) * inner, y0 = c + Math.sin(a) * inner, x1 = c + Math.cos(a) * (inner + len), y1 = c + Math.sin(a) * (inner + len);
         const g = ctx.createLinearGradient(x0, y0, x1, y1);
-        g.addColorStop(0, "rgba(229, 72, 77, .95)");
-        g.addColorStop(1, "rgba(240, 153, 123, 0)");
+        g.addColorStop(0, api.tone === "speak" ? "rgba(110, 120, 255, .95)" : "rgba(229, 72, 77, .95)");
+        g.addColorStop(1, api.tone === "speak" ? "rgba(190, 140, 255, 0)" : "rgba(240, 153, 123, 0)");
         ctx.strokeStyle = g;
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       }
     }
     const api = {
       level: 0,
+      tone: "listen",
       start() { if (running) return; running = true; api.level = 0; shown = 0; peak = 0.12; bins.fill(0); raf = requestAnimationFrame(draw); },
       stop() { running = false; cancelAnimationFrame(raf); canvas.hidden = true; },
     };
@@ -2841,8 +2870,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.send.title = recording ? "Stop recording (↵)" : (state && state.busy ? "Stop" : "Send (Enter)");
     els.send.classList.toggle("dictstop", recording);
     if (recording) els.send.classList.remove("idle"); else updateSendState();
-    els.root.classList.toggle("dictating", next === "listening" || next === "starting");
-    if (next === "listening" || next === "starting") pipWave.start(); else pipWave.stop();
+    els.root.classList.toggle("dictating", next === "listening" || next === "starting" || pipVoice);
+    if (next === "listening" || next === "starting") { pipWave.tone = "listen"; pipWave.start(); } else if (!pipVoice) pipWave.stop();
     // While recording, the red stop button says it; the microphone steps aside.
     micBtn.hidden = !speech.available || recording;
   }
@@ -2860,7 +2889,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     speech.base = els.prompt.value;
     speech.sendAfter = false;
     setSpeechState("starting");
-    speechPost("start", { languages: parseLangs(state && state.speechLanguages), prompt: (state && state.speechHints) || "" });
+    speechPost("start", { languages: parseLangs(state && state.speechLanguages), prompt: (state && state.speechHints) || "", conversation: convo.on });
   }
   function stopDictation(thenSend) {
     if (speech.state === "listening" || speech.state === "starting") {
@@ -2890,7 +2919,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         speech.size = e.size || speech.size;
         speech.received = e.received || 0;
         micBtn.hidden = !speech.available || speech.state !== "idle";
-        if (speech.startWhenKnown) { speech.startWhenKnown = false; setTimeout(dictateNow, 0); }
+        if (speech.startWhenKnown) { const what = speech.startWhenKnown; speech.startWhenKnown = false; setTimeout(what === "converse" ? startConversation : dictateNow, 0); }
         renderSpeechSettings();
         if (speech.model === "downloading" && speech.wantStart) renderSpeechBoxProgress();
         else if (speech.model === "ready" && speech.wantStart) { speech.wantStart = false; hideSpeechBox(); startDictation(); }
@@ -2905,10 +2934,22 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         if (speech.state === "starting") setSpeechState("listening");
         break;
       case "level":
-        if (speech.state === "listening") { micBtn.style.setProperty("--lvl", Math.min(1, e.value).toFixed(2)); pipWave.level = Math.min(1, e.value); }
+        if (speech.state === "listening") { micBtn.style.setProperty("--lvl", Math.min(1, e.value).toFixed(2)); pipWave.level = Math.min(1, e.value); convo.onLevel(e.value); }
         break;
       case "partial":
-        if (speech.state === "listening") setDictated(e.text || "");
+        if (speech.state === "listening") { setDictated(e.text || ""); convo.onPartial(e.text || ""); }
+        break;
+      case "played":
+        { const done = pendingPlays.get(e.id); pendingPlays.delete(e.id); if (done) done(); }
+        break;
+      case "barge":
+        // Conversation: the user spoke over Pip. The helper stopped the answer and listens from just before.
+        if (!convo.on) break;
+        reader.autoFrom = Math.max(reader.autoFrom == null ? -1 : reader.autoFrom, reader.index);
+        reader.stop(true);
+        convo.heard = true; convo.activeAt = performance.now();
+        speech.base = els.prompt.value; speech.sendAfter = false;
+        setSpeechState("starting");
         break;
       case "final": {
         if (speech.state === "idle") break;
@@ -2918,6 +2959,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         els.prompt.focus();
         els.prompt.setSelectionRange(els.prompt.value.length, els.prompt.value.length);
         if (thenSend && els.prompt.value.trim()) send();
+        else if (convo.on) { convo.waiting = false; setTimeout(listenTurn, 300); }   // nothing said: listen again
         break;
       }
       case "cancelled":
@@ -2933,7 +2975,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         break;
     }
   };
-  micBtn.addEventListener("click", () => speech.state === "idle" ? startDictation() : stopDictation(false));
+  // A click dictates; holding the microphone starts a conversation.
+  let micHold = 0, micHeld = false;
+  micBtn.addEventListener("pointerdown", () => { micHeld = false; clearTimeout(micHold); micHold = setTimeout(() => { micHeld = true; startConversation(); }, 550); });
+  ["pointerup", "pointerleave"].forEach(t => micBtn.addEventListener(t, () => clearTimeout(micHold)));
+  micBtn.addEventListener("click", () => { if (micHeld) { micHeld = false; return; } speech.state === "idle" ? startDictation() : stopDictation(false); });
   // The dictation shortcut (from the app). With only Pip on screen, Pip listens on its own, like an assistant:
   // no chat opens (clicking Pip opens it, the recording goes on). Pressed again, it stops and the chat opens
   // with the text. With the chat open, it starts there. Returns "quiet" when the panel must not take the keys.
@@ -2953,7 +2999,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   document.addEventListener("keydown", e => {
     if (speech.state === "idle") return;
     if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); cancelDictation(); }
-    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopImmediatePropagation(); if (speech.state !== "finishing") stopDictation(false); }
+    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopImmediatePropagation(); if (speech.state !== "finishing") convo.on ? sendTurn() : stopDictation(false); }
   }, true);
   speechPost("probe");
 
@@ -3279,11 +3325,30 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
     const res = await post("speak", { lang: item.lang, text, voice: (choice || {})[item.lang] || "", speed: String(Math.min(2, Math.max(0.5, (rate || 100) / 100))) });
     if (!res.ok) return null;
+    const bytes = await res.arrayBuffer();
+    // In a conversation the helper plays it, through the same engine as the microphone (echo cancellation).
+    if (item.native) return { bytes };
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    return await audioCtx.decodeAudioData(await res.arrayBuffer());
+    return { buffer: await audioCtx.decodeAudioData(bytes) };
+  }
+  const pendingPlays = new Map();
+  let playSeq = 0, pipVoice = false;
+  function toBase64(bytes) {
+    const u8 = new Uint8Array(bytes);
+    let out = "";
+    for (let i = 0; i < u8.length; i += 0x8000) out += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(out);
+  }
+  // Pip shows it speaks (conversation): rays in the speaking colours.
+  function pipSpeaking(on) {
+    pipVoice = on;
+    els.root.classList.toggle("dictating", on || speech.state === "listening" || speech.state === "starting");
+    if (on) { pipWave.tone = "speak"; pipWave.start(); }
+    else if (speech.state === "idle") pipWave.stop();
+    queueLayout();
   }
   function prepare(item) {
-    if (!item.audio) item.audio = fetchAudio(item, parseVoices(state && state.readVoices), state && state.readRate).catch(() => null);
+    if (!item.audio) { item.native = convo.on && !!bridge && speech.available; item.audio = fetchAudio(item, parseVoices(state && state.readVoices), state && state.readRate).catch(() => null); }
     return item.audio;
   }
   async function pump() {
@@ -3297,9 +3362,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     reader.queue.shift();
     if (reader.queue[0]) prepare(reader.queue[0]);
     if (!buffer) { reader.current = null; pump(); return; }
+    if (buffer.bytes) {
+      const id = ++playSeq;
+      item.playId = id;
+      pendingPlays.set(id, () => { if (reader.current === item && run === reader.run) { reader.current = null; pump(); } });
+      speechPost("play", { id, wav: toBase64(buffer.bytes) });
+      pipSpeaking(true);
+      return;
+    }
     if (audioCtx.state === "suspended") { try { await audioCtx.resume(); } catch (e) {} }
     const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
+    source.buffer = buffer.buffer;
     source.connect(audioCtx.destination);
     item.source = source;
     source.onended = () => { if (reader.current === item && run === reader.run) { reader.current = null; pump(); } };
@@ -3314,12 +3387,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       msgs.forEach((m, i) => { if (m.role !== "user" && m.state !== "streaming") reader.autoFrom = i; });
     }
     const lastI = msgs.length - 1, last = msgs[lastI];
-    if (s.readAloud && voice.state === "ready" && last && last.role !== "user" && last.state !== "error" && lastI > reader.autoFrom && (last.text || last.state !== "streaming")) {
+    if ((s.readAloud || convo.on) && voice.state === "ready" && last && last.role !== "user" && last.state !== "error" && lastI > reader.autoFrom && (last.text || last.state !== "streaming")) {
       reader.autoFrom = lastI;
       start(lastI);
       return;
     }
+    // A conversation waiting for an answer that failed: listen again.
+    if (convo.on && convo.waiting && !s.busy && reader.index < 0 && last && last.role !== "user" && last.state === "error") { convo.waiting = false; setTimeout(listenTurn, 300); }
     if (reader.index < 0) return;
+    if (convo.on) convo.waiting = false;
     const m = msgs[reader.index], text = (m && m.text) || "";
     if (!m || m.role === "user" || m.state === "error" || !text.startsWith(reader.prefix)) { reader.stop(); return; }
     reader.complete = m.state !== "streaming";
@@ -3340,12 +3416,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     reader.paint();
     reader.update(state);
   }
-  function finish() { reader.index = -1; reader.paint(); }
-  reader.stop = function () {
+  function finish() {
+    reader.index = -1; reader.paint(); pipSpeaking(false);
+    if (convo.on) setTimeout(listenTurn, 300);   // the answer is read: Pip listens again
+  }
+  reader.stop = function (helperStopped) {
     reader.run++;
-    const playing = reader.current && reader.current.source;
+    const playing = reader.current && reader.current.source, native = reader.current && reader.current.playId;
     Object.assign(reader, { index: -1, queue: [], current: null });
     if (playing) { try { playing.stop(); } catch (e) {} }
+    if ((native || pendingPlays.size) && !helperStopped) speechPost("hush");
+    pendingPlays.clear();
+    if (pipVoice) pipSpeaking(false);
     reader.paint();
   };
   reader.paint = function () {
@@ -3432,16 +3514,81 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       test.addEventListener("click", async () => {
         reader.stop();
         test.disabled = true;
-        const buffer = await fetchAudio({ text: SAMPLE[code], lang: code }, readVoiceChoice, +$("readRate").value).catch(() => null);
+        const got = await fetchAudio({ text: SAMPLE[code], lang: code }, readVoiceChoice, +$("readRate").value).catch(() => null);
         test.disabled = false;
-        if (!buffer) { toast("Could not read it"); return; }
+        if (!got) { toast("Could not read it"); return; }
         const source = audioCtx.createBufferSource();
-        source.buffer = buffer; source.connect(audioCtx.destination); source.start();
+        source.buffer = got.buffer; source.connect(audioCtx.destination); source.start();
       });
       box.appendChild(test);
     });
     queueLayout();
   }
+
+  // ---------- conversation mode: listen, send, read the answer aloud, listen again ----------
+  // A turn ends on a pause (Settings → Read Aloud) or when the user says so: the shortcut, ↵, a click on Pip.
+  // While Pip speaks, the helper plays the answer with echo cancellation and watches the microphone: speaking
+  // over Pip stops it and the turn starts there ("barge"); the shortcut or a click does the same by hand.
+  const convo = { on: false, heard: false, activeAt: 0, partial: "", waiting: false };
+  let conversationAsked = false;
+  const convoEnd = () => (state && state.conversationEnd === "manual" ? "manual" : "silence");
+  convo.onLevel = v => { if (convo.on && v > 0.35) { convo.heard = true; convo.activeAt = performance.now(); } };
+  convo.onPartial = t => {
+    if (!convo.on || t === convo.partial) return;
+    convo.partial = t;
+    if (t) { convo.heard = true; convo.activeAt = Math.max(convo.activeAt, performance.now() - 500); }
+  };
+  function startConversation() {
+    if (convo.on) return;
+    if (!speech.available) { if (collapsed) expand(); toast("Conversation needs dictation, on a Mac with Apple silicon"); return; }
+    if (speech.model !== "ready") { if (collapsed) expand(); speech.model === "downloading" ? renderSpeechBoxProgress() : showModelOffer(); return; }
+    if (voice.state !== "ready") { if (collapsed) expand(); offerVoices(); return; }
+    convo.on = true; convo.waiting = false;
+    els.root.classList.add("conversing");
+    reader.stop();
+    toast(convoEnd() === "manual" ? "Talk to Pip, then press ↵ or click Pip" : "Talk to Pip; a pause sends it");
+    listenTurn();
+  }
+  function listenTurn() {
+    if (!convo.on || speech.state !== "idle" || reader.index >= 0) return;
+    convo.heard = false; convo.activeAt = 0; convo.partial = "";
+    startDictation();
+  }
+  function sendTurn() {
+    if (speech.state !== "listening" && speech.state !== "starting") return;
+    convo.waiting = true;
+    stopDictation(true);
+  }
+  function bargeIn() {
+    reader.autoFrom = Math.max(reader.autoFrom == null ? -1 : reader.autoFrom, reader.index);
+    reader.stop();
+    setTimeout(listenTurn, 150);
+  }
+  function endConversation() {
+    if (!convo.on) return;
+    convo.on = false; convo.waiting = false;
+    els.root.classList.remove("conversing");
+    if (speech.state !== "idle") cancelDictation();
+    reader.stop();
+    toast("Conversation ended");
+  }
+  // On a pause: 1.5 s without sound or new words after something was said.
+  setInterval(() => {
+    if (!convo.on || convoEnd() !== "silence" || speech.state !== "listening" || !convo.heard) return;
+    if (performance.now() - convo.activeAt > 1500 && els.prompt.value.trim()) sendTurn();
+  }, 200);
+  // Esc ends the conversation (before the dictation's own Esc, which only cancels the recording).
+  window.addEventListener("keydown", e => {
+    if (e.key === "Escape" && convo.on) { e.preventDefault(); e.stopImmediatePropagation(); endConversation(); }
+  }, true);
+  // The conversation shortcut (from the app). Returns "quiet" when the panel must not take the keys (Pip alone).
+  window.__quickPromptConverse = () => {
+    if (!speech.known) { speech.startWhenKnown = "converse"; return collapsed ? "quiet" : "open"; }
+    if (!convo.on) startConversation();
+    else if (speech.state === "listening" || speech.state === "starting") { if (els.prompt.value.trim()) sendTurn(); else endConversation(); }
+    else if (reader.index >= 0) bargeIn();
+    return collapsed ? "quiet" : "open";
+  };
 
   // ---------- long-poll ----------
   async function poll() {

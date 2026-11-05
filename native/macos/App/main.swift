@@ -218,8 +218,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 var hotKey = EventHotKeyID()
                 GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
                                   MemoryLayout<EventHotKeyID>.size, nil, &hotKey)
-                let dictation = hotKey.id == 2
-                DispatchQueue.main.async { if dictation { me.dictate() } else { me.runShortcut() } }
+                let id = hotKey.id
+                DispatchQueue.main.async {
+                    switch id {
+                    case 2: me.dictate()
+                    case 3: me.converse()
+                    default: me.runShortcut()
+                    }
+                }
                 return noErr
             }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), nil)
         }
@@ -256,6 +262,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let id = EventHotKeyID(signature: OSType(0x5150_524D), id: 2)
         if RegisterEventHotKey(keyCode, carbonModifiers, id, GetApplicationEventTarget(), 0, &dictationHotKeyRef) != noErr {
             NSLog("Quick Prompt: could not register the dictation shortcut \(spec); another app may be using it.")
+        }
+    }
+
+    private var conversationHotKeyRef: EventHotKeyRef?
+
+    /// The conversation shortcut (default ⌥⇧K): its own Carbon hot key (id 3), handled by the same handler.
+    private func registerConversationHotKey(_ spec: String = "alt+shift+KeyK") {
+        registerHotKey(nil)
+        if let old = conversationHotKeyRef {
+            UnregisterEventHotKey(old)
+            conversationHotKeyRef = nil
+        }
+        guard let (keyCode, carbonModifiers, _, _) = AppDelegate.parseHotkey(spec) else { return }
+        let id = EventHotKeyID(signature: OSType(0x5150_524D), id: 3)
+        if RegisterEventHotKey(keyCode, carbonModifiers, id, GetApplicationEventTarget(), 0, &conversationHotKeyRef) != noErr {
+            NSLog("Quick Prompt: could not register the conversation shortcut \(spec); another app may be using it.")
+        }
+    }
+
+    /// Conversation mode: starts it (Pip listens), or moves it on (sends what was said, or stops the reading).
+    /// With no popup, a new chat that starts it as Pip.
+    func converse() {
+        if let popup = popups.last {
+            popup.converse()
+        } else {
+            send("new", ["converse": "true"])
         }
     }
 
@@ -318,7 +350,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let spec = json["hotkey"] as? String else { return }
             let dictation = json["dictationHotkey"] as? String ?? "alt+shift+KeyM"
-            DispatchQueue.main.async { self?.registerHotKey(spec); self?.registerDictationHotKey(dictation) }
+            let conversation = json["conversationHotkey"] as? String ?? "alt+shift+KeyK"
+            DispatchQueue.main.async {
+                self?.registerHotKey(spec); self?.registerDictationHotKey(dictation); self?.registerConversationHotKey(conversation)
+            }
         }.resume()
     }
 
@@ -522,6 +557,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "dictationHotkey":
             if let spec = event["value"] as? String {
                 registerDictationHotKey(spec)
+            }
+        case "conversationHotkey":
+            if let spec = event["value"] as? String {
+                registerConversationHotKey(spec)
             }
         default:
             break

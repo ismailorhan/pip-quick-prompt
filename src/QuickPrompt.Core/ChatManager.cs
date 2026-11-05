@@ -806,6 +806,8 @@ namespace QuickPrompt.Core
                 readAloud = s.ReadAloud,
                 readVoices = QuickPromptSettings.CleanReadVoices(s.ReadVoices),
                 readRate = Math.Clamp(s.ReadRate, 50, 200),
+                conversationEnd = s.ConversationEnd == "manual" ? "manual" : "silence",
+                conversationHotkey = QuickPromptSettings.IsValidHotkey(s.ConversationHotkey) ? s.ConversationHotkey : QuickPromptSettings.DefaultConversationHotkey,
                 hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
                 dictationHotkey = QuickPromptSettings.IsValidHotkey(s.DictationHotkey) ? s.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey,
                 claude = new
@@ -933,6 +935,18 @@ namespace QuickPrompt.Core
             {
                 s.DictationHotkey = dictationHotkey;
                 this.Control?.Publish(new { type = "dictationHotkey", value = dictationHotkey });
+            }
+
+            var conversationHotkey = Get("conversationHotkey");
+            if (QuickPromptSettings.IsValidHotkey(conversationHotkey) && conversationHotkey != s.ConversationHotkey)
+            {
+                s.ConversationHotkey = conversationHotkey;
+                this.Control?.Publish(new { type = "conversationHotkey", value = conversationHotkey });
+            }
+
+            if (Get("conversationEnd") is "silence" or "manual")
+            {
+                s.ConversationEnd = Get("conversationEnd");
             }
 
             if (Get("keepPip") is "true" or "false")

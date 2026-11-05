@@ -71,5 +71,28 @@ namespace QuickPrompt.Tests
                 Assert.True(state.RootElement.GetProperty("readAloud").GetBoolean());
             }
         }
+
+        [Fact]
+        public async System.Threading.Tasks.Task The_conversation_shortcut_and_its_end_of_turn_are_kept_and_open_Pip_listening()
+        {
+            var control = new AppControl("t");
+            var manager = new ChatManager(TempDir.Create(), new FakeHost(), new IAiProvider[] { new FakeProvider(ProviderIds.Claude) }) { Control = control };
+            control.Manager = manager;
+            manager.Launcher.OverrideOpen = _ => { };
+            using (manager)
+            {
+                manager.SaveSettings(new Dictionary<string, string> { ["conversationHotkey"] = "cmd+alt+KeyJ", ["conversationEnd"] = "manual" });
+                using var settings = JsonDocument.Parse(manager.GetSettingsJson());
+                Assert.Equal("cmd+alt+KeyJ", settings.RootElement.GetProperty("conversationHotkey").GetString());
+                Assert.Equal("manual", settings.RootElement.GetProperty("conversationEnd").GetString());
+                Assert.Contains("conversationHotkey", await control.WaitForEventsAsync(0, System.TimeSpan.Zero, default));
+
+                var (status, json) = await control.HandleAsync("GET", "status", "", new Dictionary<string, string>(), default);
+                Assert.Equal("cmd+alt+KeyJ", JsonDocument.Parse(json).RootElement.GetProperty("conversationHotkey").GetString());   // "+" comes escaped
+
+                (status, _) = await control.HandleAsync("POST", "new", "", new Dictionary<string, string> { ["converse"] = "true" }, default);
+                Assert.Equal(200, status);
+            }
+        }
     }
 }

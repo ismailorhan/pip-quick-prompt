@@ -503,6 +503,16 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         }
     }
 
+    /// The conversation shortcut: the page starts conversation mode or moves it on. Like dictation, Pip on its
+    /// own ("quiet") does not take the keys.
+    func converse() {
+        webView?.evaluateJavaScript("window.__quickPromptConverse ? window.__quickPromptConverse() : 'open'") { [weak self] result, _ in
+            if (result as? String) != "quiet" {
+                self?.panel?.makeKeyAndOrderFront(nil)
+            }
+        }
+    }
+
     /// Hands a dictation event to the page.
     func speechEvent(_ event: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: event), let json = String(data: data, encoding: .utf8) else { return }

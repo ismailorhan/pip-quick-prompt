@@ -60,6 +60,13 @@ final class Speech {
             command(["cmd": "stop"])
         case "cancel":
             command(["cmd": "cancel"])
+        case "play":
+            // Conversation mode: the answer plays through the helper, so its echo cancellation knows it.
+            guard process != nil else { popup.speechEvent(["type": "played", "id": body["id"] ?? 0]); return }
+            idleTimer?.invalidate()
+            command(["cmd": "play", "id": body["id"] ?? 0, "wav": body["wav"] as? String ?? ""])
+        case "hush":
+            command(["cmd": "hush"])
         case "download":
             startDownload(popup)
         case "cancelDownload":
@@ -127,7 +134,8 @@ final class Speech {
         idleTimer?.invalidate()
         launchIfNeeded()
         popup.speechEvent(["type": ready ? "starting" : "loading"])
-        command(["cmd": "start", "languages": body["languages"] as? [String] ?? ["en"], "prompt": body["prompt"] as? String ?? ""])
+        command(["cmd": "start", "languages": body["languages"] as? [String] ?? ["en"], "prompt": body["prompt"] as? String ?? "",
+                 "conversation": body["conversation"] as? Bool ?? false])
     }
 
     private func command(_ body: [String: Any]) {

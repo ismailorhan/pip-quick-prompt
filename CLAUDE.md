@@ -210,8 +210,17 @@ compounds, letters; numbers as words); voices Heart, Bella, Michael (US), Emma, 
 `models/voice` (size + SHA-256, `VoiceModels.cs`): Kokoro from Hugging Face at a fixed revision, EMA from this repo's
 `voice-models-1` release (pre-release, created 6 Nov 2026 with the owner's OK: the four files + EMA's LICENSE; verified: a fresh
 download of all ~130 MB took ~12 s, checks passed, both languages spoke). Other languages are not read. Licences in THIRD-PARTY-NOTICES.md and About. Also: Pip lines up with the bar again (the agent
-pill is out of the column's flow), scrolling fades the bubbles' own background over the returning glass. Conversation mode is
-half done in `git stash` ("conversation mode (engine + native hot key), unfinished").
+pill is out of the column's flow), scrolling fades the bubbles' own background over the returning glass. 
+**Conversation mode** (same commit range): listen → send → read the answer aloud → listen again, in the same chat (messages and
+history as usual). Entry: its own shortcut (Settings → General, default ⌥⇧K, Carbon hot key id 3, `conversationHotkey`;
+with no popup it opens Pip listening, `startConversation`), holding the microphone, Pip's menu (Start/End Conversation).
+A turn ends on a 1.5 s pause or only "when I say" (Settings → Read Aloud, `ConversationEnd` silence|manual): the shortcut, ↵,
+or a click on Pip. Cutting in: the helper plays the answer itself (`play`/`hush`/`played`, base64 WAV) through the same
+AVAudioEngine as the microphone with voice processing on (echo cancellation; other audio ducked least on macOS 14+), and while
+it plays the silero VAD watches the mic: 8 frames (~0.25 s) above 0.6, not in the first 0.4 s, stop the answer and the turn
+starts from 0.8 s before (`barge`); the shortcut or a click on Pip cut in by hand. Esc ends it. While Pip speaks its rays turn
+blue-violet. Checked: helper compiles and links, page flow with a mocked helper and the real voices (Playwright); **not checked:
+the echo cancellation and barge-in with a real microphone and speakers** (owner's Mac).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

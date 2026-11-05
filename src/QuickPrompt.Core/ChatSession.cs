@@ -64,6 +64,9 @@ namespace QuickPrompt.Core
         /// <summary>Opened by the dictation shortcut: the page starts listening once it is up.</summary>
         public Boolean StartDictation { get; set; }
 
+        /// <summary>The conversation shortcut with no popup open: the page starts conversation mode.</summary>
+        public Boolean StartConversation { get; set; }
+
         /// <summary>Counts copies made that way, so the page can say so.</summary>
         public Int32 AutoCopied { get; private set; }
 
@@ -223,6 +226,7 @@ namespace QuickPrompt.Core
                 this.Notice = "";
                 this.AutoCopyFirstAnswer = false;
                 this.StartDictation = false;
+                this.StartConversation = false;
                 this._messages.Clear();
                 this.TouchLocked();
                 return true;
@@ -550,6 +554,8 @@ namespace QuickPrompt.Core
                     keepPip = this._settings().KeepPip,
                     autoCopied = this.AutoCopied,
                     startDictation = this.StartDictation,
+                    startConversation = this.StartConversation,
+                    conversationEnd = this._settings().ConversationEnd == "manual" ? "manual" : "silence",
                     speechLanguages = QuickPromptSettings.IsValidSpeechLanguages(this._settings().SpeechLanguages) ? this._settings().SpeechLanguages : "",
                     speechHints = this._settings().SpeechHints ?? "",
                     readAloud = this._settings().ReadAloud,

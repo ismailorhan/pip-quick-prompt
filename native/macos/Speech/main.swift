@@ -1,9 +1,14 @@
 // QuickPromptSpeech: local speech-to-text for Quick Prompt (whisper.cpp, on this Mac only).
 //
 // The app starts it on the first mic press and talks to it with one JSON object per line:
-//   in  (stdin):  {"cmd":"start","languages":["en","tr"],"prompt":"words to expect"}  {"cmd":"stop"}  {"cmd":"cancel"}
+//   in  (stdin):  {"cmd":"start","languages":["en","tr"],"prompt":"words to expect","conversation":true}  {"cmd":"stop"}  {"cmd":"cancel"}
+//                 conversation mode only: {"cmd":"play","id":3,"wav":"<base64 16-bit mono WAV>"}  {"cmd":"hush"}
 //   out (stdout): {"type":"ready"}  {"type":"listening"}  {"type":"level","value":0.4}
 //                 {"type":"partial","text":"…"}  {"type":"final","text":"…"}  {"type":"error","message":"…"}
+//                 conversation mode only: {"type":"played","id":3}  {"type":"barge"}
+// Conversation mode: the microphone runs through macOS's voice processing (echo cancellation), and the answer is
+// played through the same engine, so the microphone hardly hears it. While it plays, the voice detector watches
+// the microphone; when someone speaks over it, the playback stops ("barge") and listening starts from there.
 // While listening it writes the text as it hears it (partial: the words so far, the last ones may still change);
 // on stop it transcribes the whole recording once more, with voice detection, and sends the final text.
 // Usage: QuickPromptSpeech <model.bin> <vad.bin>
@@ -53,6 +58,13 @@ var speechProbs: [Float] = []         // one per 512 samples
 var vadDone = 0                       // samples given to the voice detector so far
 var engine: AVAudioEngine?
 var listening = false
+var conversation = false              // the engine runs with voice processing and can play answers
+var watching = false                  // conversation: playing an answer, waiting for the user to speak over it
+var player: AVAudioPlayerNode?
+let playFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48000, channels: 1, interleaved: false)!
+var playing = 0                       // buffers scheduled and not yet played
+var playStarted = Date.distantPast
+var watchLoop = false                 // one watchStep chain at a time
 var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
 
 /// How loud, 0…1, as the ear hears it: -50 dB (a quiet room) is 0, -10 dB (speaking up close) is 1.
@@ -86,9 +98,21 @@ func startFile(_ path: String) throws {
 }
 
 func startAudio() throws {
+    if engine != nil || fileTimer != nil { return }   // conversation: already running (watching an answer)
     if let path = ProcessInfo.processInfo.environment["QP_SPEECH_FILE"] { try startFile(path); return }
     let engine0 = AVAudioEngine()
     let input = engine0.inputNode
+    if conversation {
+        // Echo cancellation: what this engine plays is taken out of what the microphone hears.
+        try input.setVoiceProcessingEnabled(true)
+        if #available(macOS 14.0, *) {
+            input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+        }
+        let node = AVAudioPlayerNode()
+        engine0.attach(node)
+        engine0.connect(node, to: engine0.mainMixerNode, format: playFormat)
+        player = node
+    }
     let inFormat = input.outputFormat(forBus: 0)
     guard inFormat.sampleRate > 0, let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false),
           let converter = AVAudioConverter(from: inFormat, to: target) else {
@@ -124,9 +148,115 @@ func startAudio() throws {
 func stopAudio() {
     fileTimer?.cancel()
     fileTimer = nil
+    player?.stop()
+    player = nil
+    playing = 0
+    watching = false
     engine?.inputNode.removeTap(onBus: 0)
     engine?.stop()
     engine = nil
+}
+
+// MARK: conversation: playing answers, hearing the user speak over them
+
+/// 16-bit mono PCM WAV (as the engine makes them) to float audio at 48 kHz.
+func decodeWav(_ data: Data) -> AVAudioPCMBuffer? {
+    guard data.count > 44, data.prefix(4) == Data("RIFF".utf8) else { return nil }
+    let rate = data.subdata(in: 24..<28).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+    var at = 12
+    var pcm = Data()
+    while at + 8 <= data.count {
+        let id = String(data: data.subdata(in: at..<at + 4), encoding: .ascii) ?? ""
+        let size = Int(data.subdata(in: at + 4..<at + 8).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) })
+        if id == "data" { pcm = data.subdata(in: at + 8..<min(data.count, at + 8 + size)); break }
+        at += 8 + size
+    }
+    let count = pcm.count / 2
+    guard count > 0, rate > 0, let source = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(rate), channels: 1, interleaved: false),
+          let buffer = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: AVAudioFrameCount(count)) else { return nil }
+    pcm.withUnsafeBytes { raw in
+        let ints = raw.bindMemory(to: Int16.self)
+        for i in 0..<count { buffer.floatChannelData![0][i] = Float(Int16(littleEndian: ints[i])) / 32768 }
+    }
+    buffer.frameLength = AVAudioFrameCount(count)
+    if Double(rate) == playFormat.sampleRate { return buffer }
+    guard let converter = AVAudioConverter(from: source, to: playFormat),
+          let out = AVAudioPCMBuffer(pcmFormat: playFormat, frameCapacity: AVAudioFrameCount(Double(count) * playFormat.sampleRate / Double(rate)) + 64) else { return nil }
+    var given = false
+    var error: NSError?
+    converter.convert(to: out, error: &error) { _, status in
+        if given { status.pointee = .endOfStream; return nil }
+        given = true
+        status.pointee = .haveData
+        return buffer
+    }
+    return error == nil ? out : nil
+}
+
+/// Plays one piece of an answer (conversation mode). The microphone keeps running, cleaned of it.
+func play(_ body: [String: Any]) {
+    work.async {
+        guard conversation, let text = body["wav"] as? String, let data = Data(base64Encoded: text), let buffer = decodeWav(data) else {
+            send(["type": "played", "id": body["id"] ?? 0]); return
+        }
+        if engine == nil {
+            // Between turns: start the engine to watch for the user speaking over the answer.
+            lock.lock(); samples = []; lock.unlock()
+            speechProbs = []; vadDone = 0
+            whisper_vad_reset_state(vad)
+            do { try startAudio() } catch { send(["type": "played", "id": body["id"] ?? 0]); return }
+        }
+        guard let node = player else { send(["type": "played", "id": body["id"] ?? 0]); return }
+        if !listening { watching = true }
+        playing += 1
+        let id = body["id"] ?? 0
+        node.scheduleBuffer(buffer) {
+            work.async {
+                playing = max(0, playing - 1)
+                send(["type": "played", "id": id])
+            }
+        }
+        if !node.isPlaying { node.play(); playStarted = Date() }
+        if !watchLoop { watchLoop = true; work.asyncAfter(deadline: .now() + 0.1) { watchStep() } }
+    }
+}
+
+func hush() {
+    work.async {
+        player?.stop()
+        playing = 0
+    }
+}
+
+/// While an answer plays: the voice detector over the (echo-cancelled) microphone. A quarter second of speech,
+/// not in the first moment of playback, is the user speaking: stop the answer and listen from just before it.
+func watchStep() {
+    guard watching, !listening else { watchLoop = false; return }
+    updateVoice()
+    let recent = speechProbs.suffix(8)
+    if playing > 0, Date().timeIntervalSince(playStarted) > 0.4, recent.count == 8, recent.reduce(0, +) / 8 > 0.6 {
+        player?.stop()
+        playing = 0
+        watching = false
+        lock.lock(); samples = Array(samples.suffix(Int(rate * 0.8))); lock.unlock()
+        speechProbs = []; vadDone = 0; committed = []; commitAt = 0
+        whisper_vad_reset_state(vad)
+        stopRequested = false; aborting = false
+        listening = true
+        watchLoop = false
+        send(["type": "barge"])
+        send(["type": "listening"])
+        work.asyncAfter(deadline: .now() + 0.4) { liveStep() }
+        return
+    }
+    if playing == 0 && !listening {
+        // The answer ended without the user speaking: free the microphone until the next turn.
+        watching = false
+        watchLoop = false
+        stopAudio()
+        return
+    }
+    work.asyncAfter(deadline: .now() + 0.1) { watchStep() }
 }
 
 /// Runs the voice detector over the samples it has not seen yet (whole frames only).
@@ -290,6 +420,9 @@ func start(_ body: [String: Any]) {
         hints = (body["prompt"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         lockedLanguage = languages.count == 1 ? languages[0] : nil
         provisional = languages[0]
+        let wanted = body["conversation"] as? Bool ?? false
+        if wanted != conversation || watching { player?.stop(); stopAudio() }   // a new turn starts clean
+        conversation = wanted
         lock.lock(); samples = []; lock.unlock()
         speechProbs = []; vadDone = 0; committed = []; commitAt = 0
         stopRequested = false; aborting = false
@@ -352,6 +485,8 @@ DispatchQueue.global().async {
         case "start": start(body)
         case "stop": stop()
         case "cancel": cancel()
+        case "play": play(body)
+        case "hush": hush()
         case "quit": quit()
         default: break
         }

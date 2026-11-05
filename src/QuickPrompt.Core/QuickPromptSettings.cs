@@ -107,7 +107,7 @@ namespace QuickPrompt.Core
         /// <summary>Reading speed, 50–200 (percent of the voice's normal speed).</summary>
         public Int32 ReadRate { get; set; } = 100;
 
-        public static String CleanReadVoices(String? value)
+        public static String CleanReadVoices(String value)
         {
             if (String.IsNullOrWhiteSpace(value))
             {
@@ -134,6 +134,15 @@ namespace QuickPrompt.Core
         public String DictationHotkey { get; set; } = DefaultDictationHotkey;
 
         public const String DefaultDictationHotkey = "alt+shift+KeyM";
+
+        /// <summary>The global shortcut for conversation mode: speak, the answer is read aloud, it listens again.</summary>
+        public String ConversationHotkey { get; set; } = DefaultConversationHotkey;
+
+        public const String DefaultConversationHotkey = "alt+shift+KeyK";
+
+        /// <summary>When a spoken turn in conversation mode goes: "silence" (after a pause) or "manual" (only when
+        /// you say so: the shortcut, Enter, a click on Pip), so a pause to think never sends it.</summary>
+        public String ConversationEnd { get; set; } = "silence";
 
         /// <summary>"cmd|ctrl|alt|shift" (at least one of cmd, ctrl, alt) + a key code like KeyK, Digit1, Space, F5.</summary>
         public static Boolean IsValidHotkey(String value) =>
