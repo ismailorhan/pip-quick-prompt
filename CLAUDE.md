@@ -208,8 +208,8 @@ engine over our ONNX export (`tools/voice/export_ema.py`; checked against PyTorc
 English: Kokoro-82M int8 with an eSpeak-free G2P (misaki lexicons + CMUdict, `tools/voice/build_en_lexicon.py`; inflections,
 compounds, letters; numbers as words); voices Heart, Bella, Michael (US), Emma, George (UK). Models (~131 MB) download once into
 `models/voice` (size + SHA-256, `VoiceModels.cs`): Kokoro from Hugging Face at a fixed revision, EMA from this repo's
-`voice-models-1` release, **which still has to be created** (the four files + EMA's LICENSE; the agent was not allowed to publish
-it). Other languages are not read. Licences in THIRD-PARTY-NOTICES.md and About. Also: Pip lines up with the bar again (the agent
+`voice-models-1` release (pre-release, created 6 Nov 2026 with the owner's OK: the four files + EMA's LICENSE; verified: a fresh
+download of all ~130 MB took ~12 s, checks passed, both languages spoke). Other languages are not read. Licences in THIRD-PARTY-NOTICES.md and About. Also: Pip lines up with the bar again (the agent
 pill is out of the column's flow), scrolling fades the bubbles' own background over the returning glass. Conversation mode is
 half done in `git stash` ("conversation mode (engine + native hot key), unfinished").
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.

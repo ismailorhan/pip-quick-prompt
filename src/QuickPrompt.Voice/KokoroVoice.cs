@@ -30,10 +30,10 @@ namespace QuickPrompt.Voice
         private readonly String _folder;
         private readonly EnglishG2P _g2p = new EnglishG2P();
 
-        public KokoroVoice(String folder, SessionOptions options)
+        public KokoroVoice(String folder, SessionOptions options, String model = "model_quantized.onnx")
         {
             this._folder = folder;
-            this._session = new InferenceSession(Path.Combine(folder, "model_quantized.onnx"), options);
+            this._session = new InferenceSession(Path.Combine(folder, model), options);
             this._vocab = LoadVocab();
         }
 
