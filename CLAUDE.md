@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.47, 5 Nov 2026)
+## Status (v0.3.48, 6 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -187,7 +187,7 @@ preview): Claude CLI (stream-json document block, verified with the real CLI) an
 read them; the Codex CLI answers that it cannot. The dictation shortcut with only Pip on screen listens on Pip alone
 (no chat, the panel does not take the keys; `__quickPromptDictate` returns "quiet"); clicking Pip opens the chat and
 the recording goes on; pressing it again stops and opens the chat with the text. With no popup, it opens Pip listening.
-On `dev` (not built): **Read aloud** (step 1 of voice; plan in Hindsight "Quick Prompt: read-aloud and conversation mode"). A speaker
+v0.3.48 (6 Nov 2026), built and notarized, not yet confirmed on the owner's Mac; it also has everything "On `dev` after v0.3.47" above. **Read aloud** (step 1 of voice; plan in Hindsight "Quick Prompt: read-aloud and conversation mode"). A speaker
 button on every answer, Settings → Read Aloud (read every answer as it comes, a voice per Dictation language with Test, speed);
 system voices through speechSynthesis in the page, local voices only (works in WKWebView; WebView2 later), read sentence by sentence
 while streaming, code blocks, tables and link addresses left out; stops on send and when dictation starts, goes on when tucked into Pip.
