@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/QuickPrompt.Core/QuickPrompt.Core.csproj" />
+    <ProjectReference Include="..\..\src\QuickPrompt.Voice\QuickPrompt.Voice.csproj" />
   </ItemGroup>
 
   <ItemGroup>

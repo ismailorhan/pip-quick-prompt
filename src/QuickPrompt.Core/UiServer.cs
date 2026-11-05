@@ -148,6 +148,48 @@ namespace QuickPrompt.Core
                     : new HttpResponse { ContentType = "application/json; charset=utf-8", Body = VoiceAssets.TurkishTable };
             }
 
+            if (action == "voice")
+            {
+                // Read aloud: the local voices' state (GET) and their one-time download (POST {action}).
+                var voices = this._manager.ReadAloud;
+                if (voices == null)
+                {
+                    return HttpResponse.Json("{\"available\":false,\"state\":\"missing\"}");
+                }
+
+                if (request.Method == "POST")
+                {
+                    var what = ParseJson(request.Body).TryGetValue("action", out var a) ? a : "";
+                    if (what == "download")
+                    {
+                        voices.Download();
+                    }
+                    else if (what == "cancel")
+                    {
+                        voices.CancelDownload();
+                    }
+                }
+
+                return HttpResponse.Json(voices.StatusJson());
+            }
+
+            if (request.Method == "POST" && action == "speak")
+            {
+                // One sentence (or a few) in, a WAV out; the page plays them one after another.
+                var voices = this._manager.ReadAloud;
+                var said = ParseJson(request.Body);
+                String Arg(String k) => said.TryGetValue(k, out var v) ? v ?? "" : "";
+                Double.TryParse(Arg("speed"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var speed);
+                var text = Arg("text");
+                if (voices == null || text.Length == 0 || text.Length > 2000)
+                {
+                    return HttpResponse.Text(400, "No voice");
+                }
+
+                var wav = await Task.Run(() => voices.Speak(Arg("lang"), text, Arg("voice"), speed <= 0 ? 1.0 : speed)).ConfigureAwait(false);
+                return wav == null ? HttpResponse.Text(404, "No voice for this language") : new HttpResponse { ContentType = "audio/wav", Body = wav };
+            }
+
             if (request.Method == "GET" && action == "state")
             {
                 Int64.TryParse(request.Query("v"), out var since);

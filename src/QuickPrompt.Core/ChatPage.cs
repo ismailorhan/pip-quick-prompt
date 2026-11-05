@@ -582,13 +582,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         </section>
         <section class="spane" data-pane="voice">
           <h2>Read Aloud</h2>
-          <div class="shint">Answers can be read to you with this Mac's own voices: click the speaker on an answer, or have every answer read as it comes. Nothing leaves this Mac.</div>
+          <div class="shint">Answers can be read to you: click the speaker on an answer, or have every answer read as it comes. The voices run on this Mac only (EMA Lightning for Turkish, Kokoro for English); nothing you read leaves it.</div>
+          <div class="sline">
+            <div><div class="sl-t">Voices</div><div class="sl-d" id="vModel">Checking…</div></div>
+            <button type="button" id="vModelBtn" hidden>Download</button>
+          </div>
           <div class="sline">
             <div><div class="sl-t">Read answers aloud</div><div class="sl-d">Every new answer is read while it is written. Off: only when you click the speaker on an answer.</div></div>
             <div class="seg" data-name="readAloud"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div>
           </div>
           <div class="sline" style="display:block">
-            <div class="sl-t">Voices</div><div class="sl-d">One for each language in Dictation's list. More and better voices: System Settings → Accessibility → Spoken Content → System voice → Manage Voices; the Enhanced and Premium ones sound best.</div>
+            <div class="sl-t">Voice for each language</div><div class="sl-d">Turkish and English for now; answers in other languages are not read yet.</div>
             <div class="vlist" id="readVoices"></div>
           </div>
           <div class="sline">
@@ -666,7 +670,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="sline"><div><div class="sl-t">Quick Prompt</div><div class="sl-d" id="aboutVersion"></div></div></div>
           <div class="sline"><div><div class="sl-t">Your keys</div><div class="sl-d">API keys are stored encrypted on this computer and are only sent to Anthropic or OpenAI. A prompt template can override CLI or API for itself.</div></div></div>
           <div class="sline"><div><div class="sl-t">Source and updates</div><div class="sl-d">github.com/ismailorhan/pip-quick-prompt, under Releases → Latest build</div></div></div>
-          <div class="sline"><div><div class="sl-t">Pronunciation data</div><div class="sl-d">Reading English words in Turkish answers uses the CMU Pronouncing Dictionary (© 1993-2015 Carnegie Mellon University, BSD licence) and Zemberek's Turkish dictionaries (Apache 2.0). Full notices: THIRD-PARTY-NOTICES.md in the app.</div></div></div>
+          <div class="sline"><div><div class="sl-t">Voices and pronunciation data</div><div class="sl-d">Read aloud uses EMA Lightning (Turkish) and Kokoro-82M (English), both Apache 2.0, on ONNX Runtime (MIT); normalizer-tr and misaki's lexicons (Apache 2.0); the CMU Pronouncing Dictionary (© 1993-2015 Carnegie Mellon University, BSD licence) and Zemberek's Turkish dictionaries (Apache 2.0). Full notices: THIRD-PARTY-NOTICES.md in the app.</div></div></div>
         </section>
       </div>
     </div>
@@ -1193,7 +1197,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       speechLangs = parseLangs(s.speechLanguages); renderLangs();
       $("speechHints").value = s.speechHints || "";
       setSeg("readAloud", s.readAloud ? "true" : "false");
-      readVoiceChoice = parseVoices(s.readVoices); renderReadVoices();
+      readVoiceChoice = parseVoices(s.readVoices); loadVoice().then(renderVoiceSettings); renderVoiceSettings();
       $("readRate").value = s.readRate || 100;
       speechPost("probe");
       setHotkey(s.hotkey || "alt+shift+Space");
@@ -2735,7 +2739,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       add.addEventListener("change", () => { if (add.value) { speechLangs.push(add.value); renderLangs(); } });
       box.appendChild(add);
     }
-    renderReadVoices();
     queueLayout();
   }
   // Pip while dictating: 36 rays around it, mirrored left and right, red fading to coral at the tips, turning
@@ -3188,39 +3191,32 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
   window.addEventListener("pagehide", () => { try { navigator.sendBeacon(base + "closed"); } catch (e) {} });
 
-  // ---------- read aloud: the system's voices (speechSynthesis), sentence by sentence ----------
-  // Local voices only, so nothing leaves the computer (WKWebView on the Mac, WebView2 on Windows).
-  // An answer is read while it streams: each finished sentence (or line) goes to the voice, code
-  // blocks, tables and links are left out. Turkish goes through autolex first, which respells
-  // English words for the Turkish voice ("Service Layer" -> "Sörvis Leyır"); it loads on first use.
-  const synth = window.speechSynthesis || null;
+  // ---------- read aloud: local voices in the engine (EMA Lightning for Turkish, Kokoro for English) ----------
+  // Nothing leaves the computer: the engine makes each sentence's audio (QuickPrompt.Voice) and the page plays
+  // them one after another, the next one already being made while one plays. An answer is read while it
+  // streams; code blocks, tables and link addresses are left out. Turkish goes through autolex first, which
+  // respells English words for the Turkish voice ("Service Layer" -> "Sörvis Leyır").
   const reader = { index: -1, done: 0, prefix: "", lang: "", queue: [], current: null, complete: false,
-                   autoFrom: null, lex: null, lexLoading: null };
+                   autoFrom: null, lex: null, lexLoading: null, run: 0 };
+  let voice = { available: false, state: "missing", size: 0, received: 0, voices: { en: [] } };
+  let audioCtx = null;
   const SPEAKER_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path class="w1" d="M15.5 9a4 4 0 0 1 0 6"/><path class="w2" d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
   function speakerButton(i) {
-    return synth ? `<button type="button" class="spk${reader.index === i ? " on" : ""}" data-read="${i}" title="${reader.index === i ? "Stop reading" : "Read aloud"}" aria-label="Read aloud">${SPEAKER_ICON}</button>` : "";
+    return voice.available ? `<button type="button" class="spk${reader.index === i ? " on" : ""}" data-read="${i}" title="${reader.index === i ? "Stop reading" : "Read aloud"}" aria-label="Read aloud">${SPEAKER_ICON}</button>` : "";
   }
-  function localVoices() { return synth ? synth.getVoices().filter(v => v.localService !== false) : []; }
-  const voiceLang = v => String(v.lang || "").toLowerCase().replace("_", "-").split("-")[0];
+  async function loadVoice(action) {
+    try {
+      const res = action ? await post("voice", { action }) : await fetch(base + "voice", { cache: "no-store" });
+      voice = await res.json();
+    } catch (e) {}
+    return voice;
+  }
   function parseVoices(value) {
     const map = {};
     String(value || "").split(";").forEach(p => { const k = p.indexOf("="); if (k > 0) map[p.slice(0, k)] = p.slice(k + 1); });
     return map;
   }
-  // The chosen voice, else the best one installed: Premium, then Enhanced, then the default.
-  // macOS lists one voice several times (compact, enhanced, premium) under the same name: the better first.
-  const voiceQuality = v => /premium/i.test(v.voiceURI + v.name) ? 3 : /enhanced/i.test(v.voiceURI + v.name) ? 2 : /super-?compact/i.test(v.voiceURI) ? 0 : 1;
-  function voicesFor(lang) {
-    const seen = new Set();
-    return localVoices().filter(v => voiceLang(v) === lang)
-      .sort((a, b) => voiceQuality(b) - voiceQuality(a) || (b.default ? 1 : 0) - (a.default ? 1 : 0))
-      .filter(v => !seen.has(v.name) && seen.add(v.name));
-  }
-  function voiceFor(lang, choice) {
-    const all = voicesFor(lang), wanted = (choice || {})[lang];
-    return all.find(v => v.name === wanted) || all[0] || null;
-  }
-  // The answer's language: Turkish letters or words, English words, else the first language from Dictation's list.
+  // The answer's language: Turkish letters or words, else English words. Other languages have no voice yet.
   function guessLang(text) {
     const t = " " + text.toLowerCase().slice(0, 600) + " ";
     const count = rx => (t.match(rx) || []).length;
@@ -3228,8 +3224,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const en = count(/[\s,]+(the|and|is|are|of|to|for|with|that|this|you|it|can|will)[\s,.]/g);
     if (tr > en) return "tr";
     if (en > 0) return "en";
-    const langs = parseLangs(state && state.speechLanguages);
-    return langs.find(c => c !== "en") || "en";
+    return /[a-z]/.test(t) && !/[äßàâéèêëîïôûùÿœñ¿¡ąćęłńóśźżåøæ]/.test(t) ? "en" : "";
   }
   // Markdown -> what is worth hearing.
   function speakable(src) {
@@ -3275,27 +3270,43 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
     return reader.lexLoading;
   }
-  function utter(text, lang, choice) {
-    if (lang === "tr" && reader.lex) { try { text = reader.lex.apply(text); } catch (e) {} }
-    const u = new SpeechSynthesisUtterance(text);
-    const v = voiceFor(lang, choice);
-    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = lang;
-    u.rate = Math.min(2, Math.max(0.5, ((choice === readVoiceChoice ? +$("readRate").value : state && state.readRate) || 100) / 100));
-    return u;
+  // One sentence's audio from the engine, decoded; null when it has none.
+  async function fetchAudio(item, choice, rate) {
+    let text = item.text;
+    if (item.lang === "tr") {
+      if (reader.lex === null) await loadLex();
+      if (reader.lex) { try { text = reader.lex.apply(text); } catch (e) {} }
+    }
+    const res = await post("speak", { lang: item.lang, text, voice: (choice || {})[item.lang] || "", speed: String(Math.min(2, Math.max(0.5, (rate || 100) / 100))) });
+    if (!res.ok) return null;
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    return await audioCtx.decodeAudioData(await res.arrayBuffer());
   }
-  function pump() {
+  function prepare(item) {
+    if (!item.audio) item.audio = fetchAudio(item, parseVoices(state && state.readVoices), state && state.readRate).catch(() => null);
+    return item.audio;
+  }
+  async function pump() {
     if (reader.current) return;
     if (!reader.queue.length) { if (reader.complete && reader.index >= 0) finish(); return; }
-    const item = reader.queue[0];
-    if (item.lang === "tr" && reader.lex === null) { loadLex().then(pump); return; }
+    const run = reader.run, item = reader.queue[0];
+    reader.current = item;
+    reader.queue.slice(0, 2).forEach(prepare);
+    const buffer = await prepare(item);
+    if (run !== reader.run) return;   // stopped meanwhile
     reader.queue.shift();
-    const u = utter(item.text, item.lang, parseVoices(state && state.readVoices));
-    u.onend = u.onerror = () => { if (reader.current === u) { reader.current = null; pump(); } };
-    reader.current = u;   // also keeps the utterance from being collected before it ends
-    synth.speak(u);
+    if (reader.queue[0]) prepare(reader.queue[0]);
+    if (!buffer) { reader.current = null; pump(); return; }
+    if (audioCtx.state === "suspended") { try { await audioCtx.resume(); } catch (e) {} }
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    item.source = source;
+    source.onended = () => { if (reader.current === item && run === reader.run) { reader.current = null; pump(); } };
+    source.start();
   }
   reader.update = function (s) {
-    if (!synth || !s) return;
+    if (!s || !voice.available) return;
     const msgs = s.messages || [];
     if (reader.autoFrom === null) {
       // Answers already there when the window opens are not read; one still being written is.
@@ -3303,7 +3314,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       msgs.forEach((m, i) => { if (m.role !== "user" && m.state !== "streaming") reader.autoFrom = i; });
     }
     const lastI = msgs.length - 1, last = msgs[lastI];
-    if (s.readAloud && last && last.role !== "user" && last.state !== "error" && lastI > reader.autoFrom && (last.text || last.state !== "streaming")) {
+    if (s.readAloud && voice.state === "ready" && last && last.role !== "user" && last.state !== "error" && lastI > reader.autoFrom && (last.text || last.state !== "streaming")) {
       reader.autoFrom = lastI;
       start(lastI);
       return;
@@ -3315,23 +3326,26 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const n = readyPart(text, reader.done, reader.complete);
     if (n > 0) {
       if (!reader.lang) reader.lang = guessLang(text);
-      sentences(speakable(text.slice(reader.done, reader.done + n))).forEach(t => reader.queue.push({ text: t, lang: reader.lang }));
+      if (reader.lang) sentences(speakable(text.slice(reader.done, reader.done + n))).forEach(t => reader.queue.push({ text: t, lang: reader.lang }));
       reader.done += n;
       reader.prefix = text.slice(0, reader.done);
+      if (!reader.lang && reader.complete) { toast("No voice for this language yet"); reader.stop(); return; }
     }
     pump();
   };
   function start(i) {
     reader.stop();
+    if (voice.state !== "ready") { offerVoices(); return; }
     Object.assign(reader, { index: i, done: 0, prefix: "", lang: "", queue: [], complete: false });
     reader.paint();
     reader.update(state);
   }
   function finish() { reader.index = -1; reader.paint(); }
   reader.stop = function () {
-    const busy = reader.index >= 0 || reader.current;
+    reader.run++;
+    const playing = reader.current && reader.current.source;
     Object.assign(reader, { index: -1, queue: [], current: null });
-    if (busy && synth) synth.cancel();
+    if (playing) { try { playing.stop(); } catch (e) {} }
     reader.paint();
   };
   reader.paint = function () {
@@ -3348,43 +3362,81 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (reader.index === +b.dataset.read) { reader.autoFrom = Math.max(reader.autoFrom, reader.index); reader.stop(); }
     else start(+b.dataset.read);
   });
-  if (synth) synth.onvoiceschanged = () => { if (settingsOpen) renderReadVoices(); };
-  // Turkish answers read aloud on their own: have autolex ready before the first one.
-  setTimeout(() => { if (synth && state && state.readAloud && parseLangs(state.speechLanguages).includes("tr")) loadLex(); }, 1500);
+  // The voices are downloaded once; until then the speaker offers it.
+  function offerVoices() {
+    if (!voice.available) return;
+    if (voice.state === "downloading") { renderVoiceProgress(); return; }
+    showSpeechBox("Reading aloud needs the voices (" + mb(voice.size) + ", downloaded once): EMA Lightning for Turkish, Kokoro for English. They run on this Mac only.", { buttons: [
+      { label: "Download", primary: true, run: async () => { await loadVoice("download"); watchVoiceDownload(); } },
+      { label: "Not now", run: hideSpeechBox },
+    ] });
+  }
+  function renderVoiceProgress() {
+    const p = voice.size ? voice.received / voice.size : 0;
+    showSpeechBox("Downloading the voices… " + mb(voice.received) + " of " + mb(voice.size), { progress: p,
+      buttons: [{ label: "Cancel", run: async () => { await loadVoice("cancel"); hideSpeechBox(); } }] });
+  }
+  let voiceWatch = 0;
+  function watchVoiceDownload() {
+    clearTimeout(voiceWatch);
+    if (voice.state === "downloading") {
+      if (!settingsOpen) renderVoiceProgress();
+      renderVoiceSettings();
+      voiceWatch = setTimeout(async () => { await loadVoice(); watchVoiceDownload(); }, 700);
+      return;
+    }
+    renderVoiceSettings();
+    if (voice.state === "ready") { hideSpeechBox(); toast("Voices ready"); lastKey = ""; if (state) render(); }
+    else if (voice.error) showSpeechBox(voice.error, { buttons: [{ label: "Close", run: hideSpeechBox }] });
+  }
+  loadVoice().then(v => {
+    if (!v.available) return;
+    lastKey = ""; if (state) render();   // the speakers appear
+    if (v.state === "downloading") watchVoiceDownload();
+    // Turkish answers read on their own: have autolex ready before the first one.
+    if (state && state.readAloud && v.state === "ready" && parseLangs(state.speechLanguages).includes("tr")) loadLex();
+  });
 
-  // Settings → Read Aloud: a voice for each of Dictation's languages, with a test.
+  // Settings → Read Aloud: the voices' download, an English voice, a test for each language.
   let readVoiceChoice = {};
   const SAMPLE = { tr: "Merhaba, cevapları ben okuyacağım. Service Layer bağlantısı hazır.", en: "Hello, I will read the answers to you." };
+  function renderVoiceSettings() {
+    const line = $("vModel"), btn = $("vModelBtn");
+    if (!line) return;
+    btn.hidden = false;
+    if (!voice.available) { line.textContent = voice.state === "unsupported" ? "Needs a Mac with Apple silicon." : "Not available here."; btn.hidden = true; }
+    else if (voice.state === "ready") { line.textContent = "EMA Lightning and Kokoro · on this Mac · " + mb(voice.size); btn.hidden = true; }
+    else if (voice.state === "downloading") { line.textContent = "Downloading… " + mb(voice.received) + " of " + mb(voice.size); btn.textContent = "Cancel"; btn.dataset.do = "cancel"; }
+    else { line.textContent = "Not downloaded yet · " + mb(voice.size); btn.textContent = "Download"; btn.dataset.do = "download"; }
+    renderReadVoices();
+  }
+  $("vModelBtn").addEventListener("click", async e => { await loadVoice(e.currentTarget.dataset.do); watchVoiceDownload(); });
   function renderReadVoices() {
     const box = $("readVoices");
     if (!box) return;
     box.textContent = "";
-    const langs = speechLangs.slice();
-    if (!synth) { box.innerHTML = '<span class="none">This system offers no voices here.</span>'; return; }
-    langs.forEach(code => {
-      const voices = voicesFor(code).sort((a, b) => a.name.localeCompare(b.name));
+    const rows = [["tr", "Turkish", [["", "EMA Lightning"]]], ["en", "English", (voice.voices && voice.voices.en || []).map(v => [v.id, v.name])]];
+    rows.forEach(([code, label, options]) => {
       const name = document.createElement("span");
-      name.textContent = WHISPER_LANGS[code] || code;
+      name.textContent = label;
       box.appendChild(name);
-      if (!voices.length) {
-        const none = document.createElement("span");
-        none.className = "none"; none.textContent = "No voice installed for this language";
-        box.appendChild(none); box.appendChild(document.createElement("span"));
-        return;
-      }
       const sel = document.createElement("select");
-      const best = voiceFor(code, {});
-      sel.appendChild(new Option(best ? "Auto: " + best.name : "Auto", ""));
-      voices.forEach(v => sel.appendChild(new Option(v.name, v.name)));
-      sel.value = voices.some(v => v.name === readVoiceChoice[code]) ? readVoiceChoice[code] : "";
+      options.forEach(([id, title]) => sel.appendChild(new Option(title, id)));
+      sel.value = options.some(([id]) => id === readVoiceChoice[code]) ? readVoiceChoice[code] : options.length ? options[0][0] : "";
+      sel.disabled = options.length < 2;
       sel.addEventListener("change", () => { readVoiceChoice[code] = sel.value; });
       box.appendChild(sel);
       const test = document.createElement("button");
       test.type = "button"; test.textContent = "Test";
+      test.disabled = voice.state !== "ready";
       test.addEventListener("click", async () => {
         reader.stop();
-        if (code === "tr" && reader.lex === null) await loadLex();
-        synth.speak(utter(SAMPLE[code] || SAMPLE.en, code, readVoiceChoice));
+        test.disabled = true;
+        const buffer = await fetchAudio({ text: SAMPLE[code], lang: code }, readVoiceChoice, +$("readRate").value).catch(() => null);
+        test.disabled = false;
+        if (!buffer) { toast("Could not read it"); return; }
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer; source.connect(audioCtx.destination); source.start();
       });
       box.appendChild(test);
     });

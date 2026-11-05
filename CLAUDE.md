@@ -198,6 +198,20 @@ app) and About. Rebuild: `sh tools/autolex/fetch_data.sh && python3 -I tools/aut
 `tools/autolex/exceptions.tr.json` (abbreviations, product names). Origin: Forganise branch `claude/tts-watch` (owner approved the readings by
 ear). Checked with a fake speech engine in Playwright; not yet on the owner's Mac. Next: conversation mode (send on silence or on a manual
 "done", the owner's choice; its own shortcut and a long press on the mic; barge-in needs echo cancellation).
+On `dev` after v0.3.48 (6 Nov 2026), not built: **local voices replace the system voices** (the owner: no system voices;
+EMA for Turkish and the English model we discussed). `src/QuickPrompt.Voice` (ONNX Runtime 1.31.1, Apple silicon only: no
+macOS x64 library) makes each sentence's WAV in the engine (`POST /s/{token}/speak {lang,text,voice,speed}`, `GET|POST voice`
+for state and the one-time download); the page plays them with Web Audio, the next one made while one plays
+(`mediaTypesRequiringUserActionForPlayback = []`). Turkish: autolex in the page, then normalizer-tr 0.8 (`native/normalizer`,
+a Rust cdylib with a C ABI, built by `build-app.sh` with cargo), then a C# port of EMA Lightning 1.1.2's frontend, chunker and
+engine over our ONNX export (`tools/voice/export_ema.py`; checked against PyTorch: audio within 2e-4; 7 s of speech in ~160 ms).
+English: Kokoro-82M int8 with an eSpeak-free G2P (misaki lexicons + CMUdict, `tools/voice/build_en_lexicon.py`; inflections,
+compounds, letters; numbers as words); voices Heart, Bella, Michael (US), Emma, George (UK). Models (~131 MB) download once into
+`models/voice` (size + SHA-256, `VoiceModels.cs`): Kokoro from Hugging Face at a fixed revision, EMA from this repo's
+`voice-models-1` release, **which still has to be created** (the four files + EMA's LICENSE; the agent was not allowed to publish
+it). Other languages are not read. Licences in THIRD-PARTY-NOTICES.md and About. Also: Pip lines up with the bar again (the agent
+pill is out of the column's flow), scrolling fades the bubbles' own background over the returning glass. Conversation mode is
+half done in `git stash` ("conversation mode (engine + native hot key), unfinished").
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

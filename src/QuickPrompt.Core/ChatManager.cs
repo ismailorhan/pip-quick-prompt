@@ -340,6 +340,9 @@ namespace QuickPrompt.Core
         /// <summary>Set by the desktop app's engine (QuickPrompt.Agent) to enable the /api control endpoints.</summary>
         public AppControl Control { get; set; }
 
+        /// <summary>Local voices for reading answers aloud; null where the host has none (the Logi plugin).</summary>
+        public IReadAloud ReadAloud { get; set; }
+
         /// <summary>Runs a saved preset ("Prompt templates") on the current selection.</summary>
         public async Task<Boolean> RunSavedPresetAsync(String presetId)
         {

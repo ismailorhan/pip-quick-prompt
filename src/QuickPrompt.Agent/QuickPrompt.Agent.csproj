@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../QuickPrompt.Core/QuickPrompt.Core.csproj" />
+    <ProjectReference Include="..\QuickPrompt.Voice\QuickPrompt.Voice.csproj" />
   </ItemGroup>
 
 </Project>

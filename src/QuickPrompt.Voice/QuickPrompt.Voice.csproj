@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Read aloud: local neural voices run with ONNX Runtime. Turkish: EMA Lightning (+ normalizer-tr through
+       native/normalizer); English: Kokoro-82M with an eSpeak-free G2P (misaki lexicons + CMUdict).
+       Used by the app's engine (QuickPrompt.Agent) and DevHost; the Logi plugin does not carry it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>QuickPrompt.Voice</RootNamespace>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../QuickPrompt.Core/QuickPrompt.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data/en-lexicon.txt.gz" LogicalName="QuickPrompt.Voice.en-lexicon.txt.gz" />
+    <EmbeddedResource Include="Data/kokoro-config.json" LogicalName="QuickPrompt.Voice.kokoro-config.json" />
+    <!-- normalizer-tr for Turkish (native/normalizer, built by cargo; build-app.sh builds it before publishing). -->
+    <None Include="../../native/normalizer/target/release/libqp_normalizer.dylib" Condition="Exists('../../native/normalizer/target/release/libqp_normalizer.dylib')"
+          Link="libqp_normalizer.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.31.1" />
+  </ItemGroup>
+
+</Project>

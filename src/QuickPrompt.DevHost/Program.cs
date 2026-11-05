@@ -75,7 +75,8 @@ if (options.TryGetValue("icons", out var sheetPath))
 
 var dataDir = Opt("data", Path.Combine(Path.GetTempPath(), "quick-prompt-devhost"));
 var host = new ConsoleHost(dataDir) { Clipboard = Opt("text", "") };
-using var manager = new ChatManager(dataDir, host);
+using var voices = new QuickPrompt.Voice.LocalVoices(dataDir, (message, ex) => host.Log(message, ex));
+using var manager = new ChatManager(dataDir, host) { ReadAloud = voices };
 if (flags.Contains("no-open"))
 {
     manager.Launcher.OverrideOpen = url => Console.WriteLine("Popup URL: " + url);

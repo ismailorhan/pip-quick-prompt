@@ -183,6 +183,8 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
 
         let config = WKWebViewConfiguration()
         config.userContentController.add(self, name: "quickPrompt")
+        // Read aloud plays answers as they come, without a click for each one.
+        config.mediaTypesRequiringUserActionForPlayback = []
         let glassKind = glassViewClass != nil ? "liquid" : "vibrancy"
         // The Mac's region (e.g. "TR"): dictation offers its language next to English the first time.
         let region = (Locale.current.regionCode ?? "").filter { $0.isLetter }

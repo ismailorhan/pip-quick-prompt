@@ -22,7 +22,8 @@ if (string.IsNullOrWhiteSpace(dataDir))
 
 var control = new AppControl(token);
 var host = new AgentHost(control);
-using var manager = new ChatManager(dataDir, host) { Control = control };
+using var voices = new QuickPrompt.Voice.LocalVoices(dataDir, (message, ex) => host.Log(message, ex));
+using var manager = new ChatManager(dataDir, host) { Control = control, ReadAloud = voices };
 control.Manager = manager;
 
 // The app shows popups itself: hand it the URL instead of starting a window.
