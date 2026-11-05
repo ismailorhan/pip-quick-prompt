@@ -29,12 +29,18 @@ namespace QuickPrompt.Tests
         private List<JsonElement> Presets() => JsonDocument.Parse(this._manager.GetPresetsJson()).RootElement.EnumerateArray().ToList();
 
         [Fact]
-        public async Task An_actions_own_setup_reaches_the_provider()
+        public async Task A_templates_agent_and_its_setup_reach_the_provider()
         {
+            var agents = JsonDocument.Parse(this._manager.SaveAgent(new Dictionary<string, string>
+            {
+                ["name"] = "Researcher", ["provider"] = "claude", ["connection"] = "cli", ["model"] = "claude-sonnet-5-5",
+                ["instruction"] = "Cite your sources.",
+                ["setup"] = "{\"enabled\":true,\"web\":false,\"disabledServers\":[\"mail\"]}",
+            })).RootElement;
+            var agentId = agents.GetProperty("agents").EnumerateArray().First(a => a.GetProperty("name").GetString() == "Researcher").GetProperty("id").GetString();
             var json = this._manager.SaveAction(new Dictionary<string, string>
             {
-                ["title"] = "Lookup", ["instruction"] = "Look up {text}", ["input"] = "none",
-                ["setup"] = "custom", ["setupChoice"] = "{\"enabled\":true,\"web\":false,\"disabledServers\":[\"mail\"]}",
+                ["title"] = "Lookup", ["instruction"] = "Look up {text}", ["agent"] = agentId,
             });
             var id = JsonDocument.Parse(json).RootElement.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Lookup").GetProperty("id").GetString();
 
@@ -43,10 +49,14 @@ namespace QuickPrompt.Tests
             Assert.True(session.StartTurnFromPopup("Acme Ltd", ""));
             await session.CurrentTurn;
 
-            var setup = this._claude.Requests.Single().Setup;
-            Assert.True(setup.Enabled);
-            Assert.False(setup.Web);
-            Assert.Equal(new[] { "mail" }, setup.DisabledServers);
+            var request = this._claude.Requests.Single();
+            Assert.True(request.Setup.Enabled);
+            Assert.False(request.Setup.Web);
+            Assert.Equal(new[] { "mail" }, request.Setup.DisabledServers);
+            Assert.Equal("claude-sonnet-5-5", request.Model);
+            Assert.EndsWith("Cite your sources.", request.SystemPrompt);
+            using var state = JsonDocument.Parse(session.ToJson(true));
+            Assert.Equal("Researcher", state.RootElement.GetProperty("agent").GetProperty("name").GetString());
         }
 
         [Fact]

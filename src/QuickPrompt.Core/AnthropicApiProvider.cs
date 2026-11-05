@@ -118,7 +118,7 @@ namespace QuickPrompt.Core
             var channel = Channel.CreateUnbounded<AiEvent>();
             var settings = this._settings();
             var model = ResolveModel(request.Model, settings.ClaudeApiModel);
-            _ = Task.Run(() => this.PumpAsync(key.Trim(), model, settings.ClaudeApiEffort, request, channel.Writer, cancellationToken));
+            _ = Task.Run(() => this.PumpAsync(key.Trim(), model, String.IsNullOrWhiteSpace(request.Effort) ? settings.ClaudeApiEffort : request.Effort, request, channel.Writer, cancellationToken));
 
             yield return new AiEvent(AiEventKind.Status, "Waiting for the answer…");
             await foreach (var ev in channel.Reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))

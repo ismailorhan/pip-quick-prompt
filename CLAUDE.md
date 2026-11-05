@@ -51,6 +51,11 @@ Popup page: one HTML/JS page (src/QuickPrompt.Core/ChatPage.cs) in a WKWebView; 
   and per template. Pictures work with all four.
 - "Use my plugins, skills and MCP servers": the CLIs can use the owner's Claude Code / Codex setup, chosen
   per item in Settings and per template; never shell or file-writing tools.
+- Agents (`settings.json` → `Agents`, `DefaultAgentId`; `Agent.cs`): a named AI setup = AI, connection (CLI/API),
+  model, API effort, plugins/skills/MCP choice, own instruction. The default agent serves new chats, Pip and the
+  shortcuts; templates store `AgentId` ("" = default agent; null only in files from before agents, migrated once at
+  start); the chat's agent chip switches the agent for the next message. Ring presets (provider + overrides) resolve
+  to their AI's agent with the overrides (`ResolveAgent`). API keys stay per provider (Settings → API keys).
 - Prompt templates (`actions.json` + built-ins): parameters `{$selected}`, `{$clipboard}` (system, `$`),
   `{name}` and `{name:a|b}` (fields asked in a form). On/off, export/import (`.json`).
 - Data: `~/Library/Application Support/Quick Prompt` (settings.json, history/, actions.json, presets.json);
@@ -169,6 +174,13 @@ starts listening, again stops; with no popup it opens a new chat with `startDict
 chat tucks into Pip; Pip shows a mirrored spectrum of red rays (option A1, picked by the owner) drawn on #pipWave
 from the mic loudness (dB scale −50…−10, with automatic gain in the page); #root.dictating pads 30 px so the rays
 fit, the anchors keep Pip still. The mic button hides while recording.
+On `dev` after v0.3.46 (5 Nov 2026), not built: Pip's dictation rays start on the disc's rim (no gap). **Agents**
+(the owner's design): Settings → Agents (list, Make default, editor: name, colour, AI, CLI/API, model, effort for the
+Claude API, plugins/skills/MCP, instruction) and Settings → API keys replace the Claude / ChatGPT panes; the template
+editor picks an agent; the question bar has an agent chip (a native menu; just its dot while typing); Pip's right-click
+New Chat lists the agents when there are several. Older settings become agents "Claude" (default) and "ChatGPT";
+older templates point at the matching agent or a new one ("Claude Haiku 5.5 · API"). Exports are version 2 (they carry
+the template's agent). Checked with the real engine (DevHost) and Playwright; not yet on the owner's Mac.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

@@ -36,6 +36,10 @@ namespace QuickPrompt.Core
         /// <summary>Put the first answer on the clipboard as soon as it is complete.</summary>
         public Boolean AutoCopy { get; set; }
 
+        /// <summary>The agent this template uses ("" = the default agent). Null in templates from before agents
+        /// (and presets remembered from the ring): ProviderId, Connection, Model and Setup say how it runs.</summary>
+        public String AgentId { get; set; }
+
         /// <summary>Switched off: kept in the editor but not offered in Pip's list or the menu bar.</summary>
         public Boolean Enabled { get; set; } = true;
 
@@ -133,7 +137,7 @@ namespace QuickPrompt.Core
                 this.Save(new SavedPreset
                 {
                     Title = current.Title, Instruction = current.Instruction, ProviderId = current.ProviderId,
-                    Connection = current.Connection, Model = current.Model, Enabled = enabled,
+                    Connection = current.Connection, Model = current.Model, Enabled = enabled, AgentId = current.AgentId,
                 });
                 return;
             }
@@ -226,6 +230,7 @@ namespace QuickPrompt.Core
                     Custom = true,
                     Enabled = action.Enabled,
                     AutoCopy = action.AutoCopy,
+                    AgentId = action.AgentId,
                     LastUsedUtc = DateTime.UtcNow,
                 };
                 var index = list.FindIndex(p => p.Id == saved.Id);
@@ -240,6 +245,19 @@ namespace QuickPrompt.Core
 
                 this.WriteLocked(this._customPath, list);
                 return saved;
+            }
+        }
+
+        /// <summary>Changes your templates in place; <paramref name="change"/> returns whether to write them back.</summary>
+        public void UpdateCustom(Func<List<SavedPreset>, Boolean> change)
+        {
+            lock (this._lock)
+            {
+                var list = this.ReadLocked(this._customPath);
+                if (change(list))
+                {
+                    this.WriteLocked(this._customPath, list);
+                }
             }
         }
 
@@ -323,7 +341,7 @@ namespace QuickPrompt.Core
 
         private static SavedPreset BuiltIn(String title, String instruction)
         {
-            var preset = new SavedPreset { Title = title, Instruction = instruction, BuiltIn = true };
+            var preset = new SavedPreset { Title = title, Instruction = instruction, BuiltIn = true, AgentId = "" };
             preset.Id = "builtin-" + IdFor(preset);
             return preset;
         }

@@ -102,6 +102,7 @@ namespace QuickPrompt.Core
                     _ = Task.Run(() => manager.ExecutePresetAsync(new Preset
                     {
                         ProviderId = String.IsNullOrEmpty(Get("provider")) ? ProviderIds.Claude : Get("provider"),
+                        AgentId = String.IsNullOrEmpty(Get("provider")) ? "" : null,   // the default agent
                         Input = Get("canCopy") == "false" ? InputModes.Popup : InputModes.Selection,
                         Flow = FlowModes.Edit,
                         Quick = true,
@@ -109,7 +110,8 @@ namespace QuickPrompt.Core
                     return (200, "{\"ok\":true}");
 
                 case ("POST", "new"):
-                    var created = manager.CreateSession(String.IsNullOrEmpty(Get("provider")) ? ProviderIds.Claude : Get("provider"), "", "");
+                    // The default agent, unless an AI is named (older callers).
+                    var created = manager.CreateSession(String.IsNullOrEmpty(Get("provider")) ? null : manager.AgentForProvider(Get("provider")), "");
                     created.StartDictation = Get("dictate") == "true";   // the dictation shortcut with no popup open
                     manager.OpenWindow(created);
                     return (200, "{\"ok\":true}");

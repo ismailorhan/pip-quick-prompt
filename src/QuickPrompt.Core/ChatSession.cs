@@ -96,8 +96,40 @@ namespace QuickPrompt.Core
         /// <summary>Open the popup on the History view.</summary>
         public Boolean ShowHistory { get; set; }
 
-        /// <summary>The CLI setup this conversation uses (from its action); null = as in Settings.</summary>
+        /// <summary>The CLI setup this conversation uses (from its agent); null = as in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
+
+        /// <summary>The agent this conversation talks to (a copy, so editing the agent later changes nothing here).</summary>
+        public Agent Agent { get; private set; }
+
+        /// <summary>Uses an agent from now on: its AI, connection, model, setup, effort and instruction.</summary>
+        private void SetAgentLocked(IAiProvider provider, Agent agent)
+        {
+            this.Provider = provider;
+            this.Agent = agent?.Clone();
+            if (agent != null)
+            {
+                this.Connection = agent.Connection;
+                this.Model = agent.Model ?? "";
+                this.Setup = Agent.CloneSetup(agent.Setup);
+            }
+        }
+
+        /// <summary>Switches the agent of this conversation; the next message goes to it, with the conversation so far.</summary>
+        public Boolean UseAgent(IAiProvider provider, Agent agent)
+        {
+            lock (this._lock)
+            {
+                if (this._busy)
+                {
+                    return false;
+                }
+
+                this.SetAgentLocked(provider, agent);
+                this.TouchLocked();
+                return true;
+            }
+        }
 
         /// <summary>Open as Pip only (no conversation showing).</summary>
         public Boolean StartCollapsed { get; set; }
@@ -114,6 +146,7 @@ namespace QuickPrompt.Core
                 {
                     Id = this.HistoryId,
                     ProviderId = this.Provider.Id,
+                    AgentId = this.Agent?.Id ?? "",
                     Connection = this.Connection,
                     Model = this.Model,
                     Title = this.Title,
@@ -128,7 +161,7 @@ namespace QuickPrompt.Core
         }
 
         /// <summary>Switches this popup to a saved preset: a new conversation waiting for pasted text.</summary>
-        public Boolean ApplyPreset(IAiProvider provider, String connection, String title, String model, String instruction)
+        public Boolean ApplyPreset(IAiProvider provider, Agent agent, String title, String instruction)
         {
             lock (this._lock)
             {
@@ -137,10 +170,8 @@ namespace QuickPrompt.Core
                     return false;
                 }
 
-                this.Provider = provider;
-                this.Connection = connection;
+                this.SetAgentLocked(provider, agent);
                 this.Title = title ?? "";
-                this.Model = model ?? "";
             }
 
             if (!this.StartNew())
@@ -156,8 +187,8 @@ namespace QuickPrompt.Core
             }
         }
 
-        /// <summary>Back to a plain, empty conversation with the given AI: no template, title, model or setup.</summary>
-        public Boolean Reset(IAiProvider provider, String connection)
+        /// <summary>Back to a plain, empty conversation with the given agent: no template or title.</summary>
+        public Boolean Reset(IAiProvider provider, Agent agent)
         {
             lock (this._lock)
             {
@@ -166,11 +197,8 @@ namespace QuickPrompt.Core
                     return false;
                 }
 
-                this.Provider = provider;
-                this.Connection = connection;
+                this.SetAgentLocked(provider, agent);
                 this.Title = "";
-                this.Model = "";
-                this.Setup = null;
             }
 
             return this.StartNew();
@@ -202,7 +230,8 @@ namespace QuickPrompt.Core
         }
 
         /// <summary>Continues a saved conversation in this popup. Not allowed while a turn is running.</summary>
-        public Boolean ResumeFrom(ConversationRecord record, IAiProvider provider)
+        /// <param name="agent">The agent it was held with, if it still exists; else it goes on as it was saved.</param>
+        public Boolean ResumeFrom(ConversationRecord record, IAiProvider provider, Agent agent = null)
         {
             lock (this._lock)
             {
@@ -211,7 +240,7 @@ namespace QuickPrompt.Core
                     return false;
                 }
 
-                this.Provider = provider;
+                this.SetAgentLocked(provider, agent);
                 this.HistoryId = record.Id;
                 this.CreatedUtc = record.CreatedUtc;
                 this.Connection = record.Connection;
@@ -425,7 +454,10 @@ namespace QuickPrompt.Core
                 History = history,
                 Message = message,
                 Model = this.Model,
-                SystemPrompt = this._settings().SystemPrompt,
+                SystemPrompt = String.IsNullOrWhiteSpace(this.Agent?.Instruction)
+                    ? this._settings().SystemPrompt
+                    : (this._settings().SystemPrompt + "\n\n" + this.Agent.Instruction).Trim(),
+                Effort = this.Agent?.Effort ?? "",
                 Setup = this.Setup,
                 Images = pictures,
                 HistoryImages = historyImages,
@@ -499,6 +531,7 @@ namespace QuickPrompt.Core
                     provider = this.Provider.Id,
                     providerName = this.Provider.DisplayName,
                     model = this.Model,
+                    agent = this.Agent == null ? null : new { id = this.Agent.Id, name = this.Agent.Name, color = this.Agent.Color },
                     appWindow = isAppWindow,
                     draft = new { instruction = this.DraftInstruction, context = this.DraftContext, images = this.DraftImages.Select(i => i.Thumb).ToArray() },
                     notice = this.Notice,

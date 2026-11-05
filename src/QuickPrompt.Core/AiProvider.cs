@@ -88,6 +88,9 @@ namespace QuickPrompt.Core
 
         public String SystemPrompt { get; set; } = "";
 
+        /// <summary>Anthropic API effort for this request (the agent's); empty = as in Settings.</summary>
+        public String Effort { get; set; } = "";
+
         /// <summary>CLI setup for this request (an action's own choice); null = the one in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
 

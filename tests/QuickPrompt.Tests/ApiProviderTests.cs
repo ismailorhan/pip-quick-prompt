@@ -342,12 +342,12 @@ namespace QuickPrompt.Tests
         public void Dispose() => this._manager.Dispose();
 
         [Fact]
-        public async Task Connection_comes_from_settings_unless_the_preset_overrides_it()
+        public async Task Connection_comes_from_the_default_agent_unless_the_preset_overrides_it()
         {
             Assert.Same(this._cli, this._manager.GetProvider(ProviderIds.Claude, ConnectionModes.Default));
             Assert.Same(this._api, this._manager.GetProvider(ProviderIds.Claude, ConnectionModes.Api));
 
-            this._manager.SaveSettings(new Dictionary<string, string> { ["claudeConnection"] = "api" });
+            this._manager.SaveAgent(new Dictionary<string, string> { ["id"] = "claude", ["name"] = "Claude", ["provider"] = "claude", ["connection"] = "api" });
             Assert.Same(this._api, this._manager.GetProvider(ProviderIds.Claude, ConnectionModes.Default));
             Assert.Same(this._cli, this._manager.GetProvider(ProviderIds.Claude, ConnectionModes.Cli));
 

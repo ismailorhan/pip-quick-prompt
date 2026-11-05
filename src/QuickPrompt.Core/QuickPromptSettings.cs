@@ -1,7 +1,9 @@
 namespace QuickPrompt.Core
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Text.Json;
 
     /// <summary>
@@ -120,6 +122,40 @@ namespace QuickPrompt.Core
         /// <summary>Use the user's Codex MCP servers in CLI calls (off: none are started).</summary>
         public CliSetupChoice CodexSetup { get; set; } = new CliSetupChoice();
 
+        /// <summary>The user's agents (named AI setups). Filled from the older per-AI settings on first run.</summary>
+        public List<Agent> Agents { get; set; }
+
+        /// <summary>The agent new chats, Pip and the shortcuts use.</summary>
+        public String DefaultAgentId { get; set; } = "";
+
+        /// <summary>The default agent (never null after Normalize).</summary>
+        public Agent DefaultAgent() =>
+            this.Agents?.FirstOrDefault(a => a.Id == this.DefaultAgentId) ?? this.Agents?.FirstOrDefault() ?? LegacyAgents(this)[0];
+
+        /// <summary>An agent by id; empty or unknown (deleted): the default agent.</summary>
+        public Agent FindAgent(String id) =>
+            String.IsNullOrEmpty(id) ? this.DefaultAgent() : this.Agents?.FirstOrDefault(a => a.Id == id) ?? this.DefaultAgent();
+
+        /// <summary>The agents the older settings described: Claude and ChatGPT as they were set up.</summary>
+        public static List<Agent> LegacyAgents(QuickPromptSettings s) => new List<Agent>
+        {
+            new Agent
+            {
+                Id = "claude", Name = "Claude", Color = Agent.ClaudeColor, ProviderId = ProviderIds.Claude,
+                Connection = ConnectionModes.Normalize(s.ClaudeConnection, ConnectionModes.Cli) == ConnectionModes.Api ? ConnectionModes.Api : ConnectionModes.Cli,
+                Model = ConnectionModes.Normalize(s.ClaudeConnection, ConnectionModes.Cli) == ConnectionModes.Api ? s.ClaudeApiModel ?? "" : "",
+                Effort = Agent.Efforts.Contains(s.ClaudeApiEffort ?? "") ? s.ClaudeApiEffort : "",
+                Setup = Agent.CloneSetup(s.ClaudeSetup),
+            },
+            new Agent
+            {
+                Id = "chatgpt", Name = "ChatGPT", Color = Agent.ChatGptColor, ProviderId = ProviderIds.Codex,
+                Connection = ConnectionModes.Normalize(s.ChatGptConnection, ConnectionModes.Cli) == ConnectionModes.Api ? ConnectionModes.Api : ConnectionModes.Cli,
+                Model = ConnectionModes.Normalize(s.ChatGptConnection, ConnectionModes.Cli) == ConnectionModes.Api ? s.OpenAiApiModel ?? "" : "",
+                Setup = Agent.CloneSetup(s.CodexSetup),
+            },
+        };
+
         public static QuickPromptSettings LoadOrCreate(String filePath, Action<String> log = null)
         {
             try
@@ -138,10 +174,13 @@ namespace QuickPrompt.Core
             catch (Exception ex)
             {
                 log?.Invoke($"Could not read settings.json, using defaults: {ex.Message}");
-                return new QuickPromptSettings();
+                var fallback = new QuickPromptSettings();
+                fallback.Normalize();
+                return fallback;
             }
 
             var settings = new QuickPromptSettings();
+            settings.Normalize();
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath));
@@ -187,6 +226,30 @@ namespace QuickPrompt.Core
             if (this.TimeoutSeconds < 10)
             {
                 this.TimeoutSeconds = 300;
+            }
+
+            // Agents: made once from the older per-AI settings; ids unique, exactly one default.
+            if (this.Agents == null || this.Agents.Count == 0)
+            {
+                this.Agents = LegacyAgents(this);
+                this.DefaultAgentId = "claude";
+            }
+
+            this.Agents.RemoveAll(a => a == null);
+            var ids = new HashSet<String>(StringComparer.Ordinal);
+            foreach (var agent in this.Agents)
+            {
+                agent.Normalize();
+                if (agent.Id.Length == 0 || !System.Text.RegularExpressions.Regex.IsMatch(agent.Id, "^[A-Za-z0-9]{1,24}$") || !ids.Add(agent.Id))
+                {
+                    agent.Id = Agent.NewId();
+                    ids.Add(agent.Id);
+                }
+            }
+
+            if (!this.Agents.Any(a => a.Id == this.DefaultAgentId))
+            {
+                this.DefaultAgentId = this.Agents[0].Id;
             }
 
             this.WindowWidth = Math.Clamp(this.WindowWidth, 360, 2000);

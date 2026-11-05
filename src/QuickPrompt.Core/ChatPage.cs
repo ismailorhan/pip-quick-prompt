@@ -276,6 +276,21 @@ button.primary { background: var(--accent); color: var(--accent-text); font-weig
 .lightbox .lclose { position: absolute; top: 14px; right: 14px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; }
 html.dropping #main { outline: 2px dashed var(--accent); outline-offset: -4px; border-radius: 22px; }
 html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: 50%; }
+.agentchip { flex: none; align-self: center; display: inline-flex; align-items: center; gap: 6px; height: 28px; max-width: 132px; padding: 0 10px 0 9px; border-radius: 999px; background: var(--faint); color: var(--muted); font-size: 12px; font-weight: 500; }
+.agentchip:hover, .agentchip.hov { color: var(--text); background: rgba(128,128,128,.2); }
+.agentchip .aname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agentchip.slim { padding: 0; width: 28px; justify-content: center; }
+.agentchip.slim .aname { display: none; }
+.agentchip .dot, .aglist .dot, .afagent .dot { background: var(--agent, var(--accent)); }
+.swatches { display: flex; gap: 7px; }
+.swatches button { width: 20px; height: 20px; padding: 0; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+.swatches button.on { box-shadow: 0 0 0 2px rgb(var(--tint-rgb)), 0 0 0 4px var(--c); }
+.agform .frow .sfield[hidden] { display: none; }
+.agform select, .agform input[type=text] { width: 100%; }
+.aglist .hitem { align-items: center; }
+.aglist .dot { margin-top: 0; width: 10px; height: 10px; }
+.aglist .defbadge { flex: none; font-size: 11px; font-weight: 600; color: var(--accent); padding: 2px 8px; border-radius: 999px; background: var(--faint); }
+.aglist .mkdef { flex: none; font-size: 11.5px; padding: 3px 10px; }
 .addmenu { position: absolute; z-index: 30; min-width: 170px; padding: 4px; border-radius: 12px; background: rgb(var(--tint-rgb)); border: 1px solid var(--edge); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .addmenu button { display: block; width: 100%; text-align: left; background: transparent; border-radius: 8px; padding: 7px 10px; font-size: 13px; color: var(--text); }
 .addmenu button:hover { background: var(--faint); }
@@ -477,8 +492,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <button type="button" data-pane="shortcuts"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z M7 10h0 M10.5 10h0 M14 10h0 M17.5 10h0 M8 14h8"/></svg>Shortcuts</button>
         <button type="button" data-pane="speech"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg>Dictation</button>
         <div class="snav-g">AI</div>
-        <button type="button" data-pane="claude"><svg class="plogo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#D97757" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>Claude</button>
-        <button type="button" data-pane="chatgpt"><svg class="plogo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10A37F" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5l1.6 4.4 4.4 1.6-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z M17.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>ChatGPT</button>
+        <button type="button" data-pane="agents"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.6 4.4 4.4 1.6-4.4 1.6L12 15.5l-1.6-4.4L6 9.5l4.4-1.6z M5 17.5c1.6-1.4 4-2.2 7-2.2s5.4.8 7 2.2 M8.5 21h7"/></svg>Agents</button>
+        <button type="button" data-pane="keys"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 9.5a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z M13.2 12.7L20 19.5 M17 16.5l2-2 M18.8 18.3l1.7-1.7"/></svg>API keys</button>
         <div class="snav-g">Customize</div>
         <button type="button" data-pane="templates"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M5 4.5l.6 1.4 1.4.6-1.4.6L5 8.5l-.6-1.4L3 6.5l1.4-.6zM5 15.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L3 17.5l1.4-.6z"/></svg>Prompt templates</button>
         <div class="snav-g">Quick Prompt</div>
@@ -558,47 +573,53 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div class="slider"><span class="sz small" title="Clear">◌</span><input type="range" id="glassSlider" min="0" max="100" step="1" aria-label="Glass density"><span class="sz big" title="Dense">●</span></div>
           </div>
         </section>
-        <section class="spane" data-pane="claude">
-          <h2>Claude</h2>
-          <div class="sline">
-            <div><div class="sl-t">Connection</div><div class="sl-d">CLI uses your Claude plan through Claude Code. API is faster and billed per use to your API account.</div></div>
-            <div class="seg" data-name="claudeConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div>
+        <section class="spane" data-pane="agents">
+          <h2>Agents</h2>
+          <div class="sl-d">An agent is an AI set up your way: which AI, how it connects, the model, and which of your plugins, skills and MCP servers it may use. New chats, Pip and the shortcuts use the default agent; a template or the chat can pick another.</div>
+          <div class="hlist aglist" id="agList"></div>
+          <div class="actions" id="agButtons"><button type="button" class="primary" id="agNew">New agent</button></div>
+          <div class="aform agform" id="agForm" hidden>
+            <label class="sfield">Name<input type="text" id="agName" spellcheck="false" maxlength="40" placeholder="e.g. Claude Fast"></label>
+            <div class="srow sub"><span class="sname">Colour</span><div class="swatches" id="agColors"></div></div>
+            <div class="srow sub"><span class="sname">AI</span>
+              <div class="seg" data-name="agProvider"><button type="button" data-v="claude">Claude</button><button type="button" data-v="codex">ChatGPT</button></div></div>
+            <div class="srow sub"><span class="sname">Connection</span>
+              <div class="seg" data-name="agConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div></div>
+            <div class="shint" id="agConnHint"></div>
+            <div class="frow">
+              <label class="sfield" id="agModelClaudeWrap">Model<select id="agModelClaude">
+                <option value="">Default</option>
+                <option value="claude-opus-5-5">Claude Opus 5.5</option>
+                <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
+                <option value="claude-haiku-5-5">Claude Haiku 5.5 — fastest</option>
+              </select></label>
+              <label class="sfield" id="agModelGptWrap">Model<input type="text" id="agModelGpt" spellcheck="false"></label>
+              <label class="sfield" id="agEffortWrap">Effort<select id="agEffort">
+                <option value="low">Low — fastest</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Max</option>
+              </select></label>
+            </div>
+            <div class="cli-only" data-for="agConnection">
+              <div class="srow sub"><span class="sname">Plugins, skills and MCP servers</span>
+                <div class="seg" data-name="agSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
+              <div class="shint" id="agSetupHint"></div>
+              <div class="setup" id="agSetupBox" data-setup="claude" data-for="agSetupOn" hidden></div>
+            </div>
+            <label class="sfield">Instruction (optional)<textarea id="agInstruction" rows="3" spellcheck="false" placeholder="e.g. Answer in Turkish. Keep it short."></textarea></label>
+            <div class="srow sub"><span class="sname">Default agent</span>
+              <div class="seg" data-name="agDefault"><button type="button" data-v="true">Yes</button><button type="button" data-v="false">No</button></div></div>
+            <div class="shint">New chats, Pip and the shortcuts use the default agent.</div>
+            <div class="actions"><button type="button" class="primary" id="agSave">Save</button><button type="button" id="agCancel">Cancel</button><span style="flex:1"></span><button type="button" id="agDelete">Delete</button></div>
           </div>
-      <div class="api-only" data-for="claudeConnection">
-      <div class="skey"><label class="sfield">Anthropic API key<input type="password" id="claudeKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label><button type="button" data-clear="claudeKey" hidden>Remove</button></div>
-      <label class="sfield">API model<select id="claudeModel">
-        <option value="claude-opus-5-5">Claude Opus 5.5</option>
-        <option value="claude-sonnet-5-5">Claude Sonnet 5.5</option>
-        <option value="claude-haiku-5-5">Claude Haiku 5.5 — fastest</option>
-      </select></label>
-      </div>
-      <div class="cli-only" data-for="claudeConnection">
-        <div class="srow sub"><span class="sname">Use my plugins, skills and MCP servers</span>
-          <div class="seg" data-name="claudeSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
-        <div class="shint">Lets Claude use what you installed in Claude Code: plugins, skills, and MCP servers (connected tools such as a CRM or your mail). Off: plain answers, fastest. On: only what you tick below, a little slower. It can look things up and use those tools, but cannot run commands or change files.</div>
-        <div class="setup" data-setup="claude" data-for="claudeSetupOn" hidden></div>
-      </div>
         </section>
-        <section class="spane" data-pane="chatgpt">
-          <h2>ChatGPT</h2>
-          <div class="sline">
-            <div><div class="sl-t">Connection</div><div class="sl-d">CLI uses your ChatGPT plan through the Codex CLI. API is faster and billed per use to your OpenAI account.</div></div>
-            <div class="seg" data-name="chatgptConnection"><button type="button" data-v="cli">CLI</button><button type="button" data-v="api">API</button></div>
-          </div>
-      <div class="api-only" data-for="chatgptConnection">
-      <div class="skey"><label class="sfield">OpenAI API key<input type="password" id="chatgptKey" autocomplete="off" spellcheck="false" placeholder="sk-…"></label><button type="button" data-clear="chatgptKey" hidden>Remove</button></div>
-      <label class="sfield">API model<input type="text" id="chatgptModel" spellcheck="false" placeholder="gpt-5-mini"></label>
-      </div>
-      <div class="cli-only" data-for="chatgptConnection">
-        <div class="srow sub"><span class="sname">Use my skills and MCP servers</span>
-          <div class="seg" data-name="chatgptSetupOn"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
-        <div class="shint">Lets ChatGPT use what you set up in the Codex CLI: skills and MCP servers (connected tools). Off: plain answers, faster. On: only what you tick below. Codex stays read-only.</div>
-        <div class="setup" data-setup="chatgpt" data-for="chatgptSetupOn" hidden></div>
-      </div>
+        <section class="spane" data-pane="keys">
+          <h2>API keys</h2>
+          <div class="sl-d">Agents that connect through the API use these keys (billed per use to your account). Agents that connect through the CLI use your Claude or ChatGPT plan instead. The keys stay in your Keychain.</div>
+          <div class="skey"><label class="sfield">Anthropic API key (Claude)<input type="password" id="claudeKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label><button type="button" data-clear="claudeKey" hidden>Remove</button></div>
+          <div class="skey"><label class="sfield">OpenAI API key (ChatGPT)<input type="password" id="chatgptKey" autocomplete="off" spellcheck="false" placeholder="sk-…"></label><button type="button" data-clear="chatgptKey" hidden>Remove</button></div>
         </section>
         <section class="spane" data-pane="templates">
           <h2>Prompt templates</h2>
-          <div class="sl-d">Your own prompts, with fields to fill in. Run them from Pip or the menu bar. Each one can choose its own plugins, MCP servers and skills.</div>
+          <div class="sl-d">Your own prompts, with fields to fill in. Run them from Pip or the menu bar. Each one runs with an agent of your choice.</div>
           <div class="stemplates" id="setTemplates"></div>
         </section>
         <section class="spane" data-pane="about">
@@ -653,19 +674,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <div class="prow"><code>{name:a|b|c}</code><span>A list to pick from, e.g. <code>{tone:friendly|formal|short}</code>; the first is the default.</span></div>
         <div class="pnote">Parameters with <b>$</b> are filled in by Quick Prompt. Without <code>{$selected}</code> or <code>{$clipboard}</code>, you type or paste the text in the popup.</div>
       </div>
-      <div class="srow" style="margin-top:10px"><span class="sname">AI</span>
-        <div class="seg" data-name="afProvider"><button type="button" data-v="claude">Claude</button><button type="button" data-v="codex">ChatGPT</button></div></div>
-      <div class="frow">
-        <label class="sfield">Connection<select id="afConnection"><option value="default">As in Settings</option><option value="cli">CLI</option><option value="api">API</option></select></label>
-      </div>
-      <label class="sfield">Model (optional)<input type="text" id="afModel" spellcheck="false" placeholder="Default"></label>
+      <label class="sfield">Agent<select id="afAgent"></select></label>
+      <div class="shint">Which AI, model, plugins, skills and MCP servers it uses. Set agents up in Settings → Agents.</div>
       <div class="srow sub"><span class="sname">Copy the first answer</span>
         <div class="seg" data-name="afAutoCopy"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
       <div class="shint">On: the first answer goes onto the clipboard as soon as it is complete, ready to paste.</div>
-      <div class="srow sub"><span class="sname">Plugins, MCP servers and skills</span>
-        <div class="seg" data-name="afSetup"><button type="button" data-v="default">As in Settings</button><button type="button" data-v="off">None</button><button type="button" data-v="custom">Choose</button></div></div>
-      <div class="shint" id="afSetupHint"></div>
-      <div class="setup" id="afSetupBox" data-setup="claude" hidden></div>
       <div class="actions"><button type="button" class="primary" id="afSave">Save</button><button type="button" id="afCancel">Cancel</button><span style="flex:1"></span><button type="button" id="afDelete">Delete</button></div>
     </div>
   </div>
@@ -677,6 +690,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   <div class="bar glass" id="bar" data-drag>
     <button type="button" class="round" id="ctxBtn" title="Add text or an attachment">+</button><input type="file" id="attachFile" multiple hidden>
     <textarea id="prompt" rows="1" placeholder="Ask…"></textarea>
+    <button type="button" class="agentchip" id="barAgent" title="Agent: click to switch" hidden><span class="dot"></span><span class="aname"></span></button>
     <button type="button" class="round gear" id="barPin" title="Pin: Esc and ✕ keep it as Pip" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6z M12 16v5"/></svg></button>
     <button type="button" class="round gear" id="barHistory" title="Recent conversations"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
     <button type="button" class="round gear mic" id="barMic" title="Dictate: speak, then click again (↵ sends, esc cancels)" hidden><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z M5.5 11a6.5 6.5 0 0 0 13 0 M12 17.5V21 M8.5 21h7"/></svg></button>
@@ -981,8 +995,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   // ---------- settings ----------
-  const set = { view: $("settings"), status: $("setStatus"), claudeKey: $("claudeKey"), chatgptKey: $("chatgptKey"),
-                claudeModel: $("claudeModel"), chatgptModel: $("chatgptModel") };
+  const set = { view: $("settings"), status: $("setStatus"), claudeKey: $("claudeKey"), chatgptKey: $("chatgptKey") };
   const segValues = {};
   const keyRemoval = {};
   let settingsOpen = false, settingsOnly = false;
@@ -997,7 +1010,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (cli) cli.hidden = value !== "cli";
     const setup = document.querySelector('.setup[data-for="' + name + '"]');
     if (setup) { setup.hidden = value !== "on"; if (value === "on") loadSetup(); }
-    if (name === "afSetup" || name === "afProvider") refreshActionSetup();
+    if (name === "agProvider" || name === "agConnection") refreshAgentForm();
     queueLayout();
   }
   document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => setSeg(b.parentElement.dataset.name, b.dataset.v)));
@@ -1115,6 +1128,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     set.view.querySelectorAll(".spane").forEach(p => { p.hidden = p.dataset.pane !== name; });
     set.view.querySelectorAll(".snav button").forEach(b => b.classList.toggle("on", b.dataset.pane === name));
     if (name === "templates") { mountActions($("setTemplates")); showActionList(); loadActions(); }
+    if (name === "agents") { showAgentList(); loadAgents(); }
     const panes = set.view.querySelector(".spanes");
     if (panes) panes.scrollTop = 0;
     queueLayout();
@@ -1134,8 +1148,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const s = await (await fetch(base + "settings", { cache: "no-store" })).json();
       $("setVersion").textContent = s.version ? "v" + s.version : "";
       $("aboutVersion").textContent = s.version ? "Version " + s.version : "";
-      setSeg("claudeConnection", s.claude.connection);
-      setSeg("chatgptConnection", s.chatgpt.connection);
       setSeg("saveHistory", s.saveHistory ? "true" : "false");
       setSeg("keepPip", s.keepPip === false ? "false" : "true");
       speechLangs = parseLangs(s.speechLanguages); renderLangs();
@@ -1148,14 +1160,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       savedGlass = s.glassTint; setGlassSlider(s.glassTint);
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
-      if (![...set.claudeModel.options].some(o => o.value === s.claude.model)) {
-        set.claudeModel.add(new Option(s.claude.model, s.claude.model));
-      }
-      set.claudeModel.value = s.claude.model;
-      set.chatgptModel.value = s.chatgpt.model;
       setupData = null;
-      setSeg("claudeSetupOn", s.claude.setup ? "on" : "off");
-      setSeg("chatgptSetupOn", s.chatgpt.setup ? "on" : "off");
     } catch (e) {
       set.status.textContent = "Could not load settings";
     }
@@ -1270,9 +1275,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const a = e.target.closest("[data-refresh]");
     if (a) { e.preventDefault(); loadSetup(true); }
   });
-  function setupChoice(name) {
-    return choiceFrom(document.querySelector('.setup[data-for][data-setup="' + name + '"]'), segValues[name + "SetupOn"] === "on");
-  }
   // Reads the ticks of one setup box (settings or an action) as a choice.
   function choiceFrom(el, on) {
     const name = el.dataset.setup;
@@ -1292,6 +1294,131 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     });
   }
 
+  // ---------- Agents (Settings → Agents): saved on their own, like templates ----------
+  const ag = { list: $("agList"), form: $("agForm"), buttons: $("agButtons"), data: null, editing: null, color: "" };
+  const MODEL_NAMES = { "claude-opus-5-5": "Opus 5.5", "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5" };
+  async function fetchAgents() {
+    try { ag.data = await (await fetch(base + "agents", { cache: "no-store" })).json(); } catch (e) { ag.data = ag.data || null; }
+    return ag.data;
+  }
+  function agentSummary(a) {
+    const parts = [a.provider === "codex" ? "ChatGPT" : "Claude", a.connection === "api" ? "API" : "CLI"];
+    parts.push(a.model ? (MODEL_NAMES[a.model] || a.model) : "default model");
+    if (a.connection === "cli") parts.push(a.setup && a.setup.enabled ? "plugins, skills, MCP" : "plain answers");
+    if (a.instruction) parts.push("own instruction");
+    return parts.join(" · ");
+  }
+  function renderAgents() {
+    const d = ag.data;
+    ag.list.innerHTML = d && d.agents.length ? d.agents.map(a =>
+      '<div class="hitem aitem" data-agent="' + esc(a.id) + '" role="button" tabindex="0" style="--agent:' + esc(a.color) + '">'
+      + '<span class="dot"></span><div class="hbody"><div class="hq">' + esc(a.name) + '</div>'
+      + '<div class="hmeta">' + esc(agentSummary(a)) + '</div></div>'
+      + (a.isDefault ? '<span class="defbadge">Default</span>' : '<button type="button" class="mkdef" data-mkdef="' + esc(a.id) + '">Make default</button>')
+      + '</div>').join("") : '<div class="hempty">' + (d ? "No agents." : "Could not load agents.") + '</div>';
+    queueLayout();
+  }
+  async function loadAgents() {
+    ag.list.innerHTML = '<div class="hempty">Loading…</div>';
+    await fetchAgents();
+    renderAgents();
+  }
+  function showAgentList() {
+    ag.form.hidden = true; ag.list.hidden = false; ag.buttons.hidden = false;
+    queueLayout();
+  }
+  function setAgentColor(c) {
+    ag.color = c;
+    $("agColors").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
+  }
+  function editAgent(a) {
+    ag.editing = a || null;
+    const palette = (ag.data && ag.data.palette) || ["#D97757", "#10A37F", "#4C8DF6", "#A56BF2"];
+    $("agColors").innerHTML = palette.map(c => '<button type="button" data-c="' + esc(c) + '" style="--c:' + esc(c) + '" aria-label="Colour ' + esc(c) + '"></button>').join("");
+    $("agName").value = a ? a.name : "";
+    const provider = a ? a.provider : "claude";
+    setAgentColor(a ? a.color : (provider === "codex" ? "#10A37F" : palette[(ag.data ? ag.data.agents.length : 0) % palette.length]));
+    const box = $("agSetupBox");
+    box.dataset.setup = provider;
+    box.choice = a ? a.setup : null;
+    setSeg("agProvider", provider);
+    setSeg("agConnection", a ? a.connection : "cli");
+    const sel = $("agModelClaude");
+    if (a && a.model && provider === "claude" && ![...sel.options].some(o => o.value === a.model)) sel.add(new Option(a.model, a.model));
+    sel.value = a && provider === "claude" ? a.model : "";
+    $("agModelGpt").value = a && provider === "codex" ? a.model : "";
+    $("agEffort").value = a && a.effort ? a.effort : "low";
+    setSeg("agSetupOn", a && a.setup && a.setup.enabled ? "on" : "off");
+    $("agInstruction").value = a ? a.instruction : "";
+    setSeg("agDefault", a && a.isDefault ? "true" : "false");
+    document.querySelector('.seg[data-name="agDefault"]').style.pointerEvents = a && a.isDefault ? "none" : "";
+    $("agDelete").hidden = !a || a.isDefault;
+    ag.list.hidden = true; ag.buttons.hidden = true; ag.form.hidden = false;
+    refreshAgentForm();
+    setTimeout(() => $("agName").focus(), 0);
+  }
+  // What the form offers follows the AI and the connection.
+  function refreshAgentForm() {
+    const provider = segValues.agProvider || "claude", conn = segValues.agConnection || "cli", box = $("agSetupBox");
+    if (box.dataset.setup !== provider) { box.choice = null; box.dataset.setup = provider; if (segValues.agSetupOn === "on") loadSetup(); }
+    $("agModelClaudeWrap").hidden = provider !== "claude";
+    $("agModelGptWrap").hidden = provider !== "codex";
+    $("agEffortWrap").hidden = !(provider === "claude" && conn === "api");
+    $("agModelClaude").options[0].text = conn === "api" ? "Default (Opus 5.5)" : "Claude Code's default";
+    $("agModelGpt").placeholder = conn === "api" ? "gpt-5-mini" : "Codex's default";
+    $("agConnHint").textContent = conn === "api"
+      ? "Uses your " + (provider === "codex" ? "OpenAI" : "Anthropic") + " API key (Settings → API keys), billed per use. Faster; no plugins, skills or MCP servers."
+      : "Uses your " + (provider === "codex" ? "ChatGPT plan through the Codex CLI" : "Claude plan through Claude Code") + ".";
+    $("agSetupHint").textContent = provider === "codex"
+      ? "Off: plain answers, faster. On: only what you tick below. Codex stays read-only."
+      : "Off: plain answers, fastest. On: only what you tick below. It can look things up and use those tools, but cannot run commands or change files.";
+    queueLayout();
+  }
+  $("agColors").addEventListener("click", e => { const b = e.target.closest("button[data-c]"); if (b) setAgentColor(b.dataset.c); });
+  $("agNew").addEventListener("click", () => editAgent(null));
+  $("agCancel").addEventListener("click", showAgentList);
+  ag.list.addEventListener("click", async e => {
+    const mk = e.target.closest("[data-mkdef]");
+    if (mk) {
+      e.stopPropagation();
+      const res = await post("defaultagent", { id: mk.dataset.mkdef });
+      if (res.ok) { ag.data = await res.json(); renderAgents(); toast("Default agent changed"); }
+      return;
+    }
+    const row = e.target.closest("[data-agent]");
+    if (row && ag.data) editAgent(ag.data.agents.find(a => a.id === row.dataset.agent));
+  });
+  ag.list.addEventListener("keydown", e => {
+    const row = e.target.closest("[data-agent]");
+    if (row && e.key === "Enter" && e.target === row && ag.data) editAgent(ag.data.agents.find(a => a.id === row.dataset.agent));
+  });
+  $("agSave").addEventListener("click", async () => {
+    const provider = segValues.agProvider || "claude", conn = segValues.agConnection || "cli";
+    const body = {
+      id: ag.editing ? ag.editing.id : "",
+      name: $("agName").value.trim(), color: ag.color, provider, connection: conn,
+      model: provider === "claude" ? $("agModelClaude").value : $("agModelGpt").value.trim(),
+      effort: provider === "claude" && conn === "api" ? $("agEffort").value : (ag.editing ? ag.editing.effort : ""),
+      instruction: $("agInstruction").value.trim(),
+      setup: choiceFrom($("agSetupBox"), segValues.agSetupOn === "on"),
+      makeDefault: segValues.agDefault === "true" ? "true" : "false",
+    };
+    if (!body.name) { $("agName").focus(); toast("Give it a name"); return; }
+    const res = await post("saveagent", body);
+    const data = res.ok ? await res.json() : { error: "Could not save" };
+    if (data.error) { toast(data.error); return; }
+    ag.data = data;
+    renderAgents(); showAgentList(); toast("Saved");
+  });
+  $("agDelete").addEventListener("click", async () => {
+    if (!ag.editing) return;
+    const res = await post("deleteagent", { id: ag.editing.id });
+    const data = res.ok ? await res.json() : { error: "Could not delete" };
+    if (data.error) { toast(data.error); return; }
+    ag.data = data;
+    renderAgents(); showAgentList(); toast("Deleted");
+  });
+
   function closeSettings() {
     if (scale !== savedScale) applySize(savedScale);
     applyGlass(savedGlass);   // undo a preview that was not saved
@@ -1307,8 +1434,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   async function saveSettings() {
     const keyValue = input => keyRemoval[input.id] ? "-" : input.value.trim();
     const body = {
-      claudeConnection: segValues.claudeConnection, chatgptConnection: segValues.chatgptConnection,
-      claudeModel: set.claudeModel.value, chatgptModel: set.chatgptModel.value.trim(),
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
       saveHistory: segValues.saveHistory,
       keepPip: segValues.keepPip,
@@ -1319,7 +1444,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
       glassTint: String(glassSlider.value),
-      claudeSetup: setupChoice("claude"), chatgptSetup: setupChoice("chatgpt"),
     };
     const res = await post("settings", body);
     if (!res.ok) { set.status.textContent = "Could not save"; return; }
@@ -1330,7 +1454,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   $("gear").addEventListener("click", () => openSettings(false));
-  $("errSettings").addEventListener("click", () => openSettings(false, state && state.provider === "codex" ? "chatgpt" : "claude"));
+  $("errSettings").addEventListener("click", () => openSettings(false, state && state.connection === "api" ? "keys" : "agents"));
   $("setSave").addEventListener("click", saveSettings);
   $("setBack").addEventListener("click", closeSettings);
   $("setClose").addEventListener("click", () => settingsOnly ? closeWindow() : dismiss());
@@ -1560,8 +1684,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     } catch (e) {}
     $("plistItems").innerHTML = items.length ? items.map(p =>
       '<button type="button" class="pitem" data-id="' + esc(p.id) + '" data-provider="' + esc(p.provider) + '">'
-      + '<span class="dot"></span><span class="pname">' + esc(p.title) + '</span>'
-      + '<span class="pmeta">' + esc(p.providerName) + (p.connection === "api" ? " · API" : "") + '</span></button>').join("")
+      + '<span class="dot"' + (p.color ? ' style="background:' + esc(p.color) + '"' : '') + '></span><span class="pname">' + esc(p.title) + '</span>'
+      + '<span class="pmeta">' + esc(p.providerName) + '</span></button>').join("")
       : '<div class="hempty">No templates yet.</div>';
     freezePip(() => {
       thawNext = true;
@@ -1592,11 +1716,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // Right click (on the icon or anywhere that is not text): the native menu with everything that used
   // to sit in the popup's top row.
   // The templates submenu, as in the menu bar menu: menu ids "tpl-<n>" map to template ids.
-  let menuTemplates = [];
+  let menuTemplates = [], menuAgents = [];
   function menuItems() {
     return [
       ...(collapsed ? [{ id: "open", title: "Open" }] : []),
-      { id: "new", title: "New Chat" },
+      ...(menuAgents.length > 1
+        ? [{ title: "New Chat", items: menuAgents.map(a => ({ id: "newagent-" + a.id, title: a.name + (a.isDefault ? " (default)" : "") })) }]
+        : [{ id: "new", title: "New Chat" }]),
       { id: "recent", title: "Recent Chats" },
       { title: "Prompt Templates", items: [
         ...menuTemplates.map((p, i) => ({ id: "tpl-" + i, title: p.title })),
@@ -1620,11 +1746,20 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const res = await fetch(base + "presets", { cache: "no-store" });
       if (res.status === 404) { sessionEnded(); return; }
       menuTemplates = await res.json();
+      const d = await fetchAgents();
+      menuAgents = d ? d.agents : [];
     } catch (err) {}
     bridge.postMessage({ type: "menu", items: menuItems() });
   });
   window.__quickPromptMenu = async id => {
     if (id.startsWith("add-")) { runAddItem(id); return; }
+    if (id.startsWith("agent-")) { switchAgent(id.slice(6)); return; }
+    if (id === "agents-edit") { openSettings(false, "agents"); return; }
+    if (id.startsWith("newagent-")) {
+      const res = await post("reset", { agent: id.slice(9) });
+      if (res.ok) { stick = true; expand(); } else if (res.status !== 404) toast("Still answering");
+      return;
+    }
     if (id.startsWith("tpl-")) {
       const preset = menuTemplates[+id.slice(4)];
       if (!preset) return;
@@ -1960,11 +2095,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     act.list.innerHTML = act.items.length ? act.items.map(a =>
       '<div class="hitem aitem' + (a.enabled === false ? ' disabled' : '') + '" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
       + (exporting ? '<input type="checkbox" class="pick" data-pick="' + esc(a.id) + '"' + (act.picked.has(a.id) ? ' checked' : '') + ' aria-label="Export ' + esc(a.title) + '">' : '')
-      + '<span class="dot"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
+      + '<span class="dot" style="background:' + esc(a.agentColor || "") + '"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
       + '<div class="ha">' + esc(a.instruction.replace(/\s+/g, " ")) + '</div>'
-      + '<div class="hmeta">' + (a.provider === "codex" ? "ChatGPT" : "Claude") + ' · ' + INPUT_NAMES[a.input]
+      + '<div class="hmeta">' + esc(a.agentName || "") + (a.agent ? '' : ' (default)') + ' · ' + INPUT_NAMES[a.input]
       + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '')
-      + (a.setup === "custom" ? ' · own plugins/MCP/skills' : a.setup === "off" ? ' · no plugins/MCP/skills' : '')
       + (a.builtIn ? ' · built-in' : '') + '</div></div>'
       + (exporting ? '' : '<button type="button" class="tgl' + (a.enabled === false ? '' : ' on') + '" data-toggle="' + esc(a.id) + '" role="switch" aria-checked="' + (a.enabled !== false) + '" title="' + (a.enabled === false ? 'Off: not offered in Pip or the menu bar' : 'On') + '"></button>'
         + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button>')
@@ -2019,28 +2153,22 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     $("actTitle").textContent = a ? (a.builtIn ? "Edit " + a.title + " (saved as your copy)" : "Edit template") : "New template";
     $("afTitle").value = a ? a.title : "";
     $("afPrompt").value = a ? a.instruction : "";
-    setSeg("afProvider", a ? a.provider : "claude");
-    $("afConnection").value = a ? a.connection : "default";
-    $("afModel").value = a ? a.model : "";
+    fillAgentPicker(a ? a.agent || "" : "");
     setSeg("afAutoCopy", a && a.autoCopy ? "true" : "false");
-    $("afSetupBox").choice = a && a.setupChoice ? a.setupChoice : null;
-    setSeg("afSetup", a ? a.setup || "default" : "default");
     $("afDelete").hidden = !a || a.builtIn;
     act.list.hidden = true; act.buttons.hidden = true; act.form.hidden = false;
     queueLayout();
     setTimeout(() => (a ? $("afPrompt") : $("afTitle")).focus(), 0);
   }
-  // The action's own setup: only for CLI connections; the list follows the action's AI.
-  function refreshActionSetup() {
-    const box = $("afSetupBox"), mode = segValues.afSetup || "default", provider = segValues.afProvider || "claude";
-    if (!box) return;
-    if (box.dataset.setup !== provider && box.querySelector("input")) box.choice = null;   // another CLI: start from Settings
-    box.dataset.setup = provider;
-    box.hidden = mode !== "custom";
-    $("afSetupHint").textContent = mode === "default" ? "Uses what is ticked in Settings → Claude / ChatGPT."
-      : mode === "off" ? "Plain answer: no plugins, MCP servers or skills (fastest)."
-      : "Only for this template. Used when it runs through the CLI.";
-    if (mode === "custom") loadSetup(); else queueLayout();
+  // The template's agent: "" = the default agent (whichever it is when the template runs).
+  async function fillAgentPicker(value) {
+    const sel = $("afAgent");
+    const d = await fetchAgents();
+    const list = d ? d.agents : [];
+    const main = list.find(a => a.isDefault);
+    sel.innerHTML = '<option value="">Default agent' + (main ? ' (' + esc(main.name) + ')' : '') + '</option>'
+      + list.map(a => '<option value="' + esc(a.id) + '">' + esc(a.name) + '</option>').join("");
+    sel.value = list.some(a => a.id === value) ? value : "";
   }
 
   async function runAction(id) {
@@ -2124,11 +2252,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       id: act.editing ? act.editing.id : "",
       enabled: act.editing && act.editing.enabled === false ? "false" : "true",
       title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
-      provider: segValues.afProvider || "claude",
-      connection: $("afConnection").value, model: $("afModel").value.trim(),
-      setup: segValues.afSetup || "default",
+      agent: $("afAgent").value,
       autoCopy: segValues.afAutoCopy === "true" ? "true" : "false",
-      setupChoice: segValues.afSetup === "custom" ? choiceFrom($("afSetupBox"), true) : "",
     };
     if (!body.title) { $("afTitle").focus(); toast("Give it a title"); return; }
     if (!body.instruction.trim()) { $("afPrompt").focus(); toast("Write the prompt"); return; }
@@ -2178,7 +2303,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   function render() {
     const s = state;
     document.documentElement.dataset.provider = s.provider;
-    els.who.textContent = s.providerName + (s.connection === "api" ? " · API" : "") + (s.model ? " · " + s.model : "");
+    const agentName = s.agent && s.agent.name ? s.agent.name : s.providerName;
+    els.who.textContent = agentName;
+    renderAgentChip(s);
     // Apply sizes from the server only when they change there (Save applies its own values right away).
     if (!sizeKnown || (s.popupScale !== lastStateScale && !settingsOpen)) applySize(s.popupScale);
     if (s.iconScale !== lastStateIcon) applyIconScale(s.iconScale);
@@ -2245,7 +2372,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         ? (/\{(\$selected|text|selection|input)\}/i.test(s.presetPrompt || "") && !(s.draft && s.draft.context) ? "Paste the text — Enter runs" : "Add a note (optional) — Enter runs")
       : s.pasteMode
         ? "Paste text" + (s.title ? " · " + s.title : "") + " — Enter sends"
-        : ("Ask " + s.providerName + (s.title ? " · " + s.title : "") + "…");
+        : ("Ask " + agentName + (s.title ? " · " + s.title : "") + "…");
     els.ctxBtn.hidden = !!s.pasteMode && !s.messages.length;
     updateSendState();
 
@@ -2857,7 +2984,38 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // The history button gives its room to the question while something is typed.
   function updateBarButtons() {
     $("barHistory").hidden = !els.card.hidden || !!els.prompt.value;
+    $("barAgent").classList.toggle("slim", !!els.prompt.value);   // typing: just its dot, more room for the text
   }
+  // ---------- the chat's agent chip ----------
+  function renderAgentChip(s) {
+    const chip = $("barAgent");
+    if (!s.agent) { chip.hidden = true; return; }
+    chip.hidden = false;
+    chip.style.setProperty("--agent", s.agent.color || "");
+    chip.querySelector(".aname").textContent = s.agent.name;
+    chip.title = "Agent: " + s.agent.name + " — click to switch";
+  }
+  async function switchAgent(id) {
+    if (state && state.agent && state.agent.id === id) return;
+    const res = await post("agent", { id });
+    if (res.ok) { const a = (menuAgents.find(x => x.id === id) || {}).name; if (a) toast(state && state.messages.length ? "Next message goes to " + a : a); }
+    else if (res.status !== 404) toast("Still answering");
+  }
+  function agentMenuItems() {
+    const current = state && state.agent ? state.agent.id : "";
+    return [
+      ...menuAgents.map(a => ({ id: "agent-" + a.id, title: a.name, checked: a.id === current })),
+      { separator: true },
+      { id: "agents-edit", title: "Edit Agents…" },
+    ];
+  }
+  $("barAgent").addEventListener("click", async e => {
+    e.stopPropagation();
+    const d = await fetchAgents();
+    menuAgents = d ? d.agents : [];
+    if (bridge) { bridge.postMessage({ type: "menu", items: agentMenuItems() }); return; }
+    showPageMenu($("barAgent"), agentMenuItems(), id => window.__quickPromptMenu(id));
+  });
   function toggleText() {
     const show = els.ctxWrap.hidden;
     showCtx(show);
@@ -2877,23 +3035,28 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // In the native popup the + opens a native menu; in a browser tab a small menu of the page.
   let addMenu = null;
   function closeAddMenu() { if (addMenu) { addMenu.remove(); addMenu = null; } }
-  els.ctxBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    if (bridge) { bridge.postMessage({ type: "menu", items: addMenuItems() }); return; }
+  // A small menu of the page above a button (browser tabs; the native popup uses a native menu).
+  function showPageMenu(anchor, items, pick) {
     if (addMenu) { closeAddMenu(); return; }
     addMenu = document.createElement("div");
     addMenu.className = "addmenu";
-    addMenuItems().forEach(it => {
+    items.filter(it => it.id).forEach(it => {
       const b = document.createElement("button");
       b.type = "button";
-      b.textContent = it.title;
-      b.addEventListener("click", () => { closeAddMenu(); runAddItem(it.id); });
+      b.textContent = (it.checked ? "✓ " : "") + it.title;
+      b.addEventListener("click", () => { closeAddMenu(); pick(it.id); });
       addMenu.appendChild(b);
     });
-    const r = els.ctxBtn.getBoundingClientRect();
+    const r = anchor.getBoundingClientRect();
     addMenu.style.left = Math.round(r.left + window.scrollX) + "px";
     document.body.appendChild(addMenu);
-    addMenu.style.top = Math.round(r.top + window.scrollY - addMenu.offsetHeight - 6) + "px";
+    const above = r.top - addMenu.offsetHeight - 6;
+    addMenu.style.top = Math.round((above >= 0 ? above : r.bottom + 6) + window.scrollY) + "px";   // no room above: below
+  }
+  els.ctxBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (bridge) { bridge.postMessage({ type: "menu", items: addMenuItems() }); return; }
+    showPageMenu(els.ctxBtn, addMenuItems(), runAddItem);
   });
   document.addEventListener("click", e => { if (addMenu && !addMenu.contains(e.target)) closeAddMenu(); });
   $("attachFile").addEventListener("change", e => {
@@ -2915,7 +3078,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       return;
     }
     if (historyOpen || actionsOpen) return;
-    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT" && !e.target.closest("#setTemplates")) { e.preventDefault(); saveSettings(); } return; }
+    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT" && !e.target.closest("#setTemplates, #agForm")) { e.preventDefault(); saveSettings(); } return; }
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();

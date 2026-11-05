@@ -74,6 +74,9 @@ namespace QuickPrompt.Core
         /// <summary>The action's own CLI setup (plugins, MCP servers, skills); null = as in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
 
+        /// <summary>A template's agent ("" = the default agent). Null: the AI, connection, model and setup above.</summary>
+        public String AgentId { get; set; }
+
         /// <summary>Put the first answer on the clipboard as soon as it is complete.</summary>
         public Boolean AutoCopy { get; set; }
 

@@ -70,7 +70,7 @@ namespace QuickPrompt.Tests
             Assert.False(editor.First(a => a.GetProperty("title").GetString() == "Reply").GetProperty("enabled").GetBoolean());
 
             var file = manager.ExportActions(new[] { reply });
-            Assert.Contains("\"quickPromptTemplates\": 1", file);
+            Assert.Contains("\"quickPromptTemplates\": 2", file);
 
             // Into another computer: added; again: skipped; a changed prompt with the same title: "(2)".
             var other = new ChatManager(TempDir.Create(), new FakeHost(), new IAiProvider[] { new FakeProvider(ProviderIds.Claude), new FakeProvider(ProviderIds.Codex) }, new IAiProvider[0]);

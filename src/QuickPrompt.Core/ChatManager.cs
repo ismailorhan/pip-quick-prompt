@@ -58,6 +58,281 @@ namespace QuickPrompt.Core
             this._presets = new PresetCatalog(Path.Combine(dataDirectory, "presets.json"));
             this.Launcher = new WindowLauncher(() => this.Settings, Path.Combine(dataDirectory, "browser-profile"), host);
             this._cleanupTimer = new Timer(_ => this.Cleanup(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+            this.MigrateTemplatesToAgents();
+        }
+
+        // ---------- agents ----------
+
+        /// <summary>The agent for an AI named by older callers (the ring's Ask Claude / Ask ChatGPT): the default
+        /// agent when it is that AI, else the first agent of that AI, else one made from the older settings.</summary>
+        public Agent AgentForProvider(String providerId)
+        {
+            var s = this.Settings;
+            var id = String.Equals(providerId, ProviderIds.Codex, StringComparison.OrdinalIgnoreCase) ? ProviderIds.Codex : ProviderIds.Claude;
+            var main = s.DefaultAgent();
+            return main.ProviderId == id ? main
+                : s.Agents.FirstOrDefault(a => a.ProviderId == id) ?? QuickPromptSettings.LegacyAgents(s).First(a => a.ProviderId == id);
+        }
+
+        /// <summary>An AI with its own connection / model / setup (ring presets, older templates): its agent with those changed.</summary>
+        public Agent ResolveAgent(String providerId, String connection, String model, CliSetupChoice setup)
+        {
+            var agent = this.AgentForProvider(providerId).Clone();
+            var own = ConnectionModes.Normalize(connection, ConnectionModes.Default);
+            if (own != ConnectionModes.Default && own != agent.Connection)
+            {
+                agent.Connection = own;
+                agent.Model = "";   // the agent's model was for its own connection
+            }
+
+            if (!String.IsNullOrWhiteSpace(model))
+            {
+                agent.Model = model.Trim();
+            }
+
+            if (setup != null)
+            {
+                agent.Setup = Agent.CloneSetup(setup);
+            }
+
+            // Changed: no longer that agent (a conversation saved with it must not come back as the agent).
+            if (!agent.SameSetupAs(this.AgentForProvider(providerId)))
+            {
+                agent.Id = "";
+            }
+
+            return agent;
+        }
+
+        private IAiProvider GetProvider(Agent agent)
+        {
+            var table = agent.Connection == ConnectionModes.Api ? this._apiProviders : this._providers;
+            return table.TryGetValue(agent.ProviderId, out var provider) ? provider : table.Values.First();
+        }
+
+        /// <summary>The agent a template uses: its own (an agent id; empty = the default agent), or for a template
+        /// from before agents, its AI with its own connection, model and setup.</summary>
+        private Agent AgentFor(SavedPreset preset) =>
+            preset.AgentId != null
+                ? this.Settings.FindAgent(preset.AgentId)
+                : this.ResolveAgent(preset.ProviderId, preset.Connection, preset.Model, preset.SetupFor());
+
+        /// <summary>
+        /// Templates from before agents carried their own AI, connection, model and setup: each now points at the
+        /// agent with that setup (the default agent when it is that one), and an agent is made for any setup that
+        /// has none. Runs once; templates that already have an agent are left alone.
+        /// </summary>
+        private void MigrateTemplatesToAgents()
+        {
+            try
+            {
+                var s = this.Settings;
+                var changed = false;
+                this._presets.UpdateCustom(list =>
+                {
+                    foreach (var template in list.Where(t => t.AgentId == null))
+                    {
+                        var wanted = this.ResolveAgent(template.ProviderId, template.Connection, template.Model, template.SetupFor());
+                        template.AgentId = this.AgentIdFor(wanted, s, template.Title);
+                        changed = true;
+                    }
+
+                    return changed;
+                });
+
+                if (changed)
+                {
+                    s.Save(this._settingsPath);
+                    this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                this._host.Log("Could not move the templates to agents", ex);
+            }
+        }
+
+        /// <summary>The id of an agent with this setup ("" for the default agent), adding one if there is none.</summary>
+        private String AgentIdFor(Agent wanted, QuickPromptSettings s, String hint)
+        {
+            if (wanted.SameSetupAs(s.DefaultAgent()))
+            {
+                return "";
+            }
+
+            var same = s.Agents.FirstOrDefault(a => a.SameSetupAs(wanted));
+            if (same != null)
+            {
+                return same.Id;
+            }
+
+            var made = wanted.Clone();
+            made.Id = Agent.NewId();
+            // "Claude Haiku 5.5 · API", "ChatGPT gpt-5 · API", "Claude · Reply to email" (its own plugins and skills).
+            var model = System.Text.RegularExpressions.Regex.Match(made.Model, @"^claude-([a-z]+)-(\d+)-(\d+)$");
+            var name = (made.ProviderId == ProviderIds.Codex ? "ChatGPT" : "Claude")
+                + (model.Success ? " " + Char.ToUpperInvariant(model.Groups[1].Value[0]) + model.Groups[1].Value.Substring(1) + " " + model.Groups[2].Value + "." + model.Groups[3].Value
+                    : made.Model.Length > 0 ? " " + made.Model : "")
+                + (made.Connection == ConnectionModes.Api ? " · API" : "")
+                + (!made.Setup.Enabled ? "" : " · " + (String.IsNullOrWhiteSpace(hint) ? "tools" : hint.Trim()));
+            made.Name = UniqueAgentName(s, name);
+            made.Normalize();
+            s.Agents.Add(made);
+            return made.Id;
+        }
+
+        private static String UniqueAgentName(QuickPromptSettings s, String name)
+        {
+            name = (name ?? "").Trim();
+            if (name.Length > 36)
+            {
+                name = name.Substring(0, 36).Trim();
+            }
+
+            var result = name;
+            for (var n = 2; s.Agents.Any(a => String.Equals(a.Name, result, StringComparison.OrdinalIgnoreCase)); n++)
+            {
+                result = $"{name} ({n})";
+            }
+
+            return result;
+        }
+
+        private static Object DescribeSetup(CliSetupChoice c) => new
+        {
+            enabled = c?.Enabled == true,
+            skills = c?.Skills ?? true,
+            web = c?.Web ?? true,
+            disabledPlugins = c?.DisabledPlugins ?? new List<String>(),
+            disabledServers = c?.DisabledServers ?? new List<String>(),
+            disabledSkills = c?.DisabledSkills ?? new List<String>(),
+        };
+
+        private static Object DescribeAgent(Agent a, String defaultId) => new
+        {
+            id = a.Id,
+            name = a.Name,
+            color = a.Color,
+            provider = a.ProviderId,
+            connection = a.Connection,
+            model = a.Model,
+            effort = a.Effort,
+            instruction = a.Instruction,
+            setup = DescribeSetup(a.Setup),
+            isDefault = a.Id == defaultId,
+        };
+
+        /// <summary>The agents for Settings, the template editor and the chat's agent chip.</summary>
+        public String GetAgentsJson()
+        {
+            var s = this.Settings;
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                defaultId = s.DefaultAgent().Id,
+                agents = s.Agents.Select(a => DescribeAgent(a, s.DefaultAgent().Id)).ToArray(),
+                palette = Agent.Palette,
+            });
+        }
+
+        /// <summary>Adds or updates an agent (id empty = new). Returns the agents, or { error }.</summary>
+        public String SaveAgent(IReadOnlyDictionary<String, String> body)
+        {
+            String Get(String key) => body.TryGetValue(key, out var v) ? v ?? "" : "";
+            var s = this.Settings;
+            var existing = s.Agents.FirstOrDefault(a => a.Id == Get("id"));
+            var name = Get("name").Trim();
+            if (name.Length == 0)
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new { error = "Give the agent a name." });
+            }
+
+            if (s.Agents.Any(a => a != existing && String.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new { error = "There is already an agent with that name." });
+            }
+
+            var agent = existing ?? new Agent { Id = Agent.NewId() };
+            agent.Name = name;
+            agent.Color = Get("color");
+            agent.ProviderId = Get("provider");
+            agent.Connection = Get("connection");
+            agent.Model = Get("model");
+            agent.Effort = Get("effort");
+            agent.Instruction = Get("instruction");
+            agent.Setup = ParseSetupChoice(Get("setup"), agent.Setup ?? new CliSetupChoice());
+            agent.Normalize();
+            if (existing == null)
+            {
+                s.Agents.Add(agent);
+            }
+
+            if (Get("makeDefault") == "true")
+            {
+                s.DefaultAgentId = agent.Id;
+            }
+
+            s.Save(this._settingsPath);
+            this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+            return this.GetAgentsJson();
+        }
+
+        /// <summary>Removes an agent (not the default one, and never the last). Its templates use the default agent.</summary>
+        public String DeleteAgent(String id)
+        {
+            var s = this.Settings;
+            if (s.Agents.Count <= 1 || id == s.DefaultAgent().Id)
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new { error = "Make another agent the default first." });
+            }
+
+            if (s.Agents.RemoveAll(a => a.Id == id) > 0)
+            {
+                s.Save(this._settingsPath);
+                this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+                this._presets.UpdateCustom(list =>
+                {
+                    var used = list.Where(t => t.AgentId == id).ToList();
+                    used.ForEach(t => t.AgentId = "");
+                    return used.Count > 0;
+                });
+            }
+
+            return this.GetAgentsJson();
+        }
+
+        public String SetDefaultAgent(String id)
+        {
+            var s = this.Settings;
+            if (s.Agents.Any(a => a.Id == id))
+            {
+                s.DefaultAgentId = id;
+                s.Save(this._settingsPath);
+                this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+            }
+
+            return this.GetAgentsJson();
+        }
+
+        /// <summary>The chat's agent chip: the next message goes to this agent, with the conversation so far.</summary>
+        public Boolean SetSessionAgent(ChatSession session, String agentId)
+        {
+            var agent = this.Settings.Agents.FirstOrDefault(a => a.Id == agentId);
+            return agent != null && session.UseAgent(this.GetProvider(agent), agent);
+        }
+
+        /// <summary>A popup with the given agent (null = the default agent).</summary>
+        public ChatSession CreateSession(Agent agent, String title)
+        {
+            agent ??= this.Settings.DefaultAgent();
+            var session = new ChatSession(this.GetProvider(agent), () => this.Settings)
+            {
+                Title = title ?? "",
+            };
+            session.UseAgent(this.GetProvider(agent), agent);
+            session.TurnFinished += this.OnTurnFinished;
+            session.AnswerToCopy += this.OnAnswerToCopy;
+            this._sessions[session.Token] = session;
+            return session;
         }
 
         public String SettingsPath => this._settingsPath;
@@ -82,6 +357,7 @@ namespace QuickPrompt.Core
                 Connection = saved.Connection,
                 Model = saved.Model,
                 Setup = saved.SetupFor(),
+                AgentId = saved.AgentId,
                 AutoCopy = saved.AutoCopy,
                 // Custom templates read what their system parameters ask for; older ones keep their setting.
                 Input = saved.Custom ? PromptBuilder.InputFor(saved.Instruction) : InputModes.Normalize(saved.Input),
@@ -153,27 +429,15 @@ namespace QuickPrompt.Core
                 return normalized;
             }
 
-            var settings = this.Settings;
-            return String.Equals(providerId, ProviderIds.Codex, StringComparison.OrdinalIgnoreCase) ? settings.ChatGptConnection : settings.ClaudeConnection;
+            return this.AgentForProvider(providerId).Connection;
         }
 
         public Boolean TryGetSession(String token, out ChatSession session) =>
             this._sessions.TryGetValue(token ?? "", out session);
 
-        public ChatSession CreateSession(String providerId, String title, String model, String connection = ConnectionModes.Default)
-        {
-            var resolved = this.ResolveConnection(providerId, connection);
-            var session = new ChatSession(this.GetProvider(providerId, resolved), () => this.Settings)
-            {
-                Title = title ?? "",
-                Model = model ?? "",
-                Connection = resolved,
-            };
-            session.TurnFinished += this.OnTurnFinished;
-            session.AnswerToCopy += this.OnAnswerToCopy;
-            this._sessions[session.Token] = session;
-            return session;
-        }
+        /// <summary>A popup with an AI named the older way (its agent, with this connection and model).</summary>
+        public ChatSession CreateSession(String providerId, String title, String model, String connection = ConnectionModes.Default) =>
+            this.CreateSession(this.ResolveAgent(providerId, connection, model, null), title);
 
         public String GetSessionUrl(ChatSession session, Boolean appWindow) =>
             $"http://127.0.0.1:{this.Port}/s/{session.Token}/" + (appWindow ? "" : "?tab=1");
@@ -214,7 +478,7 @@ namespace QuickPrompt.Core
         /// <summary>Opens the popup on the History view.</summary>
         public void OpenHistory()
         {
-            var session = this.CreateSession(ProviderIds.Claude, "", "");
+            var session = this.CreateSession(null, "");
             session.ShowHistory = true;
             this.OpenWindow(session);
         }
@@ -235,7 +499,7 @@ namespace QuickPrompt.Core
                         id = r.Id,
                         title = r.Title ?? "",
                         provider = r.ProviderId,
-                        providerName = this.GetProvider(r.ProviderId, r.Connection).DisplayName,
+                        providerName = this.Settings.Agents.FirstOrDefault(a => a.Id == r.AgentId)?.Name ?? this.GetProvider(r.ProviderId, r.Connection).DisplayName,
                         connection = r.Connection,
                         question = Shorten(question == null ? "" : PromptBuilder.Build(question.Text, question.Context), 160),
                         answer = Shorten(answer?.Text ?? "", 160),
@@ -248,14 +512,19 @@ namespace QuickPrompt.Core
 
         /// <summary>Presets for "Prompt templates": the ones used from the ring, then built-ins.</summary>
         public String GetPresetsJson() =>
-            System.Text.Json.JsonSerializer.Serialize(this._presets.List().Select(p => new
+            System.Text.Json.JsonSerializer.Serialize(this._presets.List().Select(p =>
             {
-                id = p.Id,
-                title = p.Title,
-                provider = p.ProviderId,
-                providerName = this.GetProvider(p.ProviderId, p.Connection).DisplayName,
-                connection = this.ResolveConnection(p.ProviderId, p.Connection),
-                builtIn = p.BuiltIn,
+                var agent = this.AgentFor(p);
+                return new
+                {
+                    id = p.Id,
+                    title = p.Title,
+                    provider = agent.ProviderId,
+                    providerName = agent.Name,
+                    color = agent.Color,
+                    connection = agent.Connection,
+                    builtIn = p.BuiltIn,
+                };
             }).ToArray());
 
         /// <summary>The Prompt templates editor: your templates and the built-ins.</summary>
@@ -269,6 +538,9 @@ namespace QuickPrompt.Core
                 connection = p.Connection,
                 input = p.Custom || p.BuiltIn ? PromptBuilder.InputFor(p.Instruction) : InputModes.Normalize(p.Input),
                 model = p.Model,
+                agent = p.AgentId ?? "",
+                agentName = this.AgentFor(p).Name,
+                agentColor = this.AgentFor(p).Color,
                 builtIn = p.BuiltIn,
                 fields = PromptBuilder.GetParameters(p.Instruction).Count,
                 setup = SetupModes.Normalize(p.Setup),
@@ -292,14 +564,11 @@ namespace QuickPrompt.Core
                 Id = Get("id"),
                 Title = Get("title"),
                 Instruction = Get("instruction"),
-                ProviderId = Get("provider"),
-                Connection = Get("connection"),
+                AgentId = this.Settings.Agents.Any(a => a.Id == Get("agent")) ? Get("agent") : "",
+                ProviderId = this.Settings.FindAgent(Get("agent")).ProviderId,
                 Input = PromptBuilder.InputFor(Get("instruction")),
-                Model = Get("model"),
-                Setup = SetupModes.Normalize(Get("setup")),
                 Enabled = Get("enabled") != "false",
                 AutoCopy = Get("autoCopy") == "true",
-                SetupChoice = ParseSetupChoice(Get("setupChoice"), new CliSetupChoice { Enabled = true }),
             });
             return this.GetActionsJson();
         }
@@ -314,26 +583,31 @@ namespace QuickPrompt.Core
         public String ExportActions(IEnumerable<String> ids)
         {
             var wanted = new HashSet<String>(ids ?? Array.Empty<String>());
-            var templates = this._presets.ListEditable().Where(p => wanted.Contains(p.Id)).Select(p => new
+            // A template keeps its agent's setup (an agent with that name and setup is used or made on import);
+            // a template that uses the default agent goes on using the default agent wherever it is imported.
+            var templates = this._presets.ListEditable().Where(p => wanted.Contains(p.Id)).Select(p =>
             {
-                title = p.Title,
-                instruction = p.Instruction,
-                provider = p.ProviderId,
-                connection = p.Connection,
-                model = p.Model,
-                enabled = p.Enabled,
-                autoCopy = p.AutoCopy,
-                setup = SetupModes.Normalize(p.Setup),
-                setupChoice = p.SetupChoice == null ? null : new
+                var own = String.IsNullOrEmpty(p.AgentId) ? null : this.AgentFor(p);
+                return new
                 {
-                    skills = p.SetupChoice.Skills,
-                    web = p.SetupChoice.Web,
-                    disabledPlugins = p.SetupChoice.DisabledPlugins,
-                    disabledServers = p.SetupChoice.DisabledServers,
-                    disabledSkills = p.SetupChoice.DisabledSkills,
-                },
+                    title = p.Title,
+                    instruction = p.Instruction,
+                    enabled = p.Enabled,
+                    autoCopy = p.AutoCopy,
+                    agent = own == null ? null : new
+                    {
+                        name = own.Name,
+                        color = own.Color,
+                        provider = own.ProviderId,
+                        connection = own.Connection,
+                        model = own.Model,
+                        effort = own.Effort,
+                        instruction = own.Instruction,
+                        setup = DescribeSetup(own.Setup),
+                    },
+                };
             }).ToArray();
-            return System.Text.Json.JsonSerializer.Serialize(new { quickPromptTemplates = 1, exported = DateTime.UtcNow.ToString("o"), templates },
+            return System.Text.Json.JsonSerializer.Serialize(new { quickPromptTemplates = 2, exported = DateTime.UtcNow.ToString("o"), templates },
                 new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
 
@@ -349,24 +623,62 @@ namespace QuickPrompt.Core
                     return System.Text.Json.JsonSerializer.Serialize(new { error = "This is not a Quick Prompt templates file." });
                 }
 
+                var s = this.Settings;
+                var agentsBefore = s.Agents.Count;
                 foreach (var item in list.EnumerateArray())
                 {
-                    String Str(String name) => item.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : "";
+                    String Str(System.Text.Json.JsonElement e, String name) => e.TryGetProperty(name, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : "";
+                    String agentId;
+                    if (item.TryGetProperty("agent", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        // Its own agent: the one here with that name and setup, else one with that setup, else a new one.
+                        var wanted = new Agent
+                        {
+                            Name = Str(a, "name"), Color = Str(a, "color"), ProviderId = Str(a, "provider"), Connection = Str(a, "connection"),
+                            Model = Str(a, "model"), Effort = Str(a, "effort"), Instruction = Str(a, "instruction"),
+                            Setup = a.TryGetProperty("setup", out var setup) && setup.ValueKind == System.Text.Json.JsonValueKind.Object
+                                ? ParseSetupChoice(setup.GetRawText(), new CliSetupChoice()) : new CliSetupChoice(),
+                        };
+                        wanted.Normalize();
+                        var named = s.Agents.FirstOrDefault(x => String.Equals(x.Name, wanted.Name, StringComparison.OrdinalIgnoreCase) && x.SameSetupAs(wanted));
+                        agentId = named != null ? named.Id : this.AgentIdFor(wanted, s, wanted.Name);
+                        var made = s.Agents.FirstOrDefault(x => x.Id == agentId);
+                        if (made != null && s.Agents.IndexOf(made) >= agentsBefore)
+                        {
+                            made.Name = "";
+                            made.Name = UniqueAgentName(s, wanted.Name);
+                            made.Color = wanted.Color;
+                        }
+                    }
+                    else if (item.TryGetProperty("provider", out _))
+                    {
+                        // A file from before agents: its AI with its own connection, model and setup.
+                        var choice = item.TryGetProperty("setupChoice", out var c) && c.ValueKind == System.Text.Json.JsonValueKind.Object
+                            ? ParseSetupChoice(c.GetRawText(), new CliSetupChoice { Enabled = true }) : null;
+                        var legacy = new SavedPreset { Setup = SetupModes.Normalize(Str(item, "setup")), SetupChoice = choice };
+                        agentId = this.AgentIdFor(this.ResolveAgent(Str(item, "provider"), Str(item, "connection"), Str(item, "model"), legacy.SetupFor()), s, Str(item, "title"));
+                    }
+                    else
+                    {
+                        agentId = "";
+                    }
+
                     templates.Add(new SavedPreset
                     {
-                        Title = Str("title"),
-                        Instruction = Str("instruction"),
-                        ProviderId = Str("provider"),
-                        Connection = Str("connection"),
-                        Model = Str("model"),
-                        Input = PromptBuilder.InputFor(Str("instruction")),
-                        Setup = SetupModes.Normalize(Str("setup")),
-                        SetupChoice = item.TryGetProperty("setupChoice", out var choice) && choice.ValueKind == System.Text.Json.JsonValueKind.Object
-                            ? ParseSetupChoice(choice.GetRawText(), new CliSetupChoice { Enabled = true })
-                            : null,
+                        Title = Str(item, "title"),
+                        Instruction = Str(item, "instruction"),
+                        AgentId = agentId,
+                        ProviderId = s.FindAgent(agentId).ProviderId,
+                        Input = PromptBuilder.InputFor(Str(item, "instruction")),
                         Enabled = !item.TryGetProperty("enabled", out var en) || en.ValueKind != System.Text.Json.JsonValueKind.False,
                         AutoCopy = item.TryGetProperty("autoCopy", out var ac) && ac.ValueKind == System.Text.Json.JsonValueKind.True,
                     });
+                }
+
+                if (s.Agents.Count != agentsBefore)
+                {
+                    s.Save(this._settingsPath);
+                    this._settingsReadUtc = SafeLastWrite(this._settingsPath);
                 }
             }
             catch (System.Text.Json.JsonException)
@@ -399,7 +711,7 @@ namespace QuickPrompt.Core
                 return false;
             }
 
-            var session = this.CreateSession(ProviderIds.Claude, "", "");
+            var session = this.CreateSession(null, "");
             session.StartCollapsed = true;
             this.OpenWindow(session);
             return true;
@@ -408,7 +720,7 @@ namespace QuickPrompt.Core
         /// <summary>Opens the popup on the Prompt templates editor.</summary>
         public void OpenActions()
         {
-            var session = this.CreateSession(ProviderIds.Claude, "", "");
+            var session = this.CreateSession(null, "");
             session.ShowActions = true;
             this.OpenWindow(session);
         }
@@ -422,30 +734,38 @@ namespace QuickPrompt.Core
                 return false;
             }
 
-            var connection = this.ResolveConnection(preset.ProviderId, preset.Connection);
+            var agent = this.AgentFor(preset);
             var instruction = PromptBuilder.FillClipboard(preset.Instruction, this._host.GetClipboardText());
-            if (!session.ApplyPreset(this.GetProvider(preset.ProviderId, connection), connection, preset.Title, preset.Model, instruction))
+            if (!session.ApplyPreset(this.GetProvider(agent), agent, preset.Title, instruction))
             {
                 return false;
             }
 
-            session.Setup = preset.SetupFor();
             session.AutoCopyFirstAnswer = preset.AutoCopy;
             return true;
         }
 
-        /// <summary>A plain, empty conversation with Claude as set in Settings (Pip's chat closed, or New Chat).</summary>
-        public Boolean ResetSession(ChatSession session)
+        /// <summary>A plain, empty conversation with an agent (Pip's chat closed, or New Chat); empty id = the default agent.</summary>
+        public Boolean ResetSession(ChatSession session, String agentId = "")
         {
-            var connection = this.ResolveConnection(ProviderIds.Claude, ConnectionModes.Default);
-            return session.Reset(this.GetProvider(ProviderIds.Claude, connection), connection);
+            var agent = this.Settings.FindAgent(agentId);
+            return session.Reset(this.GetProvider(agent), agent);
         }
 
         /// <summary>Loads a saved conversation into the popup so it can be continued.</summary>
         public Boolean ResumeConversation(ChatSession session, String historyId)
         {
             var record = this._history.Load(historyId);
-            return record != null && session.ResumeFrom(record, this.GetProvider(record.ProviderId, record.Connection));
+            if (record == null)
+            {
+                return false;
+            }
+
+            // The agent it was held with, if it is still there; otherwise it goes on as it was saved.
+            var agent = this.Settings.Agents.FirstOrDefault(a => a.Id == record.AgentId);
+            return agent != null
+                ? session.ResumeFrom(record, this.GetProvider(agent), agent) && session.UseAgent(this.GetProvider(agent), agent)
+                : session.ResumeFrom(record, this.GetProvider(record.ProviderId, record.Connection));
         }
 
         public void DeleteConversation(String historyId) => this._history.Delete(historyId);
@@ -461,7 +781,7 @@ namespace QuickPrompt.Core
         /// <summary>Opens the popup on the Settings view (keys, connections, models).</summary>
         public void OpenSettings()
         {
-            var session = this.CreateSession(ProviderIds.Claude, "Settings", "");
+            var session = this.CreateSession(null, "Settings");
             session.ShowSettings = true;
             this.OpenWindow(session);
         }
@@ -677,8 +997,10 @@ namespace QuickPrompt.Core
 
         private ChatSession CreateSession(Preset preset)
         {
-            var session = this.CreateSession(preset.ProviderId, preset.Title, preset.Model, preset.Connection);
-            session.Setup = preset.Setup;
+            var agent = preset.AgentId != null
+                ? this.Settings.FindAgent(preset.AgentId)
+                : this.ResolveAgent(preset.ProviderId, preset.Connection, preset.Model, preset.Setup);
+            var session = this.CreateSession(agent, preset.Title);
             session.AutoCopyFirstAnswer = preset.AutoCopy;
             return session;
         }

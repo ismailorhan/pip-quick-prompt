@@ -159,6 +159,11 @@ namespace QuickPrompt.Core
                 return HttpResponse.Json(await Task.Run(() => this._manager.GetSetupJson(refresh)).ConfigureAwait(false));
             }
 
+            if (request.Method == "GET" && action == "agents")
+            {
+                return HttpResponse.Json(this._manager.GetAgentsJson());
+            }
+
             if (request.Method == "GET" && action == "actions")
             {
                 return HttpResponse.Json(this._manager.GetActionsJson());
@@ -210,7 +215,20 @@ namespace QuickPrompt.Core
                     return session.StartNew() ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
 
                 case "reset":
-                    return this._manager.ResetSession(session) ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
+                    return this._manager.ResetSession(session, GetString(body, "agent")) ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
+
+                case "agent":
+                    // The chat's agent chip: the next message goes to this agent.
+                    return this._manager.SetSessionAgent(session, GetString(body, "id")) ? HttpResponse.Json("{\"ok\":true}") : HttpResponse.Json("{\"ok\":false}", 409);
+
+                case "saveagent":
+                    return HttpResponse.Json(this._manager.SaveAgent(body));
+
+                case "deleteagent":
+                    return HttpResponse.Json(this._manager.DeleteAgent(GetString(body, "id")));
+
+                case "defaultagent":
+                    return HttpResponse.Json(this._manager.SetDefaultAgent(GetString(body, "id")));
 
                 case "resume":
                     var resumed = this._manager.ResumeConversation(session, GetString(body, "id"));

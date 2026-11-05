@@ -14,6 +14,9 @@ namespace QuickPrompt.Core
 
         public String ProviderId { get; set; } = ProviderIds.Claude;
 
+        /// <summary>The agent the conversation was held with (empty in older files).</summary>
+        public String AgentId { get; set; } = "";
+
         public String Connection { get; set; } = ConnectionModes.Cli;
 
         public String Model { get; set; } = "";
