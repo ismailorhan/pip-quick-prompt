@@ -115,6 +115,27 @@ namespace QuickPrompt.Core
             _ => MediaType.ImagePng,
         };
 
+        /// <summary>Models without the dynamic-filtering web search (web_search_20260209): Haiku and older.</summary>
+        public static Boolean WebSearchBasic(String model)
+        {
+            var m = (model ?? "").ToLowerInvariant();
+            return m.Contains("haiku") || m.Contains("-3-") || m.Contains("-4-5") || m.Contains("-4-1") || m.Contains("-4-0") || m == "claude-opus-4" || m == "claude-sonnet-4";
+        }
+
+        /// <summary>The query of a web search from its streamed input ({"query": "…"}).</summary>
+        public static String SearchQuery(String json)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                return doc.RootElement.TryGetProperty("query", out var q) ? (q.GetString() ?? "").Trim() : "";
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return "";
+            }
+        }
+
         public async IAsyncEnumerable<AiEvent> RunAsync(AiRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var key = this._apiKey();
@@ -166,12 +187,66 @@ namespace QuickPrompt.Core
                     parameters = parameters with { System = request.SystemPrompt };
                 }
 
+                // The agent's web search: Anthropic's server-side tool (billed per search). The dynamic-filtering
+                // version on the models that have it, the basic one elsewhere (Haiku). At most five searches a turn,
+                // which also keeps the server's loop short of a pause ("pause_turn").
+                if (request.WebSearch)
+                {
+                    BetaToolUnion tool = WebSearchBasic(model)
+                        ? new BetaWebSearchTool20250305 { MaxUses = 5 }
+                        : new BetaWebSearchTool20260209 { MaxUses = 5 };
+                    parameters = parameters with { Tools = [tool] };
+                }
+
+                var searches = new List<String>();
+                var query = new System.Text.StringBuilder();
+                var inSearch = false;
+                var sources = new List<(String Title, String Url)>();
+
                 await foreach (var ev in client.Beta.Messages.CreateStreaming(parameters, cancellationToken).ConfigureAwait(false))
                 {
                     if (ev.TryPickContentBlockDelta(out var blockDelta) && blockDelta.Delta.TryPickText(out var piece))
                     {
                         text.Append(piece.Text);
                         await writer.WriteAsync(new AiEvent(AiEventKind.Delta, piece.Text), CancellationToken.None).ConfigureAwait(false);
+                    }
+                    else if (ev.TryPickContentBlockStart(out var start) && start.ContentBlock.TryPickBetaServerToolUse(out var serverTool)
+                        && serverTool.Name.ToString().Contains("search", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // A web search starts; its query arrives in pieces.
+                        inSearch = true;
+                        query.Clear();
+                        await writer.WriteAsync(new AiEvent(AiEventKind.Status, "Searching the web…"), CancellationToken.None).ConfigureAwait(false);
+                    }
+                    else if (inSearch && ev.TryPickContentBlockDelta(out var jsonDelta) && jsonDelta.Delta.TryPickInputJson(out var partial))
+                    {
+                        query.Append(partial.PartialJson);
+                    }
+                    else if (inSearch && ev.TryPickContentBlockStop(out _))
+                    {
+                        inSearch = false;
+                        var q = SearchQuery(query.ToString());
+                        if (q.Length > 0)
+                        {
+                            searches.Add(q);
+                            await writer.WriteAsync(new AiEvent(AiEventKind.Status, "Searching the web: " + q), CancellationToken.None).ConfigureAwait(false);
+                        }
+                    }
+                    else if (ev.TryPickContentBlockStart(out var resultStart) && resultStart.ContentBlock.TryPickBetaWebSearchToolResult(out var result))
+                    {
+                        // The pages found (an error comes as an object instead of a list: nothing to list then).
+                        if (result.Content.TryPickBetaWebSearchResultBlocks(out var found))
+                        {
+                            foreach (var r in found.Take(5))
+                            {
+                                if (!sources.Any(x => x.Url == r.Url))
+                                {
+                                    sources.Add((r.Title, r.Url));
+                                }
+                            }
+                        }
+
+                        await writer.WriteAsync(new AiEvent(AiEventKind.Status, "Reading what it found…"), CancellationToken.None).ConfigureAwait(false);
                     }
                     else if (ev.TryPickDelta(out var messageDelta) && messageDelta.Delta.StopReason != null)
                     {
@@ -185,6 +260,19 @@ namespace QuickPrompt.Core
                 }
                 else
                 {
+                    // What was searched and where the answer comes from, as links under it.
+                    if (sources.Count > 0)
+                    {
+                        var list = new System.Text.StringBuilder("\n\n**Sources**\n");
+                        foreach (var (title, url) in sources.Take(8))
+                        {
+                            list.Append("- [").Append(String.IsNullOrWhiteSpace(title) ? url : title.Replace("[", "(").Replace("]", ")")).Append("](").Append(url).Append(")\n");
+                        }
+
+                        text.Append(list);
+                        await writer.WriteAsync(new AiEvent(AiEventKind.Delta, list.ToString()), CancellationToken.None).ConfigureAwait(false);
+                    }
+
                     await writer.WriteAsync(new AiEvent(AiEventKind.Final, text.ToString()), CancellationToken.None).ConfigureAwait(false);
                 }
             }

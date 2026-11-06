@@ -267,6 +267,12 @@ Also in v0.3.57: Pip moved and scroll bars showed while the rays' room was on (o
 never scrolls (overflow clip); the room is one class (`roomy`, `updateRoom()`), switched under a picture of Pip (freezePip) with
 Pip alone and thawed after the panel's resize. Measured with the real PopupController (a conversation start/speak/end test,
 like tools/pip-motion-test): Pip drawn 0.0 pt from its place, the page never larger than the panel; pip-motion-test all pass.
+On `dev` after v0.3.57: **web search for API agents** (owner: an option, off unless switched on): Agent `WebSearch` (Settings →
+Agents, Claude + API: "Web search" Off/On; exported with templates). The Anthropic provider adds the server-side tool
+(`web_search_20260209`, `web_search_20250305` for Haiku and older models; MaxUses 5, which keeps the server loop short of pause_turn),
+streams "Searching the web: <query>" / "Reading what it found…" as the status (the live label), and lists the sources as links
+under the answer. Pip wears a turning globe badge while it searches (`.mascot.searching`). The Claude CLI already had it
+("Web search and fetch" in the plugins/skills choice). OpenAI API: not yet. Not tried against the live API (compiled against SDK 13.3.0).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

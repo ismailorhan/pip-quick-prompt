@@ -377,6 +377,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .mini { zoom: var(--mini-zoom, 1); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .mascot { width: 64px; height: 64px; filter: drop-shadow(0 6px 12px rgba(0,0,0,.4)) !important; padding: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; cursor: grab; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
 .mascot:hover { background: transparent; transform: translateY(-1px); }
+/* Searching the web (API agents with web search): a small globe on Pip's shoulder, turning. */
+.mascot { position: relative; }
+.mascot .websearch { position: absolute; right: 0; top: 1px; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(135deg, #4C8DF6, #A56BF2); box-shadow: 0 2px 6px rgba(0,0,0,.35), 0 0 0 1.5px rgba(255,255,255,.85);
+  opacity: 0; transform: scale(.3); transition: opacity .2s, transform .25s cubic-bezier(.3,1.6,.5,1); pointer-events: none; }
+.mascot.searching .websearch { opacity: 1; transform: scale(1); }
+.mascot .websearch svg { width: 15px; height: 15px; overflow: visible; }
+.mascot .websearch .meridian { transform-origin: 12px 12px; animation: qp-globe 1.4s linear infinite; }
+@keyframes qp-globe { 0% { transform: scaleX(1); } 50% { transform: scaleX(.08); } 100% { transform: scaleX(1); } }
+.mascot.searching .websearch::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid rgba(110,150,255,.7); animation: qp-ping 1.4s ease-out infinite; }
+@keyframes qp-ping { from { transform: scale(.85); opacity: .9; } to { transform: scale(1.45); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mascot .websearch .meridian, .mascot.searching .websearch::after { animation: none; } }
 .mascot svg { overflow: visible; }
 .mascot .rays, .mascot .star { transform-origin: 12px 12px; transform-box: view-box; }
 .mascot.busy .rays { animation: qp-spin 3s linear infinite; }
@@ -476,7 +488,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <g class="core"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
       <g class="face" fill="#17141f" opacity="0" pointer-events="none"><ellipse class="eyeL"/><ellipse class="eyeR"/><ellipse class="mouth"/><ellipse class="shineL" fill="#fff" fill-opacity=".7"/><ellipse class="shineR" fill="#fff" fill-opacity=".7"/></g>
       <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
-    </svg></button>
+    </svg><span class="websearch" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><ellipse class="meridian" cx="12" cy="12" rx="4" ry="8.5"/></svg></span></button>
     <div class="minibar glass" id="minibar">
       <button type="button" id="miniNew" title="New chat"><svg class="pen" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><svg class="stop" viewBox="0 0 24 24" width="16" height="16"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg></button>
       <span class="sep"></span>
@@ -661,6 +673,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
               <label class="sfield" id="agEffortWrap">Effort<select id="agEffort">
                 <option value="low">Low — fastest</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high</option><option value="max">Max</option>
               </select></label>
+            </div>
+            <div id="agWebWrap">
+              <div class="srow sub"><span class="sname">Web search</span>
+                <div class="seg" data-name="agWeb"><button type="button" data-v="off">Off</button><button type="button" data-v="on">On</button></div></div>
+              <div class="shint">Claude searches the web when a question needs it and lists its sources. Anthropic bills it per search (about $10 for 1,000 searches), on top of the answer.</div>
             </div>
             <div class="cli-only" data-for="agConnection">
               <div class="srow sub"><span class="sname">Plugins, skills and MCP servers</span>
@@ -1422,6 +1439,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     sel.value = a && provider === "claude" ? a.model : "";
     $("agModelGpt").value = a && provider === "codex" ? a.model : "";
     $("agEffort").value = a && a.effort ? a.effort : "low";
+    setSeg("agWeb", a && a.webSearch ? "on" : "off");
     setSeg("agSetupOn", a && a.setup && a.setup.enabled ? "on" : "off");
     $("agInstruction").value = a ? a.instruction : "";
     setSeg("agDefault", a && a.isDefault ? "true" : "false");
@@ -1438,6 +1456,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     $("agModelClaudeWrap").hidden = provider !== "claude";
     $("agModelGptWrap").hidden = provider !== "codex";
     $("agEffortWrap").hidden = !(provider === "claude" && conn === "api");
+    $("agWebWrap").hidden = !(provider === "claude" && conn === "api");
     $("agModelClaude").options[0].text = conn === "api" ? "Default (Opus 5.5)" : "Claude Code's default";
     $("agModelGpt").placeholder = conn === "api" ? "gpt-5-mini" : "Codex's default";
     $("agConnHint").textContent = conn === "api"
@@ -1473,6 +1492,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       name: $("agName").value.trim(), color: ag.color, provider, connection: conn,
       model: provider === "claude" ? $("agModelClaude").value : $("agModelGpt").value.trim(),
       effort: provider === "claude" && conn === "api" ? $("agEffort").value : (ag.editing ? ag.editing.effort : ""),
+      webSearch: provider === "claude" && conn === "api" ? (segValues.agWeb === "on" ? "true" : "false") : (ag.editing && ag.editing.webSearch ? "true" : "false"),
       instruction: $("agInstruction").value.trim(),
       setup: choiceFrom($("agSetupBox"), segValues.agSetupOn === "on"),
       makeDefault: segValues.agDefault === "true" ? "true" : "false",
@@ -2199,7 +2219,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (inside) untuck(); else scheduleTuck();
   };
 
+  // Pip shows a turning globe while the answer searches the web.
+  function markSearch(s) {
+    $("miniOpen").classList.toggle("searching", !!(s && s.busy && /^(Searching the web|Reading what it found)/.test(s.status || "")));
+  }
   function updateMini(s) {
+    markSearch(s);
     globe.setBusy(!!s.busy);
     $("miniOpen").classList.toggle("busy", !!s.busy);
     if (lastBusy && !s.busy) {
@@ -2509,6 +2534,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // ---------- rendering ----------
   function render() {
     const s = state;
+    markSearch(s);
     document.documentElement.dataset.provider = s.provider;
     const agentName = s.agent && s.agent.name ? s.agent.name : s.providerName;
     els.who.textContent = agentName;
@@ -2607,7 +2633,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           return `<div class="msg bot glass"><div class="mh" data-drag><span class="ok err">!</span>Something went wrong</div><div class="a error">${esc(m.text)}</div></div>`;
         }
         if (m.state === "streaming") {
-          const label = m.text ? "Writing…" : (last && s.status ? s.status : "Thinking…");
+          const searching = last && /^(Searching the web|Reading what it found)/.test(s.status || "");
+          const label = searching ? s.status : m.text ? "Writing…" : (last && s.status ? s.status : "Thinking…");
           return `<div class="msg bot glass${m.text ? "" : " thinking"}"><div class="mh" data-drag><span class="spin"></span><span class="live">${esc(label)}</span>${m.text ? speakerButton(i) : ""}</div>`
             + `<div class="a">${m.text ? md(m.text) + '<span class="cursor"></span>' : ""}</div></div>`;
         }

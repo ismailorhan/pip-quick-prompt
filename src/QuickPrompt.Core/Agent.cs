@@ -33,6 +33,9 @@ namespace QuickPrompt.Core
         /// <summary>Plugins, MCP servers and skills this agent may use through the CLI (off = plain answers).</summary>
         public CliSetupChoice Setup { get; set; } = new CliSetupChoice();
 
+        /// <summary>API connection: the provider's own web search (Anthropic's server-side tool; billed per search). Off by default.</summary>
+        public Boolean WebSearch { get; set; }
+
         /// <summary>Added to the system prompt for this agent.</summary>
         public String Instruction { get; set; } = "";
 
@@ -53,6 +56,7 @@ namespace QuickPrompt.Core
             Connection = this.Connection,
             Model = this.Model,
             Effort = this.Effort,
+            WebSearch = this.WebSearch,
             Setup = CloneSetup(this.Setup),
             Instruction = this.Instruction,
         };
@@ -127,6 +131,7 @@ namespace QuickPrompt.Core
                 && this.Connection == other.Connection
                 && String.Equals(this.Model ?? "", other.Model ?? "", StringComparison.OrdinalIgnoreCase)
                 && (this.Effort ?? "") == (other.Effort ?? "")
+                && this.WebSearch == other.WebSearch
                 && (this.Instruction ?? "") == (other.Instruction ?? "")
                 && SameChoice(this.Setup, other.Setup);
         }

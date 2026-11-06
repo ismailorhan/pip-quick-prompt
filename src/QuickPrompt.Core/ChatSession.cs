@@ -464,6 +464,7 @@ namespace QuickPrompt.Core
                     ? this._settings().SystemPrompt
                     : (this._settings().SystemPrompt + "\n\n" + this.Agent.Instruction).Trim(),
                 Effort = this.Agent?.Effort ?? "",
+                WebSearch = this.Agent?.WebSearch ?? false,
                 Setup = this.Setup,
                 Images = pictures,
                 HistoryImages = historyImages,

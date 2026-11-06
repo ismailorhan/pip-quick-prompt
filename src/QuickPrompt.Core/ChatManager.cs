@@ -217,6 +217,7 @@ namespace QuickPrompt.Core
             connection = a.Connection,
             model = a.Model,
             effort = a.Effort,
+            webSearch = a.WebSearch,
             instruction = a.Instruction,
             setup = DescribeSetup(a.Setup),
             isDefault = a.Id == defaultId,
@@ -258,6 +259,7 @@ namespace QuickPrompt.Core
             agent.Connection = Get("connection");
             agent.Model = Get("model");
             agent.Effort = Get("effort");
+            agent.WebSearch = Get("webSearch") == "true";
             agent.Instruction = Get("instruction");
             agent.Setup = ParseSetupChoice(Get("setup"), agent.Setup ?? new CliSetupChoice());
             agent.Normalize();
@@ -605,6 +607,7 @@ namespace QuickPrompt.Core
                         connection = own.Connection,
                         model = own.Model,
                         effort = own.Effort,
+                        webSearch = own.WebSearch,
                         instruction = own.Instruction,
                         setup = DescribeSetup(own.Setup),
                     },
@@ -639,6 +642,7 @@ namespace QuickPrompt.Core
                         {
                             Name = Str(a, "name"), Color = Str(a, "color"), ProviderId = Str(a, "provider"), Connection = Str(a, "connection"),
                             Model = Str(a, "model"), Effort = Str(a, "effort"), Instruction = Str(a, "instruction"),
+                            WebSearch = a.TryGetProperty("webSearch", out var ws) && ws.ValueKind == System.Text.Json.JsonValueKind.True,
                             Setup = a.TryGetProperty("setup", out var setup) && setup.ValueKind == System.Text.Json.JsonValueKind.Object
                                 ? ParseSetupChoice(setup.GetRawText(), new CliSetupChoice()) : new CliSetupChoice(),
                         };

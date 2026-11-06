@@ -102,6 +102,9 @@ namespace QuickPrompt.Core
         /// <summary>Anthropic API effort for this request (the agent's); empty = as in Settings.</summary>
         public String Effort { get; set; } = "";
 
+        /// <summary>API: let the model search the web (the agent's choice).</summary>
+        public Boolean WebSearch { get; set; }
+
         /// <summary>CLI setup for this request (an action's own choice); null = the one in Settings.</summary>
         public CliSetupChoice Setup { get; set; }
 
