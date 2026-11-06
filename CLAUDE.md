@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.56, 7 Nov 2026)
+## Status (v0.3.57, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -250,11 +250,11 @@ v0.3.56 (7 Nov 2026), built, not yet confirmed: the talking star shows for the w
 speaks); rays show only while someone speaks (none when quiet). The first conversation after the helper started got a whole
 turn at −80 dBFS (voice processing started "dead"; the digital-zero check missed it): a start with no peak above 0.003 in
 1.5 s now restarts voice processing once, then falls back to the plain mic.
-On `dev` after v0.3.56: v0.3.56's log: the turn after an answer heard nothing (voice processing came back silent twice, then the
+v0.3.57 (7 Nov 2026), built, not yet confirmed (with the next three notes): v0.3.56's log: the turn after an answer heard nothing (voice processing came back silent twice, then the
 plain mic; the turn was lost). Each turn used to stop the engine and start a new one (to play, then to listen). Now a
 conversation keeps one engine (microphone) running between turns; `release` (page: endConversation) or two idle minutes stop it.
 #root.conversing keeps the 18 px room for the rays for the whole conversation, so Pip no longer moves at each listen/speak switch.
-**Conversation listens continuously** (owner: "kökten çöz, sürekli dinlemeli"; on `dev`): the helper runs the turns itself. The
+**Conversation listens continuously** (owner: "kökten çöz, sürekli dinlemeli"; in v0.3.57): the helper runs the turns itself. The
 page sends `start` once (conversation, `autoEnd` = "a pause sends it"); the helper keeps one engine, watches with the voice
 detector between turns (onset: 8 frames avg > 0.6 and > −42 dBFS, not within 0.5 s after an answer; over an answer the stricter
 barge rule), sends `listening`, partials, then on a 1.2 s pause ends the turn itself (`final` with `conversation: true`) and watches
@@ -262,7 +262,7 @@ again. The page sends each such final (over an answer still being written: cance
 listenTurn after answers. Manual end: ↵ / Pip click → `stop`. `release` or ten idle minutes (`ended`) stop it; the app's 10-minute
 helper quit ignores conversation finals. Checked: the real helper on a WAV with two utterances (both sent by themselves, TR + EN);
 the page flow with a mocked helper (Playwright). Not yet with a real microphone.
-Also on `dev`: Pip moved and scroll bars showed while the rays' room was on (owner's video): the page's ResizeObserver watched
+Also in v0.3.57: Pip moved and scroll bars showed while the rays' room was on (owner's video): the page's ResizeObserver watched
 #root's content box, which padding does not change, so the panel never grew. Now it observes the border box; `html.native`
 never scrolls (overflow clip); the room is one class (`roomy`, `updateRoom()`), switched under a picture of Pip (freezePip) with
 Pip alone and thawed after the panel's resize. Measured with the real PopupController (a conversation start/speak/end test,
