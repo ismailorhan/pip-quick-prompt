@@ -3661,7 +3661,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     convo.on = true; convo.waiting = false;
     els.root.classList.add("conversing");
     reader.stop();
-    toast(convoEnd() === "manual" ? "Talk to Pip, then press ↵ or click Pip" : "Talk to Pip; a pause sends it");
+    // Pip alone (its menu, the shortcut): the rays say it listens. A toast there was cut off by Pip's small panel, and
+    // the toolbar left open by the menu kept its glass while the rays' padding moved its buttons: tuck it now.
+    if (collapsed) { clearTimeout(tuckTimer); tuckBar(); }
+    else toast(convoEnd() === "manual" ? "Talk to Pip, then press ↵ or click Pip" : "Talk to Pip; a pause sends it");
     listenTurn();
   }
   function listenTurn() {
@@ -3685,7 +3688,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.root.classList.remove("conversing");
     if (speech.state !== "idle") cancelDictation();
     reader.stop();
-    toast("Conversation ended");
+    if (!collapsed) toast("Conversation ended");
   }
   // On a pause the helper's voice detector says so ("pause", above). As a fallback (a helper without it): 2.5 s
   // with no new words after some were heard.
