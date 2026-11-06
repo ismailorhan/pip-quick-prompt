@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.54, 6 Nov 2026)
+## Status (v0.3.55, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -236,14 +236,16 @@ v0.3.54 (6 Nov 2026), built, not yet confirmed: in v0.3.53 the mic worked but Pi
 voice-processing channels brought the raw mic, so Pip's own voice, back. Now channel 0 alone (the echo-cancelled one) is used
 while it carries sound, else the sum; barge-in needs 0.5 s of clear speech (16 frames each > 0.5, average > 0.75, not in the
 first 0.6 s); speech.log gets each channel's level ("Channels (dBFS): …, channel 0 while Pip spoke …") and "Barge-in after …".
-On `dev` after v0.3.54: the listening rays reach 14 px past the disc (were ~37), 8 px while Pip speaks; #root.dictating pads 18 px.
+v0.3.55 (7 Nov 2026), built, not yet confirmed: the listening rays reach 14 px past the disc (were ~37), 8 px while Pip speaks; #root.dictating pads 18 px.
 **Talking star** (owner's pick in `tools/pip-voice-lab.html`): while Pip speaks in a conversation the star turns once, fills out
 (inner corners 2.6 → 3.9, rounded edges), gets eyes (blinking) and a mouth; its lower arm drops like a jaw and its side arms lift
 with the voice; the four pieces fly out round its sides and circle it. The mouth and the speaking rays follow the loudness of the
 sentence being played (`voiceEnvelope`, 50 values a second from the WAV, timed from `play`). In `globe` (`setTalking`).
-Also on `dev`: v0.3.54's speech.log showed all 9 voice-processing channels equal (so channel 0 alone is right) and Pip cutting
+Also in v0.3.55: v0.3.54's speech.log showed all 9 voice-processing channels equal (so channel 0 alone is right) and Pip cutting
 itself off with the English voice ("Barge-in after 1.3 s", channel 0 at −48 dBFS: echo left after cancellation, which the voice
 detector took for speech; the owner speaks at −20…−35). Barge-in now also needs the last 0.5 s above −40 dBFS.
+Also in v0.3.55: a conversation started with Pip alone shows no toast (it was cut off) and tucks Pip's toolbar; in a conversation
+the toolbar's first button is a red stop that ends it (New Chat otherwise).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
