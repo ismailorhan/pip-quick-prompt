@@ -145,6 +145,21 @@ final class Speech {
         input?.write(data + Data("\n".utf8))
     }
 
+    /// The helper's own messages (audio formats, voice processing on or off, errors), appended; over 1 MB it starts over.
+    static func logFile() -> FileHandle? {
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Quick Prompt", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("speech.log")
+        if ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0) > 1_000_000 {
+            try? FileManager.default.removeItem(at: url)
+        }
+        if !FileManager.default.fileExists(atPath: url.path) { FileManager.default.createFile(atPath: url.path, contents: nil) }
+        guard let handle = try? FileHandle(forWritingTo: url) else { return nil }
+        handle.seekToEndOfFile()
+        handle.write(Data("--- \(Date()) dictation helper started\n".utf8))
+        return handle
+    }
+
     private func launchIfNeeded() {
         guard process == nil, let helper = Speech.helperURL else { return }
         let p = Process()
@@ -153,7 +168,7 @@ final class Speech {
         let stdin = Pipe(), stdout = Pipe()
         p.standardInput = stdin
         p.standardOutput = stdout
-        p.standardError = FileHandle.standardError   // into the app's log
+        p.standardError = Speech.logFile() ?? FileHandle.standardError   // ~/Library/Logs/Quick Prompt/speech.log
         var buffer = Data()
         stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let chunk = handle.availableData

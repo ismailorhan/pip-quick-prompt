@@ -65,6 +65,7 @@ let playFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 4800
 var playing = 0                       // buffers scheduled and not yet played
 var playStarted = Date.distantPast
 var watchLoop = false                 // one watchStep chain at a time
+var heardAudio = false                // the microphone gave something other than digital silence
 var echoCancelling = false            // voice processing started; without it, speech over Pip would be Pip's own voice
 var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
 
@@ -105,6 +106,16 @@ func startAudio() throws {
         do {
             try startEngine(voiceProcessing: true)
             echoCancelling = true
+            // Voice processing can start and still give nothing (no buffers, or only zeros): after 1.5 s without
+            // sound from the microphone, start again without it rather than listen to silence.
+            let started = engine
+            work.asyncAfter(deadline: .now() + 1.5) {
+                guard let e = started, e === engine, echoCancelling, !heardAudio else { return }
+                log("Voice processing gave no sound from the microphone; going on without echo cancellation")
+                stopAudio()
+                echoCancelling = false
+                do { try startEngine(voiceProcessing: false) } catch { send(["type": "error", "message": "Could not use the microphone: \(error.localizedDescription)"]) }
+            }
             return
         } catch {
             // e.g. -10875 when the microphone and the speakers are different devices (AirPods mic, Mac speakers):
@@ -127,9 +138,7 @@ func startEngine(voiceProcessing: Bool) throws {
             input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
         }
     }
-    let inFormat = input.outputFormat(forBus: 0)
-    guard inFormat.sampleRate > 0, let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false),
-          let converter = AVAudioConverter(from: inFormat, to: target) else {
+    guard let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false) else {
         throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone"])
     }
     var node: AVAudioPlayerNode?
@@ -139,13 +148,23 @@ func startEngine(voiceProcessing: Bool) throws {
         engine0.connect(n, to: engine0.mainMixerNode, format: playFormat)
         if voiceProcessing {
             // The voice processing unit wants the same client format on its input and output (else -10875).
-            engine0.connect(engine0.mainMixerNode, to: engine0.outputNode, format: inFormat)
+            let micFormat = input.outputFormat(forBus: 0)
+            if micFormat.sampleRate > 0 { engine0.connect(engine0.mainMixerNode, to: engine0.outputNode, format: micFormat) }
         }
         node = n
     }
+    // The microphone's format is read only now, after every connection (voice processing changes it), and the
+    // converter follows the buffers' own format: one built for an older format failed on every buffer, silently.
+    let inFormat = input.outputFormat(forBus: 0)
+    guard inFormat.sampleRate > 0 else { throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone"]) }
+    log("Audio: voice processing \(voiceProcessing ? "on" : "off"), microphone \(inFormat), output \(engine0.outputNode.inputFormat(forBus: 0))")
+    var converter: AVAudioConverter?
     var lastLevel = 0.0
-    input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { buffer, _ in
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * rate / inFormat.sampleRate) + 32
+    heardAudio = false
+    input.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in
+        if converter == nil || converter!.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: target) }
+        guard let converter = converter else { return }
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * rate / buffer.format.sampleRate) + 32
         guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
         var given = false
         var error: NSError?
@@ -157,6 +176,7 @@ func startEngine(voiceProcessing: Bool) throws {
         }
         guard error == nil, let data = out.floatChannelData?[0], out.frameLength > 0 else { return }
         let chunk = Array(UnsafeBufferPointer(start: data, count: Int(out.frameLength)))
+        if !heardAudio, chunk.contains(where: { abs($0) > 1e-5 }) { heardAudio = true }
         lock.lock(); samples.append(contentsOf: chunk); lock.unlock()
         // The level for the mic button (about 12 a second).
         let now = Date().timeIntervalSince1970
