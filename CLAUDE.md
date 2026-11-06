@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.55, 7 Nov 2026)
+## Status (v0.3.56, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -246,7 +246,7 @@ itself off with the English voice ("Barge-in after 1.3 s", channel 0 at −48 dB
 detector took for speech; the owner speaks at −20…−35). Barge-in now also needs the last 0.5 s above −40 dBFS.
 Also in v0.3.55: a conversation started with Pip alone shows no toast (it was cut off) and tucks Pip's toolbar; in a conversation
 the toolbar's first button is a red stop that ends it (New Chat otherwise).
-On `dev` after v0.3.55: the talking star shows for the whole conversation (from its start; the mouth moves only while Pip
+v0.3.56 (7 Nov 2026), built, not yet confirmed: the talking star shows for the whole conversation (from its start; the mouth moves only while Pip
 speaks); rays show only while someone speaks (none when quiet). The first conversation after the helper started got a whole
 turn at −80 dBFS (voice processing started "dead"; the digital-zero check missed it): a start with no peak above 0.003 in
 1.5 s now restarts voice processing once, then falls back to the plain mic.
