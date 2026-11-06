@@ -241,6 +241,9 @@ On `dev` after v0.3.54: the listening rays reach 14 px past the disc (were ~37),
 (inner corners 2.6 → 3.9, rounded edges), gets eyes (blinking) and a mouth; its lower arm drops like a jaw and its side arms lift
 with the voice; the four pieces fly out round its sides and circle it. The mouth and the speaking rays follow the loudness of the
 sentence being played (`voiceEnvelope`, 50 values a second from the WAV, timed from `play`). In `globe` (`setTalking`).
+Also on `dev`: v0.3.54's speech.log showed all 9 voice-processing channels equal (so channel 0 alone is right) and Pip cutting
+itself off with the English voice ("Barge-in after 1.3 s", channel 0 at −48 dBFS: echo left after cancellation, which the voice
+detector took for speech; the owner speaks at −20…−35). Barge-in now also needs the last 0.5 s above −40 dBFS.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

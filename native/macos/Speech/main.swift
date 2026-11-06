@@ -316,10 +316,12 @@ func watchStep() {
     updateVoice()
     // Half a second of clear speech (16 frames of 32 ms, each above 0.5, average above 0.75): what echo
     // cancellation leaves of Pip's own voice comes in short, weaker bursts.
+    // It must also be loud: what is left of Pip's voice measured -48 to -53 dBFS (the English voice set the
+    // detector off at -48), the owner speaking -20 to -35. So the last half second must be above -40 dBFS.
     let recent = speechProbs.suffix(16)
     if echoCancelling, playing > 0, Date().timeIntervalSince(playStarted) > 0.6, recent.count == 16,
-       recent.allSatisfy({ $0 > 0.5 }), recent.reduce(0, +) / 16 > 0.75 {
-        log(String(format: "Barge-in after %.1f s of playback", Date().timeIntervalSince(playStarted)))
+       recent.allSatisfy({ $0 > 0.5 }), recent.reduce(0, +) / 16 > 0.75, recentLevel(0.5) > -40 {
+        log(String(format: "Barge-in after %.1f s of playback, %.0f dBFS", Date().timeIntervalSince(playStarted), recentLevel(0.5)))
         logChannels()
         player?.stop()
         playing = 0
@@ -343,6 +345,16 @@ func watchStep() {
         return
     }
     work.asyncAfter(deadline: .now() + 0.1) { watchStep() }
+}
+
+/// The level of the last `seconds` of the microphone, in dBFS.
+func recentLevel(_ seconds: Double) -> Double {
+    lock.lock(); defer { lock.unlock() }
+    let n = min(samples.count, Int(rate * seconds))
+    guard n > 0 else { return -120 }
+    var e = 0.0
+    for v in samples[(samples.count - n)...] { e += Double(v) * Double(v) }
+    return 10 * log10(e / Double(n) + 1e-12)
 }
 
 /// Runs the voice detector over the samples it has not seen yet (whole frames only).
