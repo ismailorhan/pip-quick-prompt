@@ -67,6 +67,11 @@ var playStarted = Date.distantPast
 var watchLoop = false                 // one watchStep chain at a time
 var heardAudio = false                // the microphone gave something other than digital silence
 var echoCancelling = false            // voice processing started; without it, speech over Pip would be Pip's own voice
+var channelLock = NSLock()           // per-channel levels of the voice-processing microphone, for the log
+var channelEnergy: [Double] = []
+var channelFrames = 0
+var playEnergy0 = 0.0                 // channel 0 while an answer plays (what is left of Pip's voice)
+var playFrames = 0
 var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
 
 /// How loud, 0…1, as the ear hears it: -50 dB (a quiet room) is 0, -10 dB (speaking up close) is 1.
@@ -162,20 +167,30 @@ func startEngine(voiceProcessing: Bool) throws {
     var lastLevel = 0.0
     heardAudio = false
     input.installTap(onBus: 0, bufferSize: 2048, format: nil) { tapped, _ in
-        // Voice processing gives 9 channels (on the owner's Mac) and the converter's mix-down averaged the voice
-        // away to near silence. Sum them into one instead: a channel that carries the voice keeps its level.
+        // Voice processing gives 9 channels on the owner's Mac. Only the first is echo-cancelled; summing all of them
+        // brought Pip's own voice back (the voice detector took it for the user and cut the answer off), and the
+        // converter's average made the voice nearly silent. So: channel 0 alone while it carries sound, else the sum.
         var buffer = tapped
         if voiceProcessing, tapped.format.channelCount > 1, let channels = tapped.floatChannelData,
            let mono = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: tapped.format.sampleRate, channels: 1, interleaved: false),
-           let summed = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: tapped.frameLength) {
-            summed.frameLength = tapped.frameLength
-            let out = summed.floatChannelData![0]
-            for i in 0..<Int(tapped.frameLength) {
-                var v: Float = 0
-                for c in 0..<Int(tapped.format.channelCount) { v += channels[c][i] }
-                out[i] = max(-1, min(1, v))
+           let picked = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: tapped.frameLength) {
+            let n = Int(tapped.frameLength), count = Int(tapped.format.channelCount)
+            picked.frameLength = tapped.frameLength
+            let out = picked.floatChannelData![0]
+            var energy = [Double](repeating: 0, count: count)
+            for c in 0..<count { for i in 0..<n { let v = Double(channels[c][i]); energy[c] += v * v } }
+            channelLock.lock()
+            if channelEnergy.count != count { channelEnergy = [Double](repeating: 0, count: count) }
+            for c in 0..<count { channelEnergy[c] += energy[c] }
+            channelFrames += n
+            if playing > 0 { playEnergy0 += energy[0]; playFrames += n }
+            channelLock.unlock()
+            if energy[0] / Double(max(n, 1)) > 1e-9 {
+                for i in 0..<n { out[i] = channels[0][i] }
+            } else {
+                for i in 0..<n { var v: Float = 0; for c in 0..<count { v += channels[c][i] }; out[i] = max(-1, min(1, v)) }
             }
-            buffer = summed
+            buffer = picked
         }
         if converter == nil || converter!.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: target) }
         guard let converter = converter else { return }
@@ -294,13 +309,18 @@ func hush() {
     }
 }
 
-/// While an answer plays: the voice detector over the (echo-cancelled) microphone. A quarter second of speech,
+/// While an answer plays: the voice detector over the (echo-cancelled) microphone. Half a second of clear speech,
 /// not in the first moment of playback, is the user speaking: stop the answer and listen from just before it.
 func watchStep() {
     guard watching, !listening else { watchLoop = false; return }
     updateVoice()
-    let recent = speechProbs.suffix(8)
-    if echoCancelling, playing > 0, Date().timeIntervalSince(playStarted) > 0.4, recent.count == 8, recent.reduce(0, +) / 8 > 0.6 {
+    // Half a second of clear speech (16 frames of 32 ms, each above 0.5, average above 0.75): what echo
+    // cancellation leaves of Pip's own voice comes in short, weaker bursts.
+    let recent = speechProbs.suffix(16)
+    if echoCancelling, playing > 0, Date().timeIntervalSince(playStarted) > 0.6, recent.count == 16,
+       recent.allSatisfy({ $0 > 0.5 }), recent.reduce(0, +) / 16 > 0.75 {
+        log(String(format: "Barge-in after %.1f s of playback", Date().timeIntervalSince(playStarted)))
+        logChannels()
         player?.stop()
         playing = 0
         watching = false
@@ -525,11 +545,22 @@ func stop() {
         let peak = audio.reduce(Float(0)) { max($0, abs($1)) }
         log(String(format: "Heard %.1f s (conversation %@, echo cancellation %@), peak %.3f, speech %.1f s",
                    Double(audio.count) / rate, conversation ? "on" : "off", echoCancelling ? "on" : "off", peak, speechSeconds()))
+        logChannels()
         if lockedLanguage == nil, let guess = detectLanguage(audio) { lockedLanguage = guess }
         // The whole recording once more, with voice detection: better words and no invented ones over silence.
         let segs = audio.count > Int(rate * 0.3) ? transcribe(audio, prompt: hints, useVoiceDetection: true) : []
         send(["type": "final", "text": join((segs ?? []).map(\.text))])
     }
+}
+
+/// The level of each voice-processing channel since the last log (dBFS), and of channel 0 while Pip spoke.
+func logChannels() {
+    channelLock.lock()
+    defer { channelEnergy = channelEnergy.map { _ in 0 }; channelFrames = 0; playEnergy0 = 0; playFrames = 0; channelLock.unlock() }
+    guard channelFrames > 0, !channelEnergy.isEmpty else { return }
+    func db(_ e: Double, _ n: Int) -> String { n > 0 && e > 0 ? String(format: "%.0f", 10 * log10(e / Double(n))) : "-inf" }
+    log("Channels (dBFS): " + channelEnergy.map { db($0, channelFrames) }.joined(separator: " ")
+        + (playFrames > 0 ? ", channel 0 while Pip spoke " + db(playEnergy0, playFrames) : ""))
 }
 
 func cancel() {

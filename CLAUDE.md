@@ -232,6 +232,10 @@ v0.3.53 (6 Nov 2026), built, not yet confirmed: speech.log from v0.3.52 showed t
 the voice away: now the 9 channels are summed into one. A turn ends when the helper's VAD hears 1.2 s of no speech after some
 (`pause` event; fallback in the page: 2.5 s with no new words). Each recording logs length, peak, speech seconds and echo
 cancellation on/off to speech.log.
+On `dev` after v0.3.53: in v0.3.53 the mic worked but Pip cut its own answer off ("thinks I'm speaking"): summing the 9
+voice-processing channels brought the raw mic, so Pip's own voice, back. Now channel 0 alone (the echo-cancelled one) is used
+while it carries sound, else the sum; barge-in needs 0.5 s of clear speech (16 frames each > 0.5, average > 0.75, not in the
+first 0.6 s); speech.log gets each channel's level ("Channels (dBFS): …, channel 0 while Pip spoke …") and "Barge-in after …".
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
