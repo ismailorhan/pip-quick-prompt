@@ -65,6 +65,7 @@ let playFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 4800
 var playing = 0                       // buffers scheduled and not yet played
 var playStarted = Date.distantPast
 var watchLoop = false                 // one watchStep chain at a time
+var echoCancelling = false            // voice processing started; without it, speech over Pip would be Pip's own voice
 var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
 
 /// How loud, 0…1, as the ear hears it: -50 dB (a quiet room) is 0, -10 dB (speaking up close) is 1.
@@ -100,23 +101,47 @@ func startFile(_ path: String) throws {
 func startAudio() throws {
     if engine != nil || fileTimer != nil { return }   // conversation: already running (watching an answer)
     if let path = ProcessInfo.processInfo.environment["QP_SPEECH_FILE"] { try startFile(path); return }
+    if conversation {
+        do {
+            try startEngine(voiceProcessing: true)
+            echoCancelling = true
+            return
+        } catch {
+            // e.g. -10875 when the microphone and the speakers are different devices (AirPods mic, Mac speakers):
+            // the conversation goes on without echo cancellation; cutting in is then by hand only.
+            log("Voice processing would not start (\(error.localizedDescription)); conversation goes on without echo cancellation")
+        }
+    }
+    echoCancelling = false
+    try startEngine(voiceProcessing: false)
+}
+
+func startEngine(voiceProcessing: Bool) throws {
     let engine0 = AVAudioEngine()
     let input = engine0.inputNode
-    if conversation {
+    if voiceProcessing {
         // Echo cancellation: what this engine plays is taken out of what the microphone hears.
         try input.setVoiceProcessingEnabled(true)
+        if !engine0.outputNode.isVoiceProcessingEnabled { try engine0.outputNode.setVoiceProcessingEnabled(true) }
         if #available(macOS 14.0, *) {
             input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
         }
-        let node = AVAudioPlayerNode()
-        engine0.attach(node)
-        engine0.connect(node, to: engine0.mainMixerNode, format: playFormat)
-        player = node
     }
     let inFormat = input.outputFormat(forBus: 0)
     guard inFormat.sampleRate > 0, let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false),
           let converter = AVAudioConverter(from: inFormat, to: target) else {
         throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone"])
+    }
+    var node: AVAudioPlayerNode?
+    if conversation {
+        let n = AVAudioPlayerNode()
+        engine0.attach(n)
+        engine0.connect(n, to: engine0.mainMixerNode, format: playFormat)
+        if voiceProcessing {
+            // The voice processing unit wants the same client format on its input and output (else -10875).
+            engine0.connect(engine0.mainMixerNode, to: engine0.outputNode, format: inFormat)
+        }
+        node = n
     }
     var lastLevel = 0.0
     input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { buffer, _ in
@@ -141,7 +166,13 @@ func startAudio() throws {
         }
     }
     engine0.prepare()
-    try engine0.start()
+    do {
+        try engine0.start()
+    } catch {
+        input.removeTap(onBus: 0)
+        throw error
+    }
+    player = node
     engine = engine0
 }
 
@@ -234,7 +265,7 @@ func watchStep() {
     guard watching, !listening else { watchLoop = false; return }
     updateVoice()
     let recent = speechProbs.suffix(8)
-    if playing > 0, Date().timeIntervalSince(playStarted) > 0.4, recent.count == 8, recent.reduce(0, +) / 8 > 0.6 {
+    if echoCancelling, playing > 0, Date().timeIntervalSince(playStarted) > 0.4, recent.count == 8, recent.reduce(0, +) / 8 > 0.6 {
         player?.stop()
         playing = 0
         watching = false
