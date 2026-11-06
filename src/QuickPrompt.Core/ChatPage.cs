@@ -160,9 +160,9 @@ button.x:hover { color: var(--text); }
 .round.mic.on { background: #e5484d; color: #fff; box-shadow: 0 0 0 calc(var(--lvl, 0) * 9px) rgba(229, 72, 77, .28); transition: box-shadow .08s linear; }
 .round.mic.on:hover { background: #d93d42; color: #fff; }
 .send.dictstop { background: #e5484d; color: #fff; opacity: 1; }
-/* Dictating: a mirrored spectrum of red rays around Pip, moving with the voice (drawn on #pipWave). The panel
-   gets room for it; the anchors keep Pip itself where it is. */
-#root.dictating { padding: 30px; }
+/* Dictating: a mirrored spectrum of red rays around Pip, moving with the voice (drawn on #pipWave), reaching
+   14 px past the disc (8 px while Pip speaks). The panel gets room for it; the anchors keep Pip where it is. */
+#root.dictating { padding: 18px; }
 #pipWave { position: fixed; pointer-events: none; z-index: 5; }
 .round.mic.wait { animation: qp-mic-wait 1s ease-in-out infinite; }
 @keyframes qp-mic-wait { 50% { opacity: .35; } }
@@ -468,6 +468,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       </g>
       <g class="signals"></g>
       <g class="core"><g class="star"><path d="M12 4.6L13.85 10.15L19.4 12L13.85 13.85L12 19.4L10.15 13.85L4.6 12L10.15 10.15Z" fill="url(#qpMini)"/></g></g>
+      <g class="face" fill="#17141f" opacity="0" pointer-events="none"><ellipse class="eyeL"/><ellipse class="eyeR"/><ellipse class="mouth"/><ellipse class="shineL" fill="#fff" fill-opacity=".7"/><ellipse class="shineR" fill="#fff" fill-opacity=".7"/></g>
       <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
     </svg></button>
     <div class="minibar glass" id="minibar">
@@ -1900,6 +1901,45 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // come close and small signals run along them (the ray they reach swells for a moment); the star stays
   // in the middle, a little smaller, breathing. On hover (or while answering) the rays settle into the
   // logo and the star flashes once; while the mouse stays, the rays bounce like springs every 1-2 s.
+  // The loudness of the answer Pip is saying (conversation): 50 values a second, from the sentence's audio, timed
+  // from when it starts playing. Drives the talking star's mouth and the speaking rays.
+  const voiceEnvelope = {
+    values: null, start: 0,
+    fromWav(bytes) {
+      try {
+        const v = new DataView(bytes);
+        const rate = v.getUint32(24, true), bits = v.getUint16(34, true);
+        let off = 12;
+        while (off + 8 <= v.byteLength) {
+          const id = String.fromCharCode(v.getUint8(off), v.getUint8(off + 1), v.getUint8(off + 2), v.getUint8(off + 3)), size = v.getUint32(off + 4, true);
+          off += 8;
+          if (id === "data") break;
+          off += size;
+        }
+        if (bits !== 16) return null;
+        const n = Math.floor((v.byteLength - off) / 2), samples = new Float32Array(n);
+        for (let i = 0; i < n; i++) samples[i] = v.getInt16(off + 2 * i, true) / 32768;
+        return this.of(samples, rate);
+      } catch (e) { return null; }
+    },
+    of(samples, rate) {
+      const step = Math.max(1, Math.round(rate / 50)), out = [];
+      for (let i = 0; i + step <= samples.length; i += step) {
+        let e = 0;
+        for (let j = i; j < i + step; j++) e += samples[j] * samples[j];
+        out.push(Math.max(0, Math.min(1, (10 * Math.log10(e / step + 1e-10) + 45) / 35)));
+      }
+      return out;
+    },
+    play(values) { this.values = values; this.start = performance.now(); },
+    stop() { this.values = null; },
+    level() {
+      if (!this.values) return 0;
+      const i = Math.floor((performance.now() - this.start) / 20);
+      return i < this.values.length ? this.values[i] : 0;
+    },
+  };
+
   const globe = (() => {
     const button = $("miniOpen");
     const NS = "http://www.w3.org/2000/svg";
@@ -1921,6 +1961,66 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     let hover = false, busy = false, awake = false, wake = 0, starScale = tune.star;
     let springT = -1, sprung = false, springWait = 0, flashT = -1, flashed = false, nextSignal = 0.4;
     let running = false, last = 0, t = 0, sleepTimer = 0;
+    // Talking (conversation, while Pip speaks): the star turns once, fills out and gets eyes and a mouth; the
+    // pieces fly out round its sides and circle it. Tried in tools/pip-voice-lab.html ("Talking star").
+    const STAR = [[12, 4.6], [13.85, 10.15], [19.4, 12], [13.85, 13.85], [12, 19.4], [10.15, 13.85], [4.6, 12], [10.15, 10.15]];
+    const starPath = core.querySelector("path"), starD = starPath.getAttribute("d");
+    const face = button.querySelector(".face"), faceParts = {};
+    face.querySelectorAll("ellipse").forEach(e => { faceParts[e.getAttribute("class")] = e; });
+    let talking = false, talk = 0, mouth = 0, blinkAt = 3;
+    const ease = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    function roundPath(pts, round) {
+      const n = pts.length, k = round / 6, f = v => v.toFixed(3);
+      let d = "M" + f(pts[0][0]) + " " + f(pts[0][1]);
+      for (let i = 0; i < n; i++) {
+        const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+        d += "C" + f(p1[0] + (p2[0] - p0[0]) * k) + " " + f(p1[1] + (p2[1] - p0[1]) * k) + " " + f(p2[0] - (p3[0] - p1[0]) * k) + " " + f(p2[1] - (p3[1] - p1[1]) * k) + " " + f(p2[0]) + " " + f(p2[1]);
+      }
+      return d + "Z";
+    }
+    function drawTalking(dt) {
+      const f = ease(talk);
+      mouth += ((talking ? voiceEnvelope.level() : 0) - mouth) * 0.45;
+      if (t > blinkAt) blinkAt = t + 2.5 + Math.random() * 3;
+      const blink = Math.max(0, 1 - Math.abs(t - (blinkAt - 0.09)) / 0.09);
+      const spin = reduce ? 0 : f * Math.PI * 2, grow = 1 + 0.18 * f, d = mouth * f, bob = Math.sin(t * 2.2) * 0.25 * f;
+      const rin = 2.62 + (3.92 - 2.62) * f, c = Math.cos(spin), sn = Math.sin(spin);
+      // Speaking bends the star: the lower arm drops like a jaw, the side arms lift like cheeks.
+      const pts = STAR.map((_, i) => {
+        const a = -Math.PI / 2 + i * Math.PI / 4, rr = i % 2 ? rin : 7.4;
+        let x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+        if (i === 4) y += 1.5 * d;
+        if (i === 3) { x += 0.45 * d; y += 0.6 * d; }
+        if (i === 5) { x -= 0.45 * d; y += 0.6 * d; }
+        if (i === 2 || i === 6) y -= 0.45 * d;
+        if (i === 0) y += 0.35 * d;
+        x *= grow; y = y * grow + bob;
+        return [12 + x * c - y * sn, 12 + x * sn + y * c];
+      });
+      starPath.setAttribute("d", roundPath(pts, 0.5 * f));
+      core.setAttribute("transform", "");
+      const show = Math.max(0, (talk - 0.55) / 0.45);
+      face.setAttribute("opacity", show.toFixed(2));
+      face.setAttribute("transform", `rotate(${(spin * 180 / Math.PI).toFixed(2)} 12 12) translate(0 ${bob.toFixed(3)}) translate(12 12) scale(${grow.toFixed(3)}) translate(-12 -12)`);
+      const eyeRy = 0.855 * (1 - 0.88 * blink), eyeY = 11 - 0.15 * d;
+      const set = (k, cx, cy, rx, ry) => { const e = faceParts[k]; e.setAttribute("cx", cx.toFixed(3)); e.setAttribute("cy", cy.toFixed(3)); e.setAttribute("rx", rx.toFixed(3)); e.setAttribute("ry", Math.max(0.02, ry).toFixed(3)); };
+      set("eyeL", 10.6, eyeY, 0.56, eyeRy);
+      set("eyeR", 13.4, eyeY, 0.56, eyeRy);
+      set("shineL", 10.76, eyeY - 0.34, 0.18, blink > 0.5 ? 0.02 : 0.18);
+      set("shineR", 13.55, eyeY - 0.34, 0.18, blink > 0.5 ? 0.02 : 0.18);
+      set("mouth", 12, 13.45 + 0.4 * d, 0.77 + 0.27 * d, 0.16 + 0.95 * d);
+      // The pieces: out round the star's sides, then circling it inside the rim, small.
+      rays.forEach((p, i) => {
+        const a0 = Math.atan2(p.cy - 12, p.cx - 12), r0 = Math.hypot(p.cx - 12, p.cy - 12), dir = i < 2 ? 1 : -1;
+        const pa = a0 + ((t * 0.8 + a0) - a0) * f + dir * Math.sin(Math.PI * f) * 1.6;
+        const pr = r0 + (10 - r0) * f + 5 * Math.sin(Math.PI * f);
+        const x = 12 + Math.cos(pa) * pr, y = 12 + Math.sin(pa) * pr;
+        const ang = a0 + (pa + Math.PI / 2 - a0) * f, len = 1.98 + (1.1 - 1.98) * f, scale = len / 1.98;
+        p.el.setAttribute("transform", `translate(${x.toFixed(3)} ${y.toFixed(3)}) rotate(${((ang - a0) * 180 / Math.PI).toFixed(2)}) scale(${scale.toFixed(3)}) translate(${-p.cx} ${-p.cy})`);
+        p.path.setAttribute("stroke-width", ((1.15 + (0.95 - 1.15) * f) / scale).toFixed(3));
+        p.ex = x; p.ey = y;
+      });
+    }
 
     for (const p of rays) {
       const a = Math.random() * Math.PI * 2;
@@ -1972,7 +2072,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       if (last && now - last < 30) return;          // ~30 fps is plenty for this and saves energy
       const dt = Math.min(0.06, (now - (last || now)) / 1000);
       last = now; t += dt;
-      const settled = awake || reduce;
+      const settled = awake || reduce || talking || talk > 0;
+      talk = talking ? Math.min(1, talk + dt / 1.1) : Math.max(0, talk - dt / 1.1);
       wake += ((settled ? 1 : 0) - wake) * Math.min(1, dt * (3.2 / tune.gather));
       const k = Math.min(1, dt * (3.6 / tune.gather));
       for (const p of rays) {
@@ -2012,6 +2113,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       const sleepScale = tune.star + Math.sin(t * 1.6) * 0.015;
       starScale = sleepScale + (1 - sleepScale) * wake + bump;
       core.setAttribute("transform", `translate(12 12) scale(${starScale.toFixed(4)}) translate(-12 -12)`);
+
+      if (talk > 0) drawTalking(dt);
+      else if (starPath.getAttribute("d") !== starD) { starPath.setAttribute("d", starD); face.setAttribute("opacity", "0"); }
 
       // Links: faint, only between rays that are close, gone once the logo is together.
       const fade = tune.link * (1 - wake), strength = [];
@@ -2053,6 +2157,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     document.addEventListener("visibilitychange", start);
     return {
       setBusy(value) { busy = value; update(); },
+      setTalking(value) { talking = value; start(); },
       setHover(value) { hover = value; update(); },
       start,
     };
@@ -2782,13 +2887,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       t += 1 / 60;
       // Automatic gain: relative to the loudest of the last few seconds, so a quiet voice moves the rays too.
       // Speaking (conversation): the rays move on their own, in the speaking colours.
-      const level = api.tone === "speak" ? 0.45 + 0.3 * Math.abs(Math.sin(t * 7.3) * Math.cos(t * 2.9)) : api.level;
+      // Speaking (conversation): the loudness of the answer being played.
+      const level = api.tone === "speak" ? voiceEnvelope.level() : api.level;
       peak = Math.max(level, peak * 0.996, 0.12);
       const target = level < 0.04 ? 0 : Math.min(1, level / peak);
       shown += (target - shown) * 0.25;
-      // The rays start on the disc's rim (the button is larger than the disc it shows), reaching as far as before.
+      // The rays start on the disc's rim (the button is larger than the disc it shows); the owner wanted them short.
       const r = icon.width / 2, disc = $("miniOpen").querySelector("circle").getBoundingClientRect().width / 2 || r;
-      const lw = Math.max(2, r * 0.1), inner = disc + lw / 2 + 0.5, reach = r * 0.85 + (r + 6 - inner), size = Math.ceil((inner + reach + 4) * 2);
+      const lw = Math.max(2, r * 0.1), inner = disc + lw / 2 + 0.5, reach = api.tone === "speak" ? 8 : 14, size = Math.ceil((inner + reach + 4) * 2);
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== size * dpr) { canvas.width = canvas.height = size * dpr; canvas.style.width = canvas.style.height = size + "px"; }
       canvas.style.left = (icon.left + icon.width / 2 - size / 2) + "px";
@@ -2806,7 +2912,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       ctx.lineWidth = lw;
       for (let i = 0; i < N; i++) {
         const v = bins[i < half ? i : N - 1 - i];
-        const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 3 + v * reach;
+        const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 1.5 + v * reach;
         const x0 = c + Math.cos(a) * inner, y0 = c + Math.sin(a) * inner, x1 = c + Math.cos(a) * (inner + len), y1 = c + Math.sin(a) * (inner + len);
         const g = ctx.createLinearGradient(x0, y0, x1, y1);
         g.addColorStop(0, api.tone === "speak" ? "rgba(110, 120, 255, .95)" : "rgba(229, 72, 77, .95)");
@@ -3346,6 +3452,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // Pip shows it speaks (conversation): rays in the speaking colours.
   function pipSpeaking(on) {
     pipVoice = on;
+    globe.setTalking(on);
+    if (!on) voiceEnvelope.stop();
     els.root.classList.toggle("dictating", on || speech.state === "listening" || speech.state === "starting");
     if (on) { pipWave.tone = "speak"; pipWave.start(); }
     else if (speech.state === "idle") pipWave.stop();
@@ -3371,6 +3479,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       item.playId = id;
       pendingPlays.set(id, () => { if (reader.current === item && run === reader.run) { reader.current = null; pump(); } });
       speechPost("play", { id, wav: toBase64(buffer.bytes) });
+      voiceEnvelope.play(voiceEnvelope.fromWav(buffer.bytes));
       pipSpeaking(true);
       return;
     }
@@ -3381,6 +3490,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     item.source = source;
     source.onended = () => { if (reader.current === item && run === reader.run) { reader.current = null; pump(); } };
     source.start();
+    voiceEnvelope.play(voiceEnvelope.of(buffer.buffer.getChannelData(0), buffer.buffer.sampleRate));
   }
   reader.update = function (s) {
     if (!s || !voice.available) return;

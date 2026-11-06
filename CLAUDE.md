@@ -236,6 +236,11 @@ v0.3.54 (6 Nov 2026), built, not yet confirmed: in v0.3.53 the mic worked but Pi
 voice-processing channels brought the raw mic, so Pip's own voice, back. Now channel 0 alone (the echo-cancelled one) is used
 while it carries sound, else the sum; barge-in needs 0.5 s of clear speech (16 frames each > 0.5, average > 0.75, not in the
 first 0.6 s); speech.log gets each channel's level ("Channels (dBFS): …, channel 0 while Pip spoke …") and "Barge-in after …".
+On `dev` after v0.3.54: the listening rays reach 14 px past the disc (were ~37), 8 px while Pip speaks; #root.dictating pads 18 px.
+**Talking star** (owner's pick in `tools/pip-voice-lab.html`): while Pip speaks in a conversation the star turns once, fills out
+(inner corners 2.6 → 3.9, rounded edges), gets eyes (blinking) and a mouth; its lower arm drops like a jaw and its side arms lift
+with the voice; the four pieces fly out round its sides and circle it. The mouth and the speaking rays follow the loudness of the
+sentence being played (`voiceEnvelope`, 50 values a second from the WAV, timed from `play`). In `globe` (`setTalking`).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

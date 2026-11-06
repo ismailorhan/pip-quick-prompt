@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pip Voice Lab</title>
+<style>
+/* A bench for Pip's voice looks: the listening rays (how far out they reach) and the speaking face (the star turns
+   into a face, the corner pieces fly round to become its eyes, the mouth moves with the voice). */
+:root {
+  --bg: #eceaf2; --fg: #1d1b26; --muted: #66627a; --panel: #ffffff; --line: #d9d6e3; --accent: #4c8df6;
+  --stage-dark: #1b1a24; --stage-light: #e9e6ef;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --mono: ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121118; --fg: #ecebf3; --muted: #9a96ad; --panel: #1c1b25; --line: #2c2a38; --accent: #7aa8ff; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #121118; --fg: #ecebf3; --muted: #9a96ad; --panel: #1c1b25; --line: #2c2a38; --accent: #7aa8ff; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); padding: 24px 16px 40px; }
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 8px; }
+.lede { color: var(--muted); margin: 4px 0 0; font-size: 14px; max-width: 70ch; }
+.bench { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.stage { border-radius: 16px; min-height: 240px; display: grid; place-items: center; position: relative; border: 1px solid var(--line); overflow: hidden; }
+.stage.dark { background: radial-gradient(120% 90% at 30% 20%, #2b2838, var(--stage-dark)); }
+.stage.light { background: radial-gradient(120% 90% at 30% 20%, #ffffff, var(--stage-light)); }
+.stage .tag { position: absolute; left: 12px; bottom: 10px; font: 11px var(--mono); color: #8f8aa3; letter-spacing: .04em; text-transform: uppercase; }
+.pip { position: relative; display: grid; place-items: center; }
+.pip svg { display: block; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.pip canvas { position: absolute; pointer-events: none; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button.b { font: 13px var(--font); padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+button.b.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-top: 12px; }
+.ctl { display: grid; gap: 4px; font-size: 13px; }
+.ctl span { display: flex; justify-content: space-between; }
+.ctl output { font: 12px var(--mono); color: var(--muted); }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.ctl.check { display: flex; gap: 8px; align-items: center; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Pip's voice: rays and the talking face</h1>
+    <p class="lede">Listening: red rays around Pip, moving with your voice. The left one is today's length, the others use the "Ray reach" slider.
+      Speaking ("Talking star"): the star itself is the character. It turns once and grows a little while the corner pieces fly out round its sides and circle it; eyes and a mouth appear on the star, and as it speaks its lower arm drops like a jaw and its side arms lift like cheeks. "Round face" is the first try, for comparison.</p>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button class="b" data-mode="idle">Idle</button>
+      <button class="b" data-mode="listen">Listening (you speak)</button>
+      <button class="b" data-mode="speak">Speaking (Pip speaks)</button>
+      <button class="b" data-mode="cycle">Run the whole loop</button>
+      <span style="flex:1"></span>
+      <button class="b" id="micBtn">Drive from my microphone</button>
+    </div>
+    <div class="controls">
+      <label class="ctl"><span>Ray reach <output id="reachOut"></output></span><input id="reach" type="range" min="4" max="40" step="1" value="14"></label>
+      <label class="ctl"><span>Rays while speaking <output id="speakReachOut"></output></span><input id="speakReach" type="range" min="0" max="30" step="1" value="8"></label>
+      <label class="ctl"><span>Face transition <output id="morphOut"></output></span><input id="morph" type="range" min="0.4" max="2" step="0.1" value="1.1"></label>
+      <label class="ctl"><span>Mouth opening <output id="mouthOut"></output></span><input id="mouth" type="range" min="0.5" max="1.6" step="0.05" value="1"></label>
+      <label class="ctl"><span>Face</span><span class="row"><button class="b on" data-style="star">Talking star</button><button class="b" data-style="round">Round face</button></span></label>
+      <label class="ctl"><span>Star body (chubbiness) <output id="chubOut"></output></span><input id="chub" type="range" min="0.6" max="1.1" step="0.02" value="0.8"></label>
+      <label class="ctl check"><input id="satellites" type="checkbox" checked> Satellites (the two other pieces circle the face)</label>
+      <label class="ctl check"><input id="blink" type="checkbox" checked> Blinking</label>
+    </div>
+    <p class="hint">Without a microphone the voice is simulated (syllables with short pauses). "Drive from my microphone" moves the rays and the mouth with your own voice, so you can see how they follow real speech.</p>
+  </div>
+
+  <div class="bench">
+    <div class="stage dark"><div class="pip" id="p0"></div><span class="tag">today's rays · real size</span></div>
+    <div class="stage dark"><div class="pip" id="p1"></div><span class="tag">new · real size</span></div>
+    <div class="stage light"><div class="pip" id="p2"></div><span class="tag">new · on light</span></div>
+  </div>
+  <div class="bench">
+    <div class="stage dark" style="min-height:420px"><div class="pip" id="p3"></div><span class="tag">new · 3× for detail</span></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const STAR = [[12,4.6],[13.85,10.15],[19.4,12],[13.85,13.85],[12,19.4],[10.15,13.85],[4.6,12],[10.15,10.15]];
+const CORNERS = [[16.8,7.2],[16.8,16.8],[7.2,16.8],[7.2,7.2]];   // the four pieces, as in the app
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const NS = "http://www.w3.org/2000/svg";
+let uid = 0;
+
+const settings = { chub: 0.8, style: "star", reach: 14, speakReach: 8, morph: 1.1, mouth: 1, satellites: true, blink: true };
+
+/* One Pip: the app's SVG (disc, gradient, gloss), the star drawn as a path we can bend, four pieces we can fly,
+   two eyes, and a canvas for the rays. */
+function makePip(host, scale, fixedReach) {
+  const id = "g" + (++uid), px = 56 * scale;
+  host.innerHTML = `<svg viewBox="0 0 24 24" width="${px}" height="${px}">
+    <defs>
+      <linearGradient id="${id}m" gradientUnits="userSpaceOnUse" x1="5" y1="5" x2="19" y2="19"><stop offset="0.08" stop-color="#F08A5D"/><stop offset="0.42" stop-color="#1FB890"/><stop offset="0.7" stop-color="#4C8DF6"/><stop offset="0.95" stop-color="#A56BF2"/></linearGradient>
+      <radialGradient id="${id}d" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="#3d3852"/><stop offset="1" stop-color="#121018"/></radialGradient>
+      <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    </defs>
+    <circle cx="12" cy="12" r="11.2" fill="url(#${id}d)" stroke="rgba(255,255,255,.28)" stroke-width=".5"/>
+    <g class="pieces" stroke="url(#${id}m)" stroke-linecap="round" fill="none"></g>
+    <path class="core" fill="url(#${id}m)"/>
+    <path class="inner" fill="#1a1724" opacity="0"/>
+    <g class="face" fill="#17141f" opacity="0"><ellipse class="eyeL"/><ellipse class="eyeR"/><ellipse class="mouth"/><ellipse class="shine" fill="#fff" opacity=".7"/><ellipse class="shine2" fill="#fff" opacity=".7"/></g>
+    <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#${id}g)" pointer-events="none"/>
+  </svg><canvas></canvas>`;
+  const svg = host.querySelector("svg"), g = svg.querySelector(".pieces");
+  const pieces = CORNERS.map(() => { const l = document.createElementNS(NS, "line"); g.appendChild(l); return l; });
+  return { host, scale, svg, pieces, core: svg.querySelector(".core"), inner: svg.querySelector(".inner"), face: svg.querySelector(".face"), canvas: host.querySelector("canvas"),
+           fixedReach, bins: new Array(18).fill(0), shown: 0 };
+}
+const pips = [makePip($("p0"), 1, "today"), makePip($("p1"), 1), makePip($("p2"), 1), makePip($("p3"), 3)];
+
+/* ---- the voice: simulated syllables, or the microphone ---- */
+let micLevel = null, analyser = null, micData = null;
+function voiceLevel(t) {
+  if (analyser) {
+    analyser.getFloatTimeDomainData(micData);
+    let s = 0; for (const v of micData) s += v * v;
+    const db = 10 * Math.log10(s / micData.length + 1e-10);
+    return Math.max(0, Math.min(1, (db + 50) / 40));       // the app's scale: −50…−10 dB
+  }
+  // Words of 2–5 syllables (~5 a second), a short pause between words, a longer one now and then.
+  const word = Math.floor(t / 0.9), inWord = t % 0.9, len = 0.45 + 0.4 * Math.abs(Math.sin(word * 12.9898) % 1);
+  if (inWord > len || word % 7 === 6) return 0.03;
+  const syl = Math.abs(Math.sin(inWord * Math.PI * 5.2));
+  return 0.25 + 0.65 * syl * (0.7 + 0.3 * Math.abs(Math.sin(word * 3.7)));
+}
+$("micBtn").addEventListener("click", async () => {
+  if (analyser) { analyser = null; $("micBtn").classList.remove("on"); $("micBtn").textContent = "Drive from my microphone"; return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ac = new AudioContext(), src = ac.createMediaStreamSource(stream);
+    analyser = ac.createAnalyser(); analyser.fftSize = 1024; micData = new Float32Array(analyser.fftSize);
+    src.connect(analyser);
+    $("micBtn").classList.add("on"); $("micBtn").textContent = "Microphone on (click to stop)";
+  } catch (e) { $("micBtn").textContent = "No microphone access"; }
+});
+
+/* ---- modes ---- */
+let mode = "idle", cycling = false, cycleAt = 0, face = 0, faceTarget = 0;
+function setMode(m) {
+  cycling = m === "cycle";
+  if (cycling) { cycleAt = now; m = "idle"; }
+  mode = m;
+  faceTarget = m === "speak" ? 1 : 0;
+  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === (cycling ? "cycle" : m)));
+}
+document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+for (const k of ["reach", "speakReach", "morph", "mouth", "chub"]) {
+  const input = $(k), out = $(k + "Out");
+  const show = () => { settings[k] = +input.value; out.textContent = k === "morph" ? input.value + " s" : k === "mouth" || k === "chub" ? "×" + input.value : input.value + " px"; };
+  input.addEventListener("input", show); show();
+}
+document.querySelectorAll("[data-style]").forEach(b => b.addEventListener("click", () => {
+  settings.style = b.dataset.style;
+  document.querySelectorAll("[data-style]").forEach(x => x.classList.toggle("on", x === b));
+}));
+$("satellites").addEventListener("change", e => settings.satellites = e.target.checked);
+$("blink").addEventListener("change", e => settings.blink = e.target.checked);
+
+/* ---- drawing ---- */
+// Catmull-Rom through the points: tension 0 gives the star's straight edges, 1 the mouth's round ones.
+function closedPath(pts, round) {
+  const n = pts.length; let d = `M${pts[0][0].toFixed(3)} ${pts[0][1].toFixed(3)}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n], k = round / 6;
+    const c1 = [p1[0] + (p2[0] - p0[0]) * k, p1[1] + (p2[1] - p0[1]) * k], c2 = [p2[0] - (p3[0] - p1[0]) * k, p2[1] - (p3[1] - p1[1]) * k];
+    d += `C${c1[0].toFixed(3)} ${c1[1].toFixed(3)} ${c2[0].toFixed(3)} ${c2[1].toFixed(3)} ${p2[0].toFixed(3)} ${p2[1].toFixed(3)}`;
+  }
+  return d + "Z";
+}
+// The mouth: the star's eight points on a smiling oval, its height from the voice.
+function mouthPoints(open, scale) {
+  const cx = 12, cy = 14.6, w = 3.3 + open * 0.5, hTop = 0.35 + open * 1.0 * scale, hBot = 0.55 + open * 2.4 * scale;
+  return STAR.map((_, i) => {
+    const a = -Math.PI / 2 + i * Math.PI / 4, c = Math.cos(a), s = Math.sin(a);
+    return [cx + w * c, cy + (s < 0 ? hTop : hBot) * s - 0.55 * c * c * (1 - open * 0.6)];
+  });
+}
+function rotate(p, ang) { const c = Math.cos(ang), s = Math.sin(ang), x = p[0] - 12, y = p[1] - 12; return [12 + x * c - y * s, 12 + x * s + y * c]; }
+
+let now = 0, last = performance.now(), mouthOpen = 0, blinkAt = 2, level = 0, peak = 0.12;
+function frame(ts) {
+  const dt = Math.min(0.05, (ts - last) / 1000); last = ts; now += dt;
+  if (cycling) {           // idle 1.5 s → listen 4 s → speak 6 s → listen …
+    const c = (now - cycleAt) % 11.5, m = c < 1.5 ? "idle" : c < 5.5 ? "listen" : "speak";
+    if (m !== mode) { mode = m; faceTarget = m === "speak" ? 1 : 0; }
+  }
+  const speed = dt / settings.morph;
+  face = faceTarget > face ? Math.min(faceTarget, face + speed) : Math.max(faceTarget, face - speed);
+  const f = ease(face);
+
+  const raw = mode === "idle" ? 0 : voiceLevel(now);
+  peak = Math.max(raw, peak * 0.996, 0.12);
+  level += ((raw < 0.04 ? 0 : Math.min(1, raw / peak)) - level) * 0.25;
+  mouthOpen += ((mode === "speak" ? level : 0) - mouthOpen) * 0.35;
+  if (now > blinkAt) blinkAt = now + 2.5 + Math.random() * 3;
+  const blinkT = settings.blink ? Math.max(0, 1 - Math.abs(now - (blinkAt - 0.09)) / 0.09) : 0;
+
+  for (const p of pips) drawPip(p, f, blinkT);
+  requestAnimationFrame(frame);
+}
+
+function drawPip(p, f, blinkT) {
+  if (settings.style === "star") { drawTalkingStar(p, f, blinkT); drawRays(p); return; }
+  p.face.setAttribute("opacity", "0");
+  // Star → mouth: one full turn while it bends, a little smaller in the middle of the turn.
+  const spin = f * Math.PI * 2, shrink = 1 - 0.25 * Math.sin(Math.PI * f);
+  const mouth = mouthPoints(mouthOpen * settings.mouth * f, 1);
+  const pts = STAR.map((s, i) => {
+    const q = [lerp(s[0], mouth[i][0], f), lerp(s[1], mouth[i][1], f)];
+    const r = rotate(q, spin);
+    return [12 + (r[0] - 12) * shrink, 12 + (r[1] - 12) * shrink];
+  });
+  p.core.setAttribute("d", closedPath(pts, f));
+  // The inside of the open mouth, a darker oval.
+  const open = mouthOpen * settings.mouth * f;
+  if (open > 0.08) {
+    const inner = mouthPoints(open, 1).map(q => [12 + (q[0] - 12) * 0.62, 14.6 + (q[1] - 14.6) * 0.55 + 0.25]);
+    p.inner.setAttribute("d", closedPath(inner, 1)); p.inner.setAttribute("opacity", Math.min(1, (open - 0.08) * 4).toFixed(2));
+  } else p.inner.setAttribute("opacity", "0");
+
+  // The pieces: from their corners, flying out and round the sides (two eyes, two satellites).
+  const eyeY = 9.4 - 0.25 * open;
+  const targets = [
+    { x: 14.6, y: eyeY, eye: true }, null, null, { x: 9.4, y: eyeY, eye: true },
+  ];
+  p.pieces.forEach((line, i) => {
+    const [cx, cy] = CORNERS[i];
+    const a0 = Math.atan2(cy - 12, cx - 12), r0 = Math.hypot(cx - 12, cy - 12);
+    let x, y, ang, len, width = 1.15, opacity = 1;
+    if (targets[i]) {
+      const tg = targets[i], a1 = Math.atan2(tg.y - 12, tg.x - 12), r1 = Math.hypot(tg.x - 12, tg.y - 12);
+      // Round the side: the right eye goes clockwise via the right, the left one via the left; out past the rim.
+      const dir = i === 0 ? 1 : -1;
+      let da = a1 - a0; if (dir > 0 && da < 0) da += Math.PI * 2; if (dir < 0 && da > 0) da -= Math.PI * 2;
+      da += dir * Math.PI * 2 * 0;  // (a whole extra loop looked busy)
+      const pa = a0 + da * f, pr = lerp(r0, r1, f) + 6.5 * Math.sin(Math.PI * f);
+      x = 12 + Math.cos(pa) * pr; y = 12 + Math.sin(pa) * pr;
+      // Turning from the diagonal to upright, growing into an eye; the blink squeezes it.
+      ang = lerp(a0, Math.PI / 2 + dir * Math.PI * 2, f);
+      len = lerp(1.98, 1.7 * (1 - 0.85 * blinkT), f);
+      width = lerp(1.15, 1.45, f);
+    } else {
+      // Satellites: out round the sides, then circling the face inside the rim, small.
+      const orbit = now * 0.9 + (i === 1 ? 0 : Math.PI);
+      const dir = i === 1 ? 1 : -1;
+      const ta = settings.satellites ? orbit : a0, tr = settings.satellites ? 9.6 : r0;
+      const pa = lerp(a0, ta + (settings.satellites ? 0 : 0), f) + dir * Math.sin(Math.PI * f) * 1.2;
+      const pr = lerp(r0, tr, f) + 4 * Math.sin(Math.PI * f);
+      x = 12 + Math.cos(pa) * pr; y = 12 + Math.sin(pa) * pr;
+      ang = lerp(a0, pa + Math.PI / 2, f);
+      len = lerp(1.98, settings.satellites ? 0.9 : 1.98, f);
+      width = lerp(1.15, 0.9, f);
+      opacity = settings.satellites ? lerp(1, 0.85, f) : lerp(1, 0, f);
+    }
+    const hx = Math.cos(ang) * len / 2, hy = Math.sin(ang) * len / 2;
+    line.setAttribute("x1", (x - hx).toFixed(3)); line.setAttribute("y1", (y - hy).toFixed(3));
+    line.setAttribute("x2", (x + hx).toFixed(3)); line.setAttribute("y2", (y + hy).toFixed(3));
+    line.setAttribute("stroke-width", width.toFixed(2)); line.setAttribute("opacity", opacity.toFixed(2));
+  });
+
+  drawRays(p);
+}
+
+/* The talking star: the star keeps its shape and becomes the character. */
+function drawTalkingStar(p, f, blinkT) {
+  const spin = f * Math.PI * 2, grow = lerp(1, 1.18, f), d = mouthOpen * settings.mouth * f;
+  // Chubby: the inner corners move out (2.6 → ~4.9 from the centre) and the edges round, so the body has room for a face.
+  const rin = lerp(2.62, 4.9 * settings.chub, f), round = lerp(0, 0.5, f);
+  const bob = Math.sin(now * 2.2) * 0.25 * f;
+  // Speaking bends the star: the lower arm drops like a jaw, the lower inner corners widen, the side arms lift
+  // like cheeks and the top arm squashes a little.
+  const pts = STAR.map((q, i) => {
+    const a = -Math.PI / 2 + i * Math.PI / 4, rr = i % 2 ? rin : 7.4;
+    let x = 12 + Math.cos(a) * rr, y = 12 + Math.sin(a) * rr;
+    if (i === 4) y += 1.5 * d;
+    if (i === 3) { x += 0.45 * d; y += 0.6 * d; }
+    if (i === 5) { x -= 0.45 * d; y += 0.6 * d; }
+    if (i === 2 || i === 6) y -= 0.45 * d;
+    if (i === 0) y += 0.35 * d;
+    const r = rotate([12 + (x - 12) * grow, 12 + (y - 12) * grow + bob], spin);
+    return r;
+  });
+  p.core.setAttribute("d", closedPath(pts, round));
+  p.inner.setAttribute("opacity", "0");
+  // Eyes and mouth on the star's body; they turn with the star and show as it finishes its turn.
+  const show = Math.max(0, (f - 0.55) / 0.45);
+  const deg = spin * 180 / Math.PI;
+  p.face.setAttribute("opacity", show.toFixed(2));
+  p.face.setAttribute("transform", `rotate(${deg.toFixed(2)} 12 12) translate(0 ${bob.toFixed(3)}) translate(12 12) scale(${grow.toFixed(3)}) translate(-12 -12)`);
+  const fs = 0.9, eyeRy = 0.95 * fs * (1 - 0.88 * blinkT), eyeY = 11.0 - 0.15 * d;
+  const set = (sel, cx, cy, rx, ry) => { const e = p.face.querySelector(sel); e.setAttribute("cx", cx.toFixed(3)); e.setAttribute("cy", cy.toFixed(3)); e.setAttribute("rx", rx.toFixed(3)); e.setAttribute("ry", Math.max(0.02, ry).toFixed(3)); };
+  set(".eyeL", 12 - 1.55 * fs, eyeY, 0.62 * fs, eyeRy);
+  set(".eyeR", 12 + 1.55 * fs, eyeY, 0.62 * fs, eyeRy);
+  set(".shine", 12 - 1.38 * fs, eyeY - 0.38 * fs, 0.2 * fs, blinkT > 0.5 ? 0.02 : 0.2 * fs);
+  set(".shine2", 12 + 1.72 * fs, eyeY - 0.38 * fs, 0.2 * fs, blinkT > 0.5 ? 0.02 : 0.2 * fs);
+  set(".mouth", 12, 13.45 + 0.4 * d, (0.85 + 0.3 * d) * fs, 0.16 + 1.05 * d * fs);
+
+  // The pieces fly out round the star's sides while it turns, then circle it (or go back to their corners).
+  p.pieces.forEach((line, i) => {
+    const [cx, cy] = CORNERS[i];
+    const a0 = Math.atan2(cy - 12, cx - 12), r0 = Math.hypot(cx - 12, cy - 12);
+    const dir = i < 2 ? 1 : -1;
+    const orbit = now * 0.8 + a0;
+    const ta = settings.satellites ? orbit : a0, tr = settings.satellites ? 10 : r0;
+    const pa = lerp(a0, ta, f) + dir * Math.sin(Math.PI * f) * 1.6;
+    const pr = lerp(r0, tr, f) + 5 * Math.sin(Math.PI * f);
+    const x = 12 + Math.cos(pa) * pr, y = 12 + Math.sin(pa) * pr;
+    const ang = lerp(a0, settings.satellites ? pa + Math.PI / 2 : a0, f), len = lerp(1.98, settings.satellites ? 1.1 : 1.98, f);
+    const hx = Math.cos(ang) * len / 2, hy = Math.sin(ang) * len / 2;
+    line.setAttribute("x1", (x - hx).toFixed(3)); line.setAttribute("y1", (y - hy).toFixed(3));
+    line.setAttribute("x2", (x + hx).toFixed(3)); line.setAttribute("y2", (y + hy).toFixed(3));
+    line.setAttribute("stroke-width", lerp(1.15, 0.95, f).toFixed(2)); line.setAttribute("opacity", "1");
+  });
+}
+
+/* The rays, as the app draws them (36 rays, a mirrored spectrum from one level), with the reach from the slider.
+   "today": the app's reach today (r·0.85 plus the button's margin, about 37 px at real size). */
+function drawRays(p) {
+  const s = p.scale, ctx = p.canvas.getContext("2d");
+  const r = 32 * s, disc = 11.2 / 24 * 56 * s, lw = Math.max(2, r * 0.1) / (s > 1 ? 1 : 1);
+  const inner = disc + lw / 2 + 0.5;
+  const speaking = mode === "speak";
+  let reach;
+  if (p.fixedReach === "today") reach = r * 0.85 + (r + 6 - inner);
+  else reach = (speaking ? settings.speakReach : settings.reach) * s;
+  const size = Math.ceil((inner + 40 * s + 4) * 2), dpr = window.devicePixelRatio || 1;
+  if (p.canvas.width !== size * dpr) { p.canvas.width = p.canvas.height = size * dpr; p.canvas.style.width = p.canvas.style.height = size + "px"; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const target = mode === "idle" ? 0 : level;
+  p.shown += (target - p.shown) * 0.25;
+  if (p.shown < 0.01 || reach <= 0) return;
+  const N = 36, half = 18, c = size / 2, turn = now * 0.25;
+  for (let i = 0; i < half; i++) {
+    const v = p.shown * (0.4 + 0.6 * Math.abs(Math.sin(now * 6 + i * 0.9) * Math.cos(now * 3.3 + i * 0.37)));
+    p.bins[i] += (v - p.bins[i]) * 0.3;
+  }
+  ctx.lineCap = "round"; ctx.lineWidth = lw;
+  for (let i = 0; i < N; i++) {
+    const v = p.bins[i < half ? i : N - 1 - i];
+    const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 3 * s * 0.5 + v * reach;
+    const x0 = c + Math.cos(a) * inner, y0 = c + Math.sin(a) * inner, x1 = c + Math.cos(a) * (inner + len), y1 = c + Math.sin(a) * (inner + len);
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, speaking ? "rgba(110, 120, 255, .95)" : "rgba(229, 72, 77, .95)");
+    g.addColorStop(1, speaking ? "rgba(190, 140, 255, 0)" : "rgba(240, 153, 123, 0)");
+    ctx.strokeStyle = g;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  }
+}
+
+setMode("cycle");
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
