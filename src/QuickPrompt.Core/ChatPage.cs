@@ -392,6 +392,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 .iconbtn:hover { background: var(--faint); color: var(--text); }
 .msg .actions { gap: 2px; margin-top: 6px; }
 .minibar button:hover, .minibar button.hov { background: rgba(128,128,128,.24); }
+/* In a conversation the first button ends it (the chat may be closed, and Esc needs the chat). */
+#miniNew .stop, #root.conversing #miniNew .pen { display: none; }
+#root.conversing #miniNew .stop { display: block; }
+#root.conversing #miniNew { color: #e5484d; }
 .minibar .sep { width: 1px; height: 16px; background: var(--faint); }
 /* Tucked, the toolbar keeps its size (so the panel never resizes on hover); only its glass shrinks to a
    thin line (the page reports the line's rect) and its buttons hide. */
@@ -472,7 +476,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <ellipse cx="12" cy="6.2" rx="7.2" ry="3.4" fill="url(#qpGloss)" pointer-events="none"/>
     </svg></button>
     <div class="minibar glass" id="minibar">
-      <button type="button" id="miniNew" title="New chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+      <button type="button" id="miniNew" title="New chat"><svg class="pen" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><svg class="stop" viewBox="0 0 24 24" width="16" height="16"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor"/></svg></button>
       <span class="sep"></span>
       <button type="button" id="miniRecent" title="Recent chats"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 4.5V8H7M12 7.5V12l3 2"/></svg></button>
       <span class="sep"></span>
@@ -1891,6 +1895,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   };
   if (bridge) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
   $("miniNew").addEventListener("click", async () => {
+    if (convo.on) { endConversation(); return; }
     const res = await post("reset");
     if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }
   });
@@ -3660,6 +3665,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (voice.state !== "ready") { if (collapsed) expand(); offerVoices(); return; }
     convo.on = true; convo.waiting = false;
     els.root.classList.add("conversing");
+    $("miniNew").title = "End conversation (esc)";
     reader.stop();
     // Pip alone (its menu, the shortcut): the rays say it listens. A toast there was cut off by Pip's small panel, and
     // the toolbar left open by the menu kept its glass while the rays' padding moved its buttons: tuck it now.
@@ -3686,6 +3692,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (!convo.on) return;
     convo.on = false; convo.waiting = false;
     els.root.classList.remove("conversing");
+    $("miniNew").title = "New chat";
     if (speech.state !== "idle") cancelDictation();
     reader.stop();
     if (!collapsed) toast("Conversation ended");
