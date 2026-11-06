@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.51, 6 Nov 2026)
+## Status (v0.3.52, 6 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -222,6 +222,11 @@ it plays the silero VAD watches the mic: 8 frames (~0.25 s) above 0.6, not in th
 starts from 0.8 s before (`barge`); the shortcut or a click on Pip cut in by hand. Esc ends it. While Pip speaks its rays turn
 blue-violet. Checked: helper compiles and links, page flow with a mocked helper and the real voices (Playwright); **not checked:
 the echo cancellation and barge-in with a real microphone and speakers** (owner's Mac).
+v0.3.52 (6 Nov 2026), built and notarized, not yet confirmed: v0.3.51 had no error but the conversation mic gave nothing (rays
+still, no text; dictation fine). Likely cause: the converter was built for the mic format read before the connections, which voice
+processing changes, so every buffer failed silently. Now the tap takes the buffers' own format (converter rebuilt when it changes),
+the format is read after the connections and logged, and 1.5 s of digital silence from the voice-processing mic restarts it without.
+The helper's stderr goes to `~/Library/Logs/Quick Prompt/speech.log` (look there first for dictation and conversation problems).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
