@@ -70,6 +70,7 @@ final class Speech {
         case "release":
             // The conversation ended: the microphone it kept on between turns goes off.
             command(["cmd": "release"])
+            scheduleIdleQuit()
         case "download":
             startDownload(popup)
         case "cancelDownload":
@@ -138,7 +139,7 @@ final class Speech {
         launchIfNeeded()
         popup.speechEvent(["type": ready ? "starting" : "loading"])
         command(["cmd": "start", "languages": body["languages"] as? [String] ?? ["en"], "prompt": body["prompt"] as? String ?? "",
-                 "conversation": body["conversation"] as? Bool ?? false])
+                 "conversation": body["conversation"] as? Bool ?? false, "autoEnd": body["autoEnd"] as? Bool ?? true])
     }
 
     private func command(_ body: [String: Any]) {
@@ -215,8 +216,12 @@ final class Speech {
             return
         }
         owner?.speechEvent(event)
-        if type == "final" || type == "cancelled" || type == "error" {
+        // A conversation's turns do not count: the helper listens on until the conversation ends ("ended", or
+        // "release" from the page, below).
+        if (type == "final" && event["conversation"] as? Bool != true) || type == "cancelled" || type == "error" || type == "ended" {
             scheduleIdleQuit()
+        } else if type == "final" || type == "listening" {
+            idleTimer?.invalidate()
         }
     }
 

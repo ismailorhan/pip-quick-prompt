@@ -254,6 +254,14 @@ On `dev` after v0.3.56: v0.3.56's log: the turn after an answer heard nothing (v
 plain mic; the turn was lost). Each turn used to stop the engine and start a new one (to play, then to listen). Now a
 conversation keeps one engine (microphone) running between turns; `release` (page: endConversation) or two idle minutes stop it.
 #root.conversing keeps the 18 px room for the rays for the whole conversation, so Pip no longer moves at each listen/speak switch.
+**Conversation listens continuously** (owner: "kökten çöz, sürekli dinlemeli"; on `dev`): the helper runs the turns itself. The
+page sends `start` once (conversation, `autoEnd` = "a pause sends it"); the helper keeps one engine, watches with the voice
+detector between turns (onset: 8 frames avg > 0.6 and > −42 dBFS, not within 0.5 s after an answer; over an answer the stricter
+barge rule), sends `listening`, partials, then on a 1.2 s pause ends the turn itself (`final` with `conversation: true`) and watches
+again. The page sends each such final (over an answer still being written: cancel, then send), plays answers, no longer calls
+listenTurn after answers. Manual end: ↵ / Pip click → `stop`. `release` or ten idle minutes (`ended`) stop it; the app's 10-minute
+helper quit ignores conversation finals. Checked: the real helper on a WAV with two utterances (both sent by themselves, TR + EN);
+the page flow with a mocked helper (Playwright). Not yet with a real microphone.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

@@ -3002,7 +3002,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     speech.base = els.prompt.value;
     speech.sendAfter = false;
     setSpeechState("starting");
-    speechPost("start", { languages: parseLangs(state && state.speechLanguages), prompt: (state && state.speechHints) || "", conversation: convo.on });
+    speechPost("start", { languages: parseLangs(state && state.speechLanguages), prompt: (state && state.speechHints) || "", conversation: convo.on, autoEnd: convoEnd() === "silence" });
   }
   function stopDictation(thenSend) {
     if (speech.state === "listening" || speech.state === "starting") {
@@ -3045,6 +3045,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         break;
       case "listening":
         if (speech.state === "starting") setSpeechState("listening");
+        // Conversation: the helper heard the user start a new turn by itself (it listens the whole conversation).
+        else if (convo.on && speech.state === "idle") {
+          reader.stop(true);
+          speech.base = els.prompt.value; speech.sendAfter = false;
+          setSpeechState("listening");
+        }
         break;
       case "level":
         if (speech.state === "listening") { micBtn.style.setProperty("--lvl", Math.min(1, e.value).toFixed(2)); pipWave.level = Math.min(1, e.value); convo.onLevel(e.value); }
@@ -3053,8 +3059,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         if (speech.state === "listening") { setDictated(e.text || ""); convo.onPartial(e.text || ""); }
         break;
       case "pause":
-        // Conversation: the helper's voice detector heard the user stop (1.2 s); send what was said.
-        if (convo.on && convoEnd() === "silence" && speech.state === "listening" && els.prompt.value.trim()) sendTurn();
+        // Conversation: the helper heard the user stop (1.2 s); with "a pause sends it" it ends the turn itself.
+        break;
+      case "ended":
+        // Ten minutes with no turn and no answer: the helper turned the microphone off.
+        if (convo.on) endConversation();
         break;
       case "played":
         { const done = pendingPlays.get(e.id); pendingPlays.delete(e.id); if (done) done(); }
@@ -3075,8 +3084,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         setSpeechState("idle");
         els.prompt.focus();
         els.prompt.setSelectionRange(els.prompt.value.length, els.prompt.value.length);
-        if (thenSend && els.prompt.value.trim()) send();
-        else if (convo.on) { convo.waiting = false; setTimeout(listenTurn, 300); }   // nothing said: listen again
+        // Conversation: every turn the helper ends is sent (it goes on listening by itself); nothing said, nothing sent.
+        if ((thenSend || (convo.on && e.conversation)) && els.prompt.value.trim()) convo.on ? convoSend() : send();
+        else if (convo.on) convo.waiting = false;
         break;
       }
       case "cancelled":
@@ -3514,7 +3524,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       return;
     }
     // A conversation waiting for an answer that failed: listen again.
-    if (convo.on && convo.waiting && !s.busy && reader.index < 0 && last && last.role !== "user" && last.state === "error") { convo.waiting = false; setTimeout(listenTurn, 300); }
+    if (convo.on && convo.waiting && !s.busy && reader.index < 0 && last && last.role !== "user" && last.state === "error") convo.waiting = false;
+    // A turn said while the previous answer was still being written: that answer was stopped; send it now.
+    if (convo.on && convo.queued && !s.busy) { convo.queued = false; send(); }
     if (reader.index < 0) return;
     if (convo.on) convo.waiting = false;
     const m = msgs[reader.index], text = (m && m.text) || "";
@@ -3538,8 +3550,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     reader.update(state);
   }
   function finish() {
-    reader.index = -1; reader.paint(); pipSpeaking(false);
-    if (convo.on) setTimeout(listenTurn, 300);   // the answer is read: Pip listens again
+    reader.index = -1; reader.paint(); pipSpeaking(false);   // (in a conversation the helper is still listening)
   }
   reader.stop = function (helperStopped) {
     reader.run++;
@@ -3650,7 +3661,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // A turn ends on a pause (Settings → Read Aloud) or when the user says so: the shortcut, ↵, a click on Pip.
   // While Pip speaks, the helper plays the answer with echo cancellation and watches the microphone: speaking
   // over Pip stops it and the turn starts there ("barge"); the shortcut or a click does the same by hand.
-  const convo = { on: false, heard: false, activeAt: 0, partial: "", waiting: false };
+  const convo = { on: false, heard: false, activeAt: 0, partial: "", waiting: false, queued: false };
   let conversationAsked = false;
   const convoEnd = () => (state && state.conversationEnd === "manual" ? "manual" : "silence");
   convo.onLevel = v => { if (convo.on && v > 0.35) { convo.heard = true; convo.activeAt = performance.now(); } };
@@ -3686,14 +3697,20 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     convo.waiting = true;
     stopDictation(true);
   }
+  // Pip clicked while it speaks: the answer stops; the helper, listening all along, hears the user's next words.
   function bargeIn() {
     reader.autoFrom = Math.max(reader.autoFrom == null ? -1 : reader.autoFrom, reader.index);
     reader.stop();
-    setTimeout(listenTurn, 150);
+  }
+  // Sends a turn; over an answer still being written, stops that one first and sends when it has stopped.
+  function convoSend() {
+    convo.waiting = true;
+    if (state && state.busy) { convo.queued = true; post("cancel"); return; }
+    send();
   }
   function endConversation() {
     if (!convo.on) return;
-    convo.on = false; convo.waiting = false;
+    convo.on = false; convo.waiting = false; convo.queued = false;
     els.root.classList.remove("conversing");
     globe.setTalking(false);
     $("miniNew").title = "New chat";
@@ -3702,12 +3719,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     speechPost("release");   // the microphone, kept on between turns, goes off
     if (!collapsed) toast("Conversation ended");
   }
-  // On a pause the helper's voice detector says so ("pause", above). As a fallback (a helper without it): 2.5 s
-  // with no new words after some were heard.
-  setInterval(() => {
-    if (!convo.on || convoEnd() !== "silence" || speech.state !== "listening" || !convo.partial) return;
-    if (performance.now() - convo.partialAt > 2500 && els.prompt.value.trim()) sendTurn();
-  }, 250);
   // Esc ends the conversation (before the dictation's own Esc, which only cancels the recording).
   window.addEventListener("keydown", e => {
     if (e.key === "Escape" && convo.on) { e.preventDefault(); e.stopImmediatePropagation(); endConversation(); }

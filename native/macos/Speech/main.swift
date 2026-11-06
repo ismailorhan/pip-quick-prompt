@@ -1,15 +1,19 @@
 // QuickPromptSpeech: local speech-to-text for Quick Prompt (whisper.cpp, on this Mac only).
 //
 // The app starts it on the first mic press and talks to it with one JSON object per line:
-//   in  (stdin):  {"cmd":"start","languages":["en","tr"],"prompt":"words to expect","conversation":true}  {"cmd":"stop"}  {"cmd":"cancel"}
+//   in  (stdin):  {"cmd":"start","languages":["en","tr"],"prompt":"words to expect","conversation":true,"autoEnd":true}  {"cmd":"stop"}  {"cmd":"cancel"}
 //                 conversation mode only: {"cmd":"play","id":3,"wav":"<base64 16-bit mono WAV>"}  {"cmd":"hush"}
 //                 {"cmd":"release"} (the conversation ended: its microphone, kept on between turns, goes off)
 //   out (stdout): {"type":"ready"}  {"type":"listening"}  {"type":"level","value":0.4}
 //                 {"type":"partial","text":"…"}  {"type":"final","text":"…"}  {"type":"error","message":"…"}
 //                 conversation mode only: {"type":"played","id":3}  {"type":"barge"}  {"type":"pause"} (the user stopped speaking)
-// Conversation mode: the microphone runs through macOS's voice processing (echo cancellation), and the answer is
-// played through the same engine, so the microphone hardly hears it. While it plays, the voice detector watches
-// the microphone; when someone speaks over it, the playback stops ("barge") and listening starts from there.
+//                 {"type":"ended"} (ten minutes without a turn or an answer: the microphone is off)
+// Conversation mode: the helper listens for the whole conversation, on one engine. The microphone runs through
+// macOS's voice processing (echo cancellation), and the answer is played through the same engine, so the microphone
+// hardly hears it. Between turns the voice detector watches the microphone: when the user starts speaking it sends
+// "listening" and records from just before; when they pause (autoEnd) it ends the turn itself and sends "final"
+// (with "conversation": true), then watches again. Speaking over an answer stops it first ("barge"). The page only
+// sends what was said and plays the answers; "release" (or ten idle minutes, then "ended") frees the microphone.
 // While listening it writes the text as it hears it (partial: the words so far, the last ones may still change);
 // on stop it transcribes the whole recording once more, with voice detection, and sends the final text.
 // Usage: QuickPromptSpeech <model.bin> <vad.bin>
@@ -73,6 +77,9 @@ var channelEnergy: [Double] = []
 var channelFrames = 0
 var playEnergy0 = 0.0                 // channel 0 while an answer plays (what is left of Pip's voice)
 var playFrames = 0
+var autoEnd = true                    // conversation: a pause ends the turn (else the page says when, with "stop")
+var lastPlayEnd = Date.distantPast    // when the last answer piece finished (its echo dies away)
+var lastActivity = Date()             // the last turn or answer: ten quiet minutes end the conversation
 var aborting = false                  // stops a running decode (cancel, or stop while a live decode runs)
 
 /// How loud, 0…1, as the ear hears it: -50 dB (a quiet room) is 0, -10 dB (speaking up close) is 1.
@@ -305,9 +312,11 @@ func play(_ body: [String: Any]) {
         if !listening { watching = true }
         playing += 1
         let id = body["id"] ?? 0
+        lastActivity = Date()
         node.scheduleBuffer(buffer) {
             work.async {
                 playing = max(0, playing - 1)
+                if playing == 0 { lastPlayEnd = Date() }
                 send(["type": "played", "id": id])
             }
         }
@@ -323,41 +332,65 @@ func hush() {
     }
 }
 
-/// While an answer plays: the voice detector over the (echo-cancelled) microphone. Half a second of clear speech,
-/// not in the first moment of playback, is the user speaking: stop the answer and listen from just before it.
+/// Conversation, between turns and while an answer plays: the voice detector over the (echo-cancelled) microphone.
+/// The user starting to speak begins a turn, from just before; over an answer it stops the answer first.
 func watchStep() {
-    guard watching, !listening else { watchLoop = false; return }
+    guard watching, !listening, engine != nil || fileTimer != nil else { watchLoop = false; return }
     updateVoice()
-    // Half a second of clear speech (16 frames of 32 ms, each above 0.5, average above 0.75): what echo
-    // cancellation leaves of Pip's own voice comes in short, weaker bursts.
-    // It must also be loud: what is left of Pip's voice measured -48 to -53 dBFS (the English voice set the
-    // detector off at -48), the owner speaking -20 to -35. So the last half second must be above -40 dBFS.
-    let recent = speechProbs.suffix(16)
-    if echoCancelling, playing > 0, Date().timeIntervalSince(playStarted) > 0.6, recent.count == 16,
-       recent.allSatisfy({ $0 > 0.5 }), recent.reduce(0, +) / 16 > 0.75, recentLevel(0.5) > -40 {
-        log(String(format: "Barge-in after %.1f s of playback, %.0f dBFS", Date().timeIntervalSince(playStarted), recentLevel(0.5)))
-        logChannels()
-        player?.stop()
-        playing = 0
+    let onset: Bool
+    if playing > 0 {
+        // Over an answer: half a second of clear speech (16 frames of 32 ms, each above 0.5, average above 0.75), and
+        // loud: what echo cancellation leaves of Pip's voice measured -48 to -53 dBFS (the English voice set the
+        // detector off at -48), the owner speaking -20 to -35. Without echo cancellation, only by hand.
+        let recent = speechProbs.suffix(16)
+        onset = echoCancelling && Date().timeIntervalSince(playStarted) > 0.6 && recent.count == 16
+            && recent.allSatisfy({ $0 > 0.5 }) && recent.reduce(0, +) / 16 > 0.75 && recentLevel(0.5) > -40
+    } else {
+        // Quiet: a quarter second of speech above -42 dBFS, not in the half second after an answer (its echo).
+        let recent = speechProbs.suffix(8)
+        onset = Date().timeIntervalSince(lastPlayEnd) > 0.5 && recent.count == 8 && recent.reduce(0, +) / 8 > 0.6
+            && recentLevel(0.3) > -42
+    }
+    if onset {
+        if playing > 0 {
+            log(String(format: "Barge-in after %.1f s of playback, %.0f dBFS", Date().timeIntervalSince(playStarted), recentLevel(0.5)))
+            logChannels()
+            player?.stop()
+            playing = 0
+            lastPlayEnd = Date()
+            send(["type": "barge"])
+        }
         watching = false
+        watchLoop = false
         lock.lock(); samples = Array(samples.suffix(Int(rate * 0.8))); lock.unlock()
         speechProbs = []; vadDone = 0; committed = []; commitAt = 0
         whisper_vad_reset_state(vad)
-        stopRequested = false; aborting = false
+        stopRequested = false; aborting = false; pauseHeard = false
+        lockedLanguage = languages.count == 1 ? languages[0] : nil
+        lastActivity = Date()
         listening = true
-        watchLoop = false
-        send(["type": "barge"])
         send(["type": "listening"])
         work.asyncAfter(deadline: .now() + 0.4) { liveStep() }
         return
     }
-    if playing == 0 && !listening {
-        // The answer ended without the user speaking: the microphone stays on for the next turn.
+    if playing == 0 && Date().timeIntervalSince(lastActivity) > 600 {
+        log("Conversation idle for ten minutes: microphone off")
         watching = false
         watchLoop = false
-        releaseLater()
+        stopAudio()
+        conversation = false
+        send(["type": "ended"])
         return
     }
+    // Waiting long: keep the last ten seconds only.
+    lock.lock()
+    if samples.count > Int(rate * 20) {
+        let frames = (samples.count - Int(rate * 10)) / frame, drop = frames * frame   // whole frames: the probs stay in step
+        samples.removeFirst(drop)
+        vadDone = max(0, vadDone - drop)
+        speechProbs.removeFirst(min(frames, speechProbs.count))
+    }
+    lock.unlock()
     work.asyncAfter(deadline: .now() + 0.1) { watchStep() }
 }
 
@@ -499,8 +532,13 @@ func liveStep() {
     // Conversation: the voice detector says when the user stopped speaking (1.2 s after some speech); the page
     // sends the turn when it has text. Sent on every step of the pause, until speech starts again.
     if conversation {
-        if trailingSilence() >= Int(rate * 1.2), speechSeconds() >= 0.3 { send(["type": "pause"]); pauseHeard = true }
-        else if pauseHeard { pauseHeard = false }
+        if trailingSilence() >= Int(rate * 1.2), speechSeconds() >= 0.3 {
+            if !pauseHeard {
+                pauseHeard = true
+                send(["type": "pause"])
+                if autoEnd { stop(); return }   // the turn ends here; the helper watches for the next one
+            }
+        } else if pauseHeard { pauseHeard = false }
     }
     lock.lock(); let total = samples.count; lock.unlock()
     let pending = total - commitAt
@@ -541,6 +579,8 @@ func start(_ body: [String: Any]) {
         lockedLanguage = languages.count == 1 ? languages[0] : nil
         provisional = languages[0]
         let wanted = body["conversation"] as? Bool ?? false
+        autoEnd = body["autoEnd"] as? Bool ?? true
+        lastActivity = Date()
         // A conversation keeps its microphone between turns: voice processing started again soon after stopping
         // came back silent (-80 dBFS) on the owner's Mac, so the turn after an answer heard nothing.
         if wanted != conversation { stopAudio() }
@@ -567,7 +607,7 @@ func stop() {
     work.async {
         guard listening else { return }
         listening = false
-        if conversation { releaseLater() } else { stopAudio() }
+        if !conversation { stopAudio() }
         aborting = false
         lock.lock(); let audio = samples; lock.unlock()
         updateVoice()
@@ -578,8 +618,20 @@ func stop() {
         if lockedLanguage == nil, let guess = detectLanguage(audio) { lockedLanguage = guess }
         // The whole recording once more, with voice detection: better words and no invented ones over silence.
         let segs = audio.count > Int(rate * 0.3) ? transcribe(audio, prompt: hints, useVoiceDetection: true) : []
-        send(["type": "final", "text": join((segs ?? []).map(\.text))])
+        send(["type": "final", "text": join((segs ?? []).map(\.text)), "conversation": conversation])
+        if conversation { lastActivity = Date(); watch() }
     }
+}
+
+/// Conversation, between turns: the microphone stays on and the voice detector waits for the user to speak. The
+/// last second is kept (they may have started while the turn was being transcribed).
+func watch() {
+    guard conversation, !listening, engine != nil || fileTimer != nil else { return }
+    lock.lock(); samples = Array(samples.suffix(Int(rate))); lock.unlock()
+    speechProbs = []; vadDone = 0
+    whisper_vad_reset_state(vad)
+    watching = true
+    if !watchLoop { watchLoop = true; work.asyncAfter(deadline: .now() + 0.1) { watchStep() } }
 }
 
 /// The level of each voice-processing channel since the last log (dBFS), and of channel 0 while Pip spoke.
@@ -592,22 +644,12 @@ func logChannels() {
         + (playFrames > 0 ? ", channel 0 while Pip spoke " + db(playEnergy0, playFrames) : ""))
 }
 
-/// The conversation is over (or the page went away): free the microphone.
+/// The conversation is over: free the microphone.
 func release() {
     work.async {
-        guard !listening else { return }
+        if listening { listening = false; stopRequested = true }
         stopAudio()
         conversation = false
-    }
-}
-
-/// A conversation's microphone left on with nothing happening (no turn, no answer) for two minutes is freed.
-func releaseLater() {
-    let running = engine
-    work.asyncAfter(deadline: .now() + 120) {
-        guard let e = running, e === engine, !listening, playing == 0 else { return }
-        log("Conversation idle for two minutes: microphone off")
-        stopAudio()
     }
 }
 
