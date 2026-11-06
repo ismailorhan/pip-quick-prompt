@@ -162,7 +162,7 @@ button.x:hover { color: var(--text); }
 .send.dictstop { background: #e5484d; color: #fff; opacity: 1; }
 /* Dictating: a mirrored spectrum of red rays around Pip, moving with the voice (drawn on #pipWave), reaching
    14 px past the disc (8 px while Pip speaks). The panel gets room for it; the anchors keep Pip where it is. */
-#root.dictating { padding: 18px; }
+#root.dictating, #root.conversing { padding: 18px; }
 #pipWave { position: fixed; pointer-events: none; z-index: 5; }
 .round.mic.wait { animation: qp-mic-wait 1s ease-in-out infinite; }
 @keyframes qp-mic-wait { 50% { opacity: .35; } }
@@ -3699,6 +3699,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     $("miniNew").title = "New chat";
     if (speech.state !== "idle") cancelDictation();
     reader.stop();
+    speechPost("release");   // the microphone, kept on between turns, goes off
     if (!collapsed) toast("Conversation ended");
   }
   // On a pause the helper's voice detector says so ("pause", above). As a fallback (a helper without it): 2.5 s

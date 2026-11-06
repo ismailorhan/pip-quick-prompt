@@ -250,6 +250,10 @@ v0.3.56 (7 Nov 2026), built, not yet confirmed: the talking star shows for the w
 speaks); rays show only while someone speaks (none when quiet). The first conversation after the helper started got a whole
 turn at −80 dBFS (voice processing started "dead"; the digital-zero check missed it): a start with no peak above 0.003 in
 1.5 s now restarts voice processing once, then falls back to the plain mic.
+On `dev` after v0.3.56: v0.3.56's log: the turn after an answer heard nothing (voice processing came back silent twice, then the
+plain mic; the turn was lost). Each turn used to stop the engine and start a new one (to play, then to listen). Now a
+conversation keeps one engine (microphone) running between turns; `release` (page: endConversation) or two idle minutes stop it.
+#root.conversing keeps the 18 px room for the rays for the whole conversation, so Pip no longer moves at each listen/speak switch.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

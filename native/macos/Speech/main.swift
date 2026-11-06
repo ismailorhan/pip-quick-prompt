@@ -3,6 +3,7 @@
 // The app starts it on the first mic press and talks to it with one JSON object per line:
 //   in  (stdin):  {"cmd":"start","languages":["en","tr"],"prompt":"words to expect","conversation":true}  {"cmd":"stop"}  {"cmd":"cancel"}
 //                 conversation mode only: {"cmd":"play","id":3,"wav":"<base64 16-bit mono WAV>"}  {"cmd":"hush"}
+//                 {"cmd":"release"} (the conversation ended: its microphone, kept on between turns, goes off)
 //   out (stdout): {"type":"ready"}  {"type":"listening"}  {"type":"level","value":0.4}
 //                 {"type":"partial","text":"…"}  {"type":"final","text":"…"}  {"type":"error","message":"…"}
 //                 conversation mode only: {"type":"played","id":3}  {"type":"barge"}  {"type":"pause"} (the user stopped speaking)
@@ -292,8 +293,9 @@ func play(_ body: [String: Any]) {
         guard conversation, let text = body["wav"] as? String, let data = Data(base64Encoded: text), let buffer = decodeWav(data) else {
             send(["type": "played", "id": body["id"] ?? 0]); return
         }
-        if engine == nil {
-            // Between turns: start the engine to watch for the user speaking over the answer.
+        if !listening && !watching {
+            // Between turns: the microphone (kept running for the conversation) watches for the user speaking over
+            // the answer, from now on.
             lock.lock(); samples = []; lock.unlock()
             speechProbs = []; vadDone = 0
             whisper_vad_reset_state(vad)
@@ -350,10 +352,10 @@ func watchStep() {
         return
     }
     if playing == 0 && !listening {
-        // The answer ended without the user speaking: free the microphone until the next turn.
+        // The answer ended without the user speaking: the microphone stays on for the next turn.
         watching = false
         watchLoop = false
-        stopAudio()
+        releaseLater()
         return
     }
     work.asyncAfter(deadline: .now() + 0.1) { watchStep() }
@@ -539,7 +541,10 @@ func start(_ body: [String: Any]) {
         lockedLanguage = languages.count == 1 ? languages[0] : nil
         provisional = languages[0]
         let wanted = body["conversation"] as? Bool ?? false
-        if wanted != conversation || watching { player?.stop(); stopAudio() }   // a new turn starts clean
+        // A conversation keeps its microphone between turns: voice processing started again soon after stopping
+        // came back silent (-80 dBFS) on the owner's Mac, so the turn after an answer heard nothing.
+        if wanted != conversation { stopAudio() }
+        else if watching { player?.stop(); playing = 0; watching = false }
         conversation = wanted
         lock.lock(); samples = []; lock.unlock()
         speechProbs = []; vadDone = 0; committed = []; commitAt = 0
@@ -562,7 +567,7 @@ func stop() {
     work.async {
         guard listening else { return }
         listening = false
-        stopAudio()
+        if conversation { releaseLater() } else { stopAudio() }
         aborting = false
         lock.lock(); let audio = samples; lock.unlock()
         updateVoice()
@@ -585,6 +590,25 @@ func logChannels() {
     func db(_ e: Double, _ n: Int) -> String { n > 0 && e > 0 ? String(format: "%.0f", 10 * log10(e / Double(n))) : "-inf" }
     log("Channels (dBFS): " + channelEnergy.map { db($0, channelFrames) }.joined(separator: " ")
         + (playFrames > 0 ? ", channel 0 while Pip spoke " + db(playEnergy0, playFrames) : ""))
+}
+
+/// The conversation is over (or the page went away): free the microphone.
+func release() {
+    work.async {
+        guard !listening else { return }
+        stopAudio()
+        conversation = false
+    }
+}
+
+/// A conversation's microphone left on with nothing happening (no turn, no answer) for two minutes is freed.
+func releaseLater() {
+    let running = engine
+    work.asyncAfter(deadline: .now() + 120) {
+        guard let e = running, e === engine, !listening, playing == 0 else { return }
+        log("Conversation idle for two minutes: microphone off")
+        stopAudio()
+    }
 }
 
 func cancel() {
@@ -620,6 +644,7 @@ DispatchQueue.global().async {
         case "cancel": cancel()
         case "play": play(body)
         case "hush": hush()
+        case "release": release()
         case "quit": quit()
         default: break
         }

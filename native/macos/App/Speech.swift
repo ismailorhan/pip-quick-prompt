@@ -67,6 +67,9 @@ final class Speech {
             command(["cmd": "play", "id": body["id"] ?? 0, "wav": body["wav"] as? String ?? ""])
         case "hush":
             command(["cmd": "hush"])
+        case "release":
+            // The conversation ended: the microphone it kept on between turns goes off.
+            command(["cmd": "release"])
         case "download":
             startDownload(popup)
         case "cancelDownload":
