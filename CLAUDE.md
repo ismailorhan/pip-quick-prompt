@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.52, 6 Nov 2026)
+## Status (v0.3.53, 6 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -227,6 +227,11 @@ still, no text; dictation fine). Likely cause: the converter was built for the m
 processing changes, so every buffer failed silently. Now the tap takes the buffers' own format (converter rebuilt when it changes),
 the format is read after the connections and logged, and 1.5 s of digital silence from the voice-processing mic restarts it without.
 The helper's stderr goes to `~/Library/Logs/Quick Prompt/speech.log` (look there first for dictation and conversation problems).
+v0.3.53 (6 Nov 2026), built, not yet confirmed: speech.log from v0.3.52 showed the voice-processing mic as 9 channels at 48 kHz
+(plain mic: 3 or 1); some sessions gave only zeros (fallback ran), others gave sound but no text. The converter's mix-down averaged
+the voice away: now the 9 channels are summed into one. A turn ends when the helper's VAD hears 1.2 s of no speech after some
+(`pause` event; fallback in the page: 2.5 s with no new words). Each recording logs length, peak, speech seconds and echo
+cancellation on/off to speech.log.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
