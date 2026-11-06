@@ -65,7 +65,7 @@ let playFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 4800
 var playing = 0                       // buffers scheduled and not yet played
 var playStarted = Date.distantPast
 var watchLoop = false                 // one watchStep chain at a time
-var heardAudio = false                // the microphone gave something other than digital silence
+var heardAudio = false                // the microphone gave more than a dead floor (a peak above 0.003)
 var echoCancelling = false            // voice processing started; without it, speech over Pip would be Pip's own voice
 var channelLock = NSLock()           // per-channel levels of the voice-processing microphone, for the log
 var channelEnergy: [Double] = []
@@ -109,18 +109,7 @@ func startAudio() throws {
     if let path = ProcessInfo.processInfo.environment["QP_SPEECH_FILE"] { try startFile(path); return }
     if conversation {
         do {
-            try startEngine(voiceProcessing: true)
-            echoCancelling = true
-            // Voice processing can start and still give nothing (no buffers, or only zeros): after 1.5 s without
-            // sound from the microphone, start again without it rather than listen to silence.
-            let started = engine
-            work.asyncAfter(deadline: .now() + 1.5) {
-                guard let e = started, e === engine, echoCancelling, !heardAudio else { return }
-                log("Voice processing gave no sound from the microphone; going on without echo cancellation")
-                stopAudio()
-                echoCancelling = false
-                do { try startEngine(voiceProcessing: false) } catch { send(["type": "error", "message": "Could not use the microphone: \(error.localizedDescription)"]) }
-            }
+            try startVoiceProcessing(retry: true)
             return
         } catch {
             // e.g. -10875 when the microphone and the speakers are different devices (AirPods mic, Mac speakers):
@@ -130,6 +119,29 @@ func startAudio() throws {
     }
     echoCancelling = false
     try startEngine(voiceProcessing: false)
+}
+
+/// Voice processing can start and still give nothing: no buffers, zeros, or (the first time after the helper starts,
+/// on the owner's Mac) a whole turn at -80 dBFS while they spoke. After 1.5 s with no sound above that dead floor
+/// (a quiet room peaks at ~0.01), start it once more, then without it rather than listen to silence.
+func startVoiceProcessing(retry: Bool) throws {
+    try startEngine(voiceProcessing: true)
+    echoCancelling = true
+    let started = engine
+    work.asyncAfter(deadline: .now() + 1.5) {
+        guard let e = started, e === engine, echoCancelling, !heardAudio else { return }
+        stopAudio()
+        if retry {
+            log("Voice processing gave no sound from the microphone; starting it again")
+            lock.lock(); samples = []; lock.unlock()
+            speechProbs = []; vadDone = 0; committed = []; commitAt = 0
+            whisper_vad_reset_state(vad)
+            if (try? startVoiceProcessing(retry: false)) != nil { return }
+        }
+        log("Voice processing gave no sound from the microphone; going on without echo cancellation")
+        echoCancelling = false
+        do { try startEngine(voiceProcessing: false) } catch { send(["type": "error", "message": "Could not use the microphone: \(error.localizedDescription)"]) }
+    }
 }
 
 func startEngine(voiceProcessing: Bool) throws {
@@ -206,7 +218,7 @@ func startEngine(voiceProcessing: Bool) throws {
         }
         guard error == nil, let data = out.floatChannelData?[0], out.frameLength > 0 else { return }
         let chunk = Array(UnsafeBufferPointer(start: data, count: Int(out.frameLength)))
-        if !heardAudio, chunk.contains(where: { abs($0) > 1e-5 }) { heardAudio = true }
+        if !heardAudio, chunk.contains(where: { abs($0) > 0.003 }) { heardAudio = true }
         lock.lock(); samples.append(contentsOf: chunk); lock.unlock()
         // The level for the mic button (about 12 a second).
         let now = Date().timeIntervalSince1970

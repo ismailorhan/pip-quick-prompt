@@ -246,6 +246,10 @@ itself off with the English voice ("Barge-in after 1.3 s", channel 0 at −48 dB
 detector took for speech; the owner speaks at −20…−35). Barge-in now also needs the last 0.5 s above −40 dBFS.
 Also in v0.3.55: a conversation started with Pip alone shows no toast (it was cut off) and tucks Pip's toolbar; in a conversation
 the toolbar's first button is a red stop that ends it (New Chat otherwise).
+On `dev` after v0.3.55: the talking star shows for the whole conversation (from its start; the mouth moves only while Pip
+speaks); rays show only while someone speaks (none when quiet). The first conversation after the helper started got a whole
+turn at −80 dBFS (voice processing started "dead"; the digital-zero check missed it): a start with no peak above 0.003 in
+1.5 s now restarts voice processing once, then falls back to the plain mic.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

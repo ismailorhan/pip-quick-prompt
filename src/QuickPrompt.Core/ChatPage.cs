@@ -1966,7 +1966,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     let hover = false, busy = false, awake = false, wake = 0, starScale = tune.star;
     let springT = -1, sprung = false, springWait = 0, flashT = -1, flashed = false, nextSignal = 0.4;
     let running = false, last = 0, t = 0, sleepTimer = 0;
-    // Talking (conversation, while Pip speaks): the star turns once, fills out and gets eyes and a mouth; the
+    // Talking (for the whole conversation): the star turns once, fills out and gets eyes and a mouth (moving while Pip speaks); the
     // pieces fly out round its sides and circle it. Tried in tools/pip-voice-lab.html ("Talking star").
     const STAR = [[12, 4.6], [13.85, 10.15], [19.4, 12], [13.85, 13.85], [12, 19.4], [10.15, 13.85], [4.6, 12], [10.15, 10.15]];
     const starPath = core.querySelector("path"), starD = starPath.getAttribute("d");
@@ -2917,7 +2917,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       ctx.lineWidth = lw;
       for (let i = 0; i < N; i++) {
         const v = bins[i < half ? i : N - 1 - i];
-        const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = 1.5 + v * reach;
+        // Quiet (no one speaking): no rays at all; they grow out of the rim with the voice.
+        const a = i / N * Math.PI * 2 - Math.PI / 2 + turn, len = v * reach;
+        if (len < 1) continue;
         const x0 = c + Math.cos(a) * inner, y0 = c + Math.sin(a) * inner, x1 = c + Math.cos(a) * (inner + len), y1 = c + Math.sin(a) * (inner + len);
         const g = ctx.createLinearGradient(x0, y0, x1, y1);
         g.addColorStop(0, api.tone === "speak" ? "rgba(110, 120, 255, .95)" : "rgba(229, 72, 77, .95)");
@@ -3457,7 +3459,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // Pip shows it speaks (conversation): rays in the speaking colours.
   function pipSpeaking(on) {
     pipVoice = on;
-    globe.setTalking(on);
+    globe.setTalking(on || convo.on);
     if (!on) voiceEnvelope.stop();
     els.root.classList.toggle("dictating", on || speech.state === "listening" || speech.state === "starting");
     if (on) { pipWave.tone = "speak"; pipWave.start(); }
@@ -3665,6 +3667,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (voice.state !== "ready") { if (collapsed) expand(); offerVoices(); return; }
     convo.on = true; convo.waiting = false;
     els.root.classList.add("conversing");
+    globe.setTalking(true);   // the face stays for the whole conversation; the mouth moves only while Pip speaks
     $("miniNew").title = "End conversation (esc)";
     reader.stop();
     // Pip alone (its menu, the shortcut): the rays say it listens. A toast there was cut off by Pip's small panel, and
@@ -3692,6 +3695,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (!convo.on) return;
     convo.on = false; convo.waiting = false;
     els.root.classList.remove("conversing");
+    globe.setTalking(false);
     $("miniNew").title = "New chat";
     if (speech.state !== "idle") cancelDictation();
     reader.stop();
