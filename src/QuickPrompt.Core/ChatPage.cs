@@ -2939,6 +2939,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       case "partial":
         if (speech.state === "listening") { setDictated(e.text || ""); convo.onPartial(e.text || ""); }
         break;
+      case "pause":
+        // Conversation: the helper's voice detector heard the user stop (1.2 s); send what was said.
+        if (convo.on && convoEnd() === "silence" && speech.state === "listening" && els.prompt.value.trim()) sendTurn();
+        break;
       case "played":
         { const done = pendingPlays.get(e.id); pendingPlays.delete(e.id); if (done) done(); }
         break;
@@ -3536,6 +3540,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   convo.onPartial = t => {
     if (!convo.on || t === convo.partial) return;
     convo.partial = t;
+    convo.partialAt = performance.now();
     if (t) { convo.heard = true; convo.activeAt = Math.max(convo.activeAt, performance.now() - 500); }
   };
   function startConversation() {
@@ -3551,7 +3556,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   function listenTurn() {
     if (!convo.on || speech.state !== "idle" || reader.index >= 0) return;
-    convo.heard = false; convo.activeAt = 0; convo.partial = "";
+    convo.heard = false; convo.activeAt = 0; convo.partial = ""; convo.partialAt = 0;
     startDictation();
   }
   function sendTurn() {
@@ -3572,11 +3577,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     reader.stop();
     toast("Conversation ended");
   }
-  // On a pause: 1.5 s without sound or new words after something was said.
+  // On a pause the helper's voice detector says so ("pause", above). As a fallback (a helper without it): 2.5 s
+  // with no new words after some were heard.
   setInterval(() => {
-    if (!convo.on || convoEnd() !== "silence" || speech.state !== "listening" || !convo.heard) return;
-    if (performance.now() - convo.activeAt > 1500 && els.prompt.value.trim()) sendTurn();
-  }, 200);
+    if (!convo.on || convoEnd() !== "silence" || speech.state !== "listening" || !convo.partial) return;
+    if (performance.now() - convo.partialAt > 2500 && els.prompt.value.trim()) sendTurn();
+  }, 250);
   // Esc ends the conversation (before the dictation's own Esc, which only cancels the recording).
   window.addEventListener("keydown", e => {
     if (e.key === "Escape" && convo.on) { e.preventDefault(); e.stopImmediatePropagation(); endConversation(); }

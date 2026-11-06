@@ -5,7 +5,7 @@
 //                 conversation mode only: {"cmd":"play","id":3,"wav":"<base64 16-bit mono WAV>"}  {"cmd":"hush"}
 //   out (stdout): {"type":"ready"}  {"type":"listening"}  {"type":"level","value":0.4}
 //                 {"type":"partial","text":"…"}  {"type":"final","text":"…"}  {"type":"error","message":"…"}
-//                 conversation mode only: {"type":"played","id":3}  {"type":"barge"}
+//                 conversation mode only: {"type":"played","id":3}  {"type":"barge"}  {"type":"pause"} (the user stopped speaking)
 // Conversation mode: the microphone runs through macOS's voice processing (echo cancellation), and the answer is
 // played through the same engine, so the microphone hardly hears it. While it plays, the voice detector watches
 // the microphone; when someone speaks over it, the playback stops ("barge") and listening starts from there.
@@ -161,7 +161,22 @@ func startEngine(voiceProcessing: Bool) throws {
     var converter: AVAudioConverter?
     var lastLevel = 0.0
     heardAudio = false
-    input.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in
+    input.installTap(onBus: 0, bufferSize: 2048, format: nil) { tapped, _ in
+        // Voice processing gives 9 channels (on the owner's Mac) and the converter's mix-down averaged the voice
+        // away to near silence. Sum them into one instead: a channel that carries the voice keeps its level.
+        var buffer = tapped
+        if voiceProcessing, tapped.format.channelCount > 1, let channels = tapped.floatChannelData,
+           let mono = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: tapped.format.sampleRate, channels: 1, interleaved: false),
+           let summed = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: tapped.frameLength) {
+            summed.frameLength = tapped.frameLength
+            let out = summed.floatChannelData![0]
+            for i in 0..<Int(tapped.frameLength) {
+                var v: Float = 0
+                for c in 0..<Int(tapped.format.channelCount) { v += channels[c][i] }
+                out[i] = max(-1, min(1, v))
+            }
+            buffer = summed
+        }
         if converter == nil || converter!.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: target) }
         guard let converter = converter else { return }
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * rate / buffer.format.sampleRate) + 32
@@ -430,9 +445,17 @@ func prompt(after text: [String]) -> String {
     return join([hints, tail])
 }
 
+var pauseHeard = false
+
 func liveStep() {
     guard listening, !stopRequested else { return }
     updateVoice()
+    // Conversation: the voice detector says when the user stopped speaking (1.2 s after some speech); the page
+    // sends the turn when it has text. Sent on every step of the pause, until speech starts again.
+    if conversation {
+        if trailingSilence() >= Int(rate * 1.2), speechSeconds() >= 0.3 { send(["type": "pause"]); pauseHeard = true }
+        else if pauseHeard { pauseHeard = false }
+    }
     lock.lock(); let total = samples.count; lock.unlock()
     let pending = total - commitAt
     if pending >= Int(rate * 0.6), hasSpeech(from: commitAt, to: total) {
@@ -498,6 +521,10 @@ func stop() {
         stopAudio()
         aborting = false
         lock.lock(); let audio = samples; lock.unlock()
+        updateVoice()
+        let peak = audio.reduce(Float(0)) { max($0, abs($1)) }
+        log(String(format: "Heard %.1f s (conversation %@, echo cancellation %@), peak %.3f, speech %.1f s",
+                   Double(audio.count) / rate, conversation ? "on" : "off", echoCancelling ? "on" : "off", peak, speechSeconds()))
         if lockedLanguage == nil, let guess = detectLanguage(audio) { lockedLanguage = guess }
         // The whole recording once more, with voice detection: better words and no invented ones over silence.
         let segs = audio.count > Int(rate * 0.3) ? transcribe(audio, prompt: hints, useVoiceDetection: true) : []
