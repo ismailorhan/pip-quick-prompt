@@ -262,6 +262,11 @@ again. The page sends each such final (over an answer still being written: cance
 listenTurn after answers. Manual end: ↵ / Pip click → `stop`. `release` or ten idle minutes (`ended`) stop it; the app's 10-minute
 helper quit ignores conversation finals. Checked: the real helper on a WAV with two utterances (both sent by themselves, TR + EN);
 the page flow with a mocked helper (Playwright). Not yet with a real microphone.
+Also on `dev`: Pip moved and scroll bars showed while the rays' room was on (owner's video): the page's ResizeObserver watched
+#root's content box, which padding does not change, so the panel never grew. Now it observes the border box; `html.native`
+never scrolls (overflow clip); the room is one class (`roomy`, `updateRoom()`), switched under a picture of Pip (freezePip) with
+Pip alone and thawed after the panel's resize. Measured with the real PopupController (a conversation start/speak/end test,
+like tools/pip-motion-test): Pip drawn 0.0 pt from its place, the page never larger than the panel; pip-motion-test all pass.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

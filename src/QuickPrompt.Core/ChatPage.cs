@@ -35,6 +35,8 @@ namespace QuickPrompt.Core
 html, body { margin: 0; color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
 body { background: var(--page); min-height: 100vh; }
 html.native, html.native body { background: transparent; min-height: 0; }
+/* In the app the page never scrolls (each view scrolls itself): a page a moment larger than its panel shows no scroll bars. */
+html.native { overflow: hidden; overflow: clip; }
 
 #root { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px; }
 /* The icon sits beside the conversation, on the side away from the nearer screen edge (set natively). */
@@ -162,7 +164,7 @@ button.x:hover { color: var(--text); }
 .send.dictstop { background: #e5484d; color: #fff; opacity: 1; }
 /* Dictating: a mirrored spectrum of red rays around Pip, moving with the voice (drawn on #pipWave), reaching
    14 px past the disc (8 px while Pip speaks). The panel gets room for it; the anchors keep Pip where it is. */
-#root.dictating, #root.conversing { padding: 18px; }
+#root.roomy { padding: 18px; }
 #pipWave { position: fixed; pointer-events: none; z-index: 5; }
 .round.mic.wait { animation: qp-mic-wait 1s ease-in-out infinite; }
 @keyframes qp-mic-wait { 50% { opacity: .35; } }
@@ -960,7 +962,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const threadObserver = window.ResizeObserver ? new ResizeObserver(() => queueLayout()) : null;
   if (bridge && window.ResizeObserver) {
     const ro = new ResizeObserver(queueLayout);
-    ro.observe(els.root);
+    // The border box: padding (the room for the voice rays) changes it but not the content box, and the panel then
+    // stayed small, Pip shifted by the padding and the page showed scroll bars.
+    ro.observe(els.root, { box: "border-box" });
     document.querySelectorAll(".glass").forEach(el => ro.observe(el));
   }
   window.addEventListener("resize", queueLayout);
@@ -1599,6 +1603,25 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     bridge.postMessage({ type: "freeze", icon: { x: r.left, y: r.top, w: r.width, h: r.height } });
   }
   function thawPip() { if (bridge) bridge.postMessage({ type: "thaw" }); }
+
+  // Room around Pip for the voice rays (dictating, or for a whole conversation, so Pip does not move at each turn).
+  // The panel grows on every side and moves so that Pip stays; with Pip alone a picture of it covers the moment
+  // in between (the page reflows a frame before the panel moves), and goes once the panel has its new size.
+  function updateRoom() {
+    const want = els.root.classList.contains("conversing") || els.root.classList.contains("dictating");
+    if (want === els.root.classList.contains("roomy")) return;
+    const apply = () => {
+      if (want === els.root.classList.contains("roomy")) { thawPip(); return; }
+      let thawed = false;
+      const thaw = () => { if (thawed) return; thawed = true; window.removeEventListener("resize", resized); requestAnimationFrame(() => requestAnimationFrame(thawPip)); };
+      const resized = () => thaw();
+      window.addEventListener("resize", resized);
+      setTimeout(thaw, 400);
+      els.root.classList.toggle("roomy", want);
+      queueLayout();
+    };
+    if (collapsed && bridge && !mini.hidden) freezePip(apply); else { els.root.classList.toggle("roomy", want); queueLayout(); }
+  }
 
   function expand() {
     if (collapsed && bridge && !expand.now) { freezePip(() => { expand.now = true; try { expand(); } finally { expand.now = false; } }); return; }
@@ -2984,6 +3007,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.send.classList.toggle("dictstop", recording);
     if (recording) els.send.classList.remove("idle"); else updateSendState();
     els.root.classList.toggle("dictating", next === "listening" || next === "starting" || pipVoice);
+    updateRoom();
     if (next === "listening" || next === "starting") { pipWave.tone = "listen"; pipWave.start(); } else if (!pipVoice) pipWave.stop();
     // While recording, the red stop button says it; the microphone steps aside.
     micBtn.hidden = !speech.available || recording;
@@ -3472,6 +3496,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     globe.setTalking(on || convo.on);
     if (!on) voiceEnvelope.stop();
     els.root.classList.toggle("dictating", on || speech.state === "listening" || speech.state === "starting");
+    updateRoom();
     if (on) { pipWave.tone = "speak"; pipWave.start(); }
     else if (speech.state === "idle") pipWave.stop();
     queueLayout();
@@ -3678,6 +3703,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (voice.state !== "ready") { if (collapsed) expand(); offerVoices(); return; }
     convo.on = true; convo.waiting = false;
     els.root.classList.add("conversing");
+    updateRoom();
     globe.setTalking(true);   // the face stays for the whole conversation; the mouth moves only while Pip speaks
     $("miniNew").title = "End conversation (esc)";
     reader.stop();
@@ -3712,6 +3738,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (!convo.on) return;
     convo.on = false; convo.waiting = false; convo.queued = false;
     els.root.classList.remove("conversing");
+    updateRoom();
     globe.setTalking(false);
     $("miniNew").title = "New chat";
     if (speech.state !== "idle") cancelDictation();
