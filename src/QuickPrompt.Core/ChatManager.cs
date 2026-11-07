@@ -818,6 +818,13 @@ namespace QuickPrompt.Core
             this.RefreshSessions();
         }
 
+        /// <summary>A diagnostic line from the popup page (why something was not read aloud, say), into the engine log.</summary>
+        public void LogFromPage(String text)
+        {
+            var line = (text ?? "").Replace('\n', ' ').Replace('\r', ' ');
+            this._host.Log("Page: " + (line.Length > 300 ? line.Substring(0, 300) : line));
+        }
+
         /// <summary>Every open page fetches its state again (settings changed).</summary>
         private void RefreshSessions()
         {

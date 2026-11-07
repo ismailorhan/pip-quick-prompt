@@ -843,6 +843,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (bridge) bridge.postMessage({ type: "close" }); else window.close();
   }
 
+  // A line in the engine log (agent.log), to find out afterwards why something did not happen.
+  function engineLog(text) { try { post("log", { text: String(text).slice(0, 300) }).catch(() => {}); } catch (e) {} }
+
   function post(action, body) {
     return fetch(base + action, { method: "POST", headers: { "Content-Type": "application/json", "X-QuickPrompt": "1" }, body: JSON.stringify(body || {}) })
       .then(res => { if (res.status === 404) sessionEnded(); return res; });
@@ -3602,7 +3605,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       if (reader.lex) { try { text = reader.lex.apply(text); } catch (e) {} }
     }
     const res = await post("speak", { lang: item.lang, text, voice: (choice || {})[item.lang] || "", speed: String(Math.min(2, Math.max(0.5, (rate || 100) / 100))) });
-    if (!res.ok) return null;
+    if (!res.ok) { engineLog("Read aloud: no audio for a " + item.lang + " sentence (" + res.status + ")"); return null; }
     const bytes = await res.arrayBuffer();
     // In a conversation the helper plays it, through the same engine as the microphone (echo cancellation).
     if (item.native) return { bytes };
@@ -3670,7 +3673,12 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       msgs.forEach((m, i) => { if (m.role !== "user" && m.state !== "streaming") reader.autoFrom = i; });
     }
     const lastI = msgs.length - 1, last = msgs[lastI];
+    if (convo.on && voice.state !== "ready" && last && last.role !== "user" && lastI > reader.autoFrom && !reader.loggedState) {
+      reader.loggedState = true;
+      engineLog("Read aloud: conversation answer not read, voices are " + voice.state);
+    }
     if ((s.readAloud || convo.on) && voice.state === "ready" && last && last.role !== "user" && last.state !== "error" && lastI > reader.autoFrom && (last.text || last.state !== "streaming")) {
+      if (convo.on) engineLog("Read aloud: reading answer " + lastI + (convo.on ? " in a conversation (" + (speech.available && bridge ? "helper plays" : "page plays") + ")" : ""));
       reader.autoFrom = lastI;
       start(lastI);
       return;

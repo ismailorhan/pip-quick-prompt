@@ -34,5 +34,16 @@ namespace QuickPrompt.Tests
             Assert.Equal("yarın maç programı", AnthropicApiProvider.SearchQuery("{\"query\": \"yarın maç programı\"}"));
             Assert.Equal("", AnthropicApiProvider.SearchQuery("{\"query\": \"yar"));
         }
+
+        [Fact]
+        public void With_web_search_the_instruction_allows_searching_despite_the_no_tools_rule()
+        {
+            var plain = QuickPromptSettings.DefaultSystemPrompt;
+            Assert.Equal(plain, AnthropicApiProvider.WithWebSearch(plain, false));
+            var withSearch = AnthropicApiProvider.WithWebSearch(plain, true);
+            Assert.StartsWith(plain, withSearch);
+            Assert.Contains("search the web", withSearch);
+            Assert.Contains("does not apply to web search", withSearch);
+        }
     }
 }

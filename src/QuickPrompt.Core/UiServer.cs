@@ -282,6 +282,10 @@ namespace QuickPrompt.Core
                 case "deleteagent":
                     return HttpResponse.Json(this._manager.DeleteAgent(GetString(body, "id")));
 
+                case "log":
+                    this._manager.LogFromPage(GetString(body, "text"));
+                    return new HttpResponse { Status = 204 };
+
                 case "runtemplate":
                     // Run from the Settings window: the template opens at Pip, like a run from the menu bar.
                     _ = this._manager.RunSavedPresetAsync(GetString(body, "id"));

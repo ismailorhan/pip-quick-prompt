@@ -298,6 +298,7 @@ func decodeWav(_ data: Data) -> AVAudioPCMBuffer? {
 func play(_ body: [String: Any]) {
     work.async {
         guard conversation, let text = body["wav"] as? String, let data = Data(base64Encoded: text), let buffer = decodeWav(data) else {
+            log(conversation ? "Play: the audio could not be read" : "Play: skipped, no conversation running")
             send(["type": "played", "id": body["id"] ?? 0]); return
         }
         if !listening && !watching {
@@ -306,7 +307,7 @@ func play(_ body: [String: Any]) {
             lock.lock(); samples = []; lock.unlock()
             speechProbs = []; vadDone = 0
             whisper_vad_reset_state(vad)
-            do { try startAudio() } catch { send(["type": "played", "id": body["id"] ?? 0]); return }
+            do { try startAudio() } catch { log("Play: the audio could not start: \(error)"); send(["type": "played", "id": body["id"] ?? 0]); return }
         }
         guard let node = player else { send(["type": "played", "id": body["id"] ?? 0]); return }
         if !listening { watching = true }
@@ -320,7 +321,7 @@ func play(_ body: [String: Any]) {
                 send(["type": "played", "id": id])
             }
         }
-        if !node.isPlaying { node.play(); playStarted = Date() }
+        if !node.isPlaying { node.play(); playStarted = Date(); log(String(format: "Playing an answer (%.1f s first sentence)", Double(buffer.frameLength) / buffer.format.sampleRate)) }
         if !watchLoop { watchLoop = true; work.asyncAfter(deadline: .now() + 0.1) { watchStep() } }
     }
 }

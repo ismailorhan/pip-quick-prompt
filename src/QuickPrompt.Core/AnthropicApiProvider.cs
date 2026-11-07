@@ -116,6 +116,24 @@ namespace QuickPrompt.Core
         };
 
         /// <summary>Models without the dynamic-filtering web search (web_search_20260209): Haiku and older.</summary>
+        /// <summary>
+        /// The default instruction says "do not use tools; answer only from the text provided", which the model obeys
+        /// even with web search on (it answered "I cannot reach today's fixtures"). With web search the instruction
+        /// says that searching is allowed and expected for current facts.
+        /// </summary>
+        public static String WithWebSearch(String system, Boolean webSearch)
+        {
+            if (!webSearch)
+            {
+                return system;
+            }
+
+            const String note = "You can search the web. Do search it whenever the answer depends on current or real-world " +
+                "facts you are not sure of (today's events, fixtures and scores, news, prices, opening hours, recent releases), " +
+                "instead of saying you cannot access them; the rule against using tools does not apply to web search.";
+            return String.IsNullOrWhiteSpace(system) ? note : system.TrimEnd() + "\n\n" + note;
+        }
+
         public static Boolean WebSearchBasic(String model)
         {
             var m = (model ?? "").ToLowerInvariant();
@@ -182,9 +200,10 @@ namespace QuickPrompt.Core
                     CacheControl = new BetaCacheControlEphemeral(),
                     Messages = BuildMessages(request),
                 };
-                if (!String.IsNullOrWhiteSpace(request.SystemPrompt))
+                var system = WithWebSearch(request.SystemPrompt, request.WebSearch);
+                if (!String.IsNullOrWhiteSpace(system))
                 {
-                    parameters = parameters with { System = request.SystemPrompt };
+                    parameters = parameters with { System = system };
                 }
 
                 // The agent's web search: Anthropic's server-side tool (billed per search). The dynamic-filtering
