@@ -214,8 +214,11 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     private func show() {
-        guard !shown, !closing, !standalone || centred else { return }   // a window of its own shows once centred
+        guard !shown, !closing else { return }
         shown = true
+        // A window of its own stays invisible until its first real layout centres it. It must be on screen
+        // meanwhile: a hidden web view runs no animation frames, so the page would never report its size.
+        if standalone && !centred { panel.alphaValue = 0 }
         panel.makeKeyAndOrderFront(nil)   // becomes key without activating: the previous app stays frontmost
         panel.makeFirstResponder(webView)
     }
@@ -297,6 +300,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         topLeft = NSPoint(x: frame.minX, y: frame.maxY)
         panel.setFrame(frame, display: true, animate: false)
         container.layoutSubtreeIfNeeded()
+        if standalone && centred && panel.alphaValue < 1 { panel.alphaValue = 1 }
     }
 
     /// Moves the panel with the mouse until the button is released (started by the page on mouse down).
