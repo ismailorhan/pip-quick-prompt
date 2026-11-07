@@ -726,12 +726,8 @@ namespace QuickPrompt.Core
         }
 
         /// <summary>Opens the popup on the Prompt templates editor.</summary>
-        public void OpenActions()
-        {
-            var session = this.CreateSession(null, "");
-            session.ShowActions = true;
-            this.OpenWindow(session);
-        }
+        /// <summary>Prompt templates (menu bar): the Settings window on its Prompt templates section.</summary>
+        public void OpenActions() => this.OpenSettings("templates");
 
         /// <summary>Turns the popup into the chosen preset, waiting for pasted text.</summary>
         public Boolean UsePreset(ChatSession session, String presetId)

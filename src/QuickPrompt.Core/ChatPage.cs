@@ -1630,6 +1630,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (bridge && !settingsWin && !isTab) { post("opensettings", { pane: pane || "" }); return; }
     openSettings(false, pane);
   }
+  // Editing templates is part of Settings: its Prompt templates section, in the Settings window.
+  function editTemplates() {
+    if (bridge && !settingsWin && !isTab) { showSettings("templates"); return; }
+    expand(); openActions(false);
+  }
   $("gear").addEventListener("click", () => showSettings());
   $("errSettings").addEventListener("click", () => showSettings(state && state.connection === "api" ? "keys" : "agents"));
   $("setSave").addEventListener("click", saveSettings);
@@ -1903,7 +1908,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     });
   }
   $("miniActions").addEventListener("click", togglePresets);
-  $("plistEdit").addEventListener("click", () => { presetList.hidden = true; expand(); openActions(false); });
+  $("plistEdit").addEventListener("click", () => { presetList.hidden = true; editTemplates(); });
   $("plistItems").addEventListener("click", async e => {
     const item = e.target.closest(".pitem");
     if (!item) return;
@@ -1981,7 +1986,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     else if (id === "new") { const res = await post("reset"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
     else if (id === "recent") { expand(); openHistory(false); }
     else if (id === "settings") showSettings();
-    else if (id === "actions") { expand(); openActions(false); }
+    else if (id === "actions") editTemplates();
     else if (id === "hide") closeWindow();
     else if (id === "never") {
       // Turns "Keep Pip on screen" off; the menu bar's Show Pip turns it back on.
@@ -2494,6 +2499,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   async function runAction(id) {
+    if (settingsWin) { await post("runtemplate", { id }); closeSettings(); return; }   // runs at Pip, not here
     const res = await post("usepreset", { id });
     if (!res.ok) { toast("Still answering"); return; }
     if (settingsOpen) { settingsOnly = false; closeSettings(); return; }
