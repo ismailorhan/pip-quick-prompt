@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.64, 7 Nov 2026)
+## Status (v0.3.65, 8 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -319,7 +319,7 @@ loads in the background (the mic no longer waits for it). speech.log lines carry
 start", "Microphone gave sound X s after the start", "Voice processing takes over …". A conversation answer (web search) was
 not read: agent.log showed the page no longer in a conversation; it now logs "Conversation started" / "Conversation ended:
 <why>". Helper compiled locally (no mic permission for the shell, so timings only).
-On `dev` after v0.3.64 (8 Nov 2026), not built: **template ring** (owner's idea; look C "Constellation" at ×1.2 picked in
+v0.3.65 (8 Nov 2026), built, not yet confirmed: **template ring** (owner's idea; look C "Constellation" at ×1.2 picked in
 `tools/pip-ring-lab.html`). A shortcut (Settings → General, default ⌥⇧Z, Carbon hot key id 4, `ringHotkey`) makes Pip cast the
 enabled templates out round itself as stars with pills, towards the side of the screen with more room (where Pip is, else where it
 was last left, else the bottom middle, with a drawn Pip); ↑↓ / Tab / 1–9 choose, Return runs the template on the selection and
