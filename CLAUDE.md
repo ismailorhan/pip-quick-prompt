@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.58, 7 Nov 2026)
+## Status (v0.3.59, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -276,7 +276,7 @@ under the answer. Pip wears a turning globe badge while it searches (`.mascot.se
 v0.3.58 (7 Nov 2026), built, not yet confirmed: has the web search above. Scrolling no longer changes the bubbles' colour: while
 the user scrolls, one still pane of glass sits behind the visible conversation (the per-bubble glass moves a frame late) and the
 bubbles keep their own tint; each bubble's glass returns when it stops. Side effect: the gaps between bubbles look frosted while scrolling.
-On `dev` after v0.3.58: the Settings footer's Save also saves the agent open in the editor. **Settings in a window of their own**
+v0.3.59 (7 Nov 2026), built, not yet confirmed: the Settings footer's Save also saves the agent open in the editor. **Settings in a window of their own**
 (owner): from Pip (gear, menu, Edit Agents…) the page posts `opensettings`; the engine opens `?window=settings[&pane=…]`, which
 the app opens as a standalone PopupController (no Pip, no glass, opaque page with a shadow, centred, beside Pip's popup; a second
 one replaces the first). Its Chat width / Pip size / Glass sliders post `preview` (not saved): every session's state carries the
