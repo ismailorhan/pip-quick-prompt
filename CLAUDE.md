@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.59, 7 Nov 2026)
+## Status (v0.3.60, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -285,6 +285,8 @@ window clears it, Save makes it permanent. Chat size is now **Chat width** (380 
 can be dragged (saved at once); the conversation's height is no longer fixed: it grows as tall as the screen allows on its side
 of Pip (`updateThreadMax`). A chat opened but left empty tucks back into Pip when another app or window takes the keyboard
 (`windowDidResignKey` → `__quickPromptBlur`).
+v0.3.60 (7 Nov 2026), built, not yet confirmed: in v0.3.59 the Settings window never appeared (kept hidden until centred, but a
+hidden web view runs no requestAnimationFrame, so the page never sent its layout); now it is on screen with alpha 0 until centred.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
