@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.61, 7 Nov 2026)
+## Status (v0.3.62, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -291,6 +291,10 @@ v0.3.61 (7 Nov 2026), built, not yet confirmed: slimmer question bar (46 px, 32 
 middle via a negative margin on .mini); the agent pill hides with the bar (none under the Settings window); Edit Templates (Pip's menu,
 its template list, the menu bar's Prompt Templates) opens the Settings window on Prompt templates, and Run there opens the template
 at Pip (`runtemplate` → RunSavedPresetAsync).
+v0.3.62 (7 Nov 2026), built, not yet confirmed: web search actually searches (the default system prompt's "do not use tools,
+answer only from the text" made Haiku refuse; `WithWebSearch` adds a note allowing it). A conversation answer was not read aloud in
+v0.3.61 (cause unknown): agent.log now gets "Page: Read aloud: …" lines (answer read, no audio, voices not ready) and speech.log
+"Playing an answer…" / "Play: skipped…". Look there first when reading aloud fails.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
