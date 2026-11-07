@@ -254,8 +254,13 @@ textarea::placeholder { color: var(--muted); }
 .sfoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px 12px 18px; border-top: 1px solid var(--faint); }
 .sfoot .status { font-size: 11.5px; color: var(--muted); }
 /* Editors save as you type: a link back to the list instead of Save / Cancel; Delete is red. */
-.backlink { align-self: flex-start; background: transparent; color: var(--muted); padding: 2px 0; margin: 0 0 6px; font-size: 13px; border-radius: 6px; }
-.backlink:hover { color: var(--text); background: transparent; }
+/* Editing an agent or a template: a breadcrumb in place of the section's title ("← Agents / Claude-API"). */
+.crumb { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 14px; min-width: 0; }
+.crumbback { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 8px; border-radius: 9px; background: transparent; border: 1px solid var(--edge); color: var(--text); font-size: 14px; }
+.crumbback:hover { background: var(--faint); }
+.crumb .sep { color: var(--muted); }
+.crumb .cur { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spane.editing > h2, .spane.editing > .sl-d { display: none; }
 button.danger { color: #e5484d; }
 button.danger:hover { background: rgba(229, 72, 77, .14); }
 .sfoot-hint.saved { color: var(--text); }
@@ -670,7 +675,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="hlist aglist" id="agList"></div>
           <div class="actions" id="agButtons"><button type="button" class="primary" id="agNew">New agent</button></div>
           <div class="aform agform" id="agForm" hidden>
-            <button type="button" class="backlink" id="agBack">‹ Agents</button>
+            <div class="crumb"><button type="button" class="crumbback" id="agBack"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Agents</button><span class="sep">/</span><span class="cur" id="agCrumb"></span></div>
             <label class="sfield">Name<input type="text" id="agName" spellcheck="false" maxlength="40" placeholder="e.g. Claude Fast"></label>
             <div class="srow sub"><span class="sname">Colour</span><div class="swatches" id="agColors"></div></div>
             <div class="srow sub"><span class="sname">AI</span>
@@ -760,7 +765,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" class="primary" id="exportGo">Export</button>
     </div>
     <div class="aform" id="actForm" hidden>
-      <button type="button" class="backlink" id="afBack">‹ Templates</button>
+      <div class="crumb"><button type="button" class="crumbback" id="afBack"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Prompt templates</button><span class="sep">/</span><span class="cur" id="afCrumb"></span></div>
       <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
       <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{$selected}"></textarea></label>
       <div class="params">
@@ -1492,8 +1497,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     await fetchAgents();
     renderAgents();
   }
+  function paneEditing(form, on) { const pane = form.closest(".spane"); if (pane) pane.classList.toggle("editing", on); }
   function showAgentList() {
     ag.form.hidden = true; ag.list.hidden = false; ag.buttons.hidden = false;
+    paneEditing(ag.form, false);
     queueLayout();
   }
   function setAgentColor(c) {
@@ -1525,6 +1532,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     document.querySelector('.seg[data-name="agDefault"]').style.pointerEvents = a && a.isDefault ? "none" : "";
     $("agDelete").hidden = !a || a.isDefault;
     ag.list.hidden = true; ag.buttons.hidden = true; ag.form.hidden = false;
+    paneEditing(ag.form, true);
+    $("agCrumb").textContent = a ? a.name : "New agent";
     refreshAgentForm();
     setTimeout(() => $("agName").focus(), 0);
   }
@@ -1598,6 +1607,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (e.target.closest && e.target.closest("#agBack, #agDelete")) return;
     scheduleAgentSave(e.type === "input" ? 600 : 150);
   }, true));
+  $("agName").addEventListener("input", () => { $("agCrumb").textContent = $("agName").value.trim() || (ag.editing ? ag.editing.name : "New agent"); });
   $("agBack").addEventListener("click", async () => {
     if (agentTimer) await saveAgent(true);
     if (!ag.editing && $("agName").value.trim() === "" ) { /* nothing was made */ }
@@ -2546,6 +2556,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   function showActionList() {
     act.form.hidden = true; act.list.hidden = false; act.buttons.hidden = false;
+    paneEditing(act.form, false);
     $("actTitle").textContent = "Prompt templates";
     queueLayout();
   }
@@ -2559,6 +2570,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     setSeg("afAutoCopy", a && a.autoCopy ? "true" : "false");
     $("afDelete").hidden = !a || a.builtIn;
     act.list.hidden = true; act.buttons.hidden = true; act.form.hidden = false;
+    paneEditing(act.form, true);
+    $("afCrumb").textContent = a ? a.title : "New template";
     queueLayout();
     setTimeout(() => (a ? $("afPrompt") : $("afTitle")).focus(), 0);
   }
@@ -2680,6 +2693,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (e.target.closest && e.target.closest("#afBack, #afDelete")) return;
     scheduleTemplateSave(e.type === "input" ? 600 : 150);
   }, true));
+  $("afTitle").addEventListener("input", () => { $("afCrumb").textContent = $("afTitle").value.trim() || "New template"; });
   $("afBack").addEventListener("click", async () => {
     const pending = templateTimer;
     const ok = pending ? await saveTemplate(true) : true;
