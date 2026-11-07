@@ -139,14 +139,15 @@ namespace QuickPrompt.Core
                     return (200, "{\"ok\":true}");
 
                 case ("POST", "run"):
-                    var ok = await manager.RunSavedPresetAsync(Get("presetId")).ConfigureAwait(false);
+                    var ok = await manager.RunSavedPresetAsync(Get("presetId"), Get("flow") == "replace").ConfigureAwait(false);
                     return ok ? (200, "{\"ok\":true}") : (404, "{\"ok\":false}");
 
                 case ("GET", "status"):
                     var hotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.Hotkey) ? manager.Settings.Hotkey : QuickPromptSettings.DefaultHotkey;
                     var dictationHotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.DictationHotkey) ? manager.Settings.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey;
                     var conversationHotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.ConversationHotkey) ? manager.Settings.ConversationHotkey : QuickPromptSettings.DefaultConversationHotkey;
-                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey, dictationHotkey, conversationHotkey }));
+                    var ringHotkey = QuickPromptSettings.IsValidHotkey(manager.Settings.RingHotkey) ? manager.Settings.RingHotkey : QuickPromptSettings.DefaultRingHotkey;
+                    return (200, JsonSerializer.Serialize(new { version = ChatManager.AppVersion, port = manager.Port, hotkey, dictationHotkey, conversationHotkey, ringHotkey }));
             }
 
             return (404, "{\"error\":\"unknown\"}");

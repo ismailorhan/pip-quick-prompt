@@ -17,7 +17,7 @@ outputs=()
 for arch in arm64 x86_64; do
   swiftc -O -swift-version 5 \
     -target "$arch-apple-macos12.0" \
-    -o "build/QuickPromptApp-$arch" App/main.swift App/Updater.swift App/Speech.swift Shared/PopupController.swift \
+    -o "build/QuickPromptApp-$arch" App/main.swift App/Updater.swift App/Speech.swift App/Ring.swift Shared/PopupController.swift \
     -framework AppKit -framework WebKit -framework Carbon -framework ServiceManagement -framework AVFoundation
   outputs+=("build/QuickPromptApp-$arch")
 done

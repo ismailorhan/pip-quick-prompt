@@ -282,6 +282,33 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public async Task The_template_ring_runs_a_template_on_the_selection_and_pastes_the_answer()
+        {
+            this._host.Clipboard = "previous";
+            this._host.Selection = "teh qiuck fox";
+            this._claude.Answer = _ => "the quick fox";
+            using var presets = JsonDocument.Parse(this._manager.GetPresetsJson());
+            var id = presets.RootElement.EnumerateArray().First(p => p.GetProperty("title").GetString() == "Fix grammar").GetProperty("id").GetString();
+
+            var control = new AppControl("t") { Manager = this._manager };
+            var (status, _) = await control.HandleAsync("POST", "run", "", new Dictionary<string, string> { ["presetId"] = id, ["flow"] = "replace" }, default);
+
+            Assert.Equal(200, status);
+            Assert.Equal(new[] { "the quick fox" }, this._host.Pasted);
+            Assert.Equal("previous", this._host.Clipboard);
+            Assert.Empty(this._opened);
+
+            // Its shortcut: ⌥⇧Z unless changed; a change is kept and sent to the app.
+            (_, var json) = await control.HandleAsync("GET", "status", "", new Dictionary<string, string>(), default);
+            Assert.Equal("alt+shift+KeyZ", JsonDocument.Parse(json).RootElement.GetProperty("ringHotkey").GetString());
+            this._manager.Control = control;
+            this._manager.SaveSettings(new Dictionary<string, string> { ["ringHotkey"] = "cmd+alt+KeyR" });
+            using var settings = JsonDocument.Parse(this._manager.GetSettingsJson());
+            Assert.Equal("cmd+alt+KeyR", settings.RootElement.GetProperty("ringHotkey").GetString());
+            Assert.Contains("ringHotkey", await control.WaitForEventsAsync(0, TimeSpan.Zero, default));
+        }
+
+        [Fact]
         public async Task Copy_flow_puts_answer_on_clipboard()
         {
             this._host.Selection = "x";

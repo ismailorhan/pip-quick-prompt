@@ -224,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     switch id {
                     case 2: me.dictate()
                     case 3: me.converse()
+                    case 4: me.castRing()
                     default: me.runShortcut()
                     }
                 }
@@ -280,6 +281,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if RegisterEventHotKey(keyCode, carbonModifiers, id, GetApplicationEventTarget(), 0, &conversationHotKeyRef) != noErr {
             NSLog("Quick Prompt: could not register the conversation shortcut \(spec); another app may be using it.")
         }
+    }
+
+    private var ringHotKeyRef: EventHotKeyRef?
+
+    /// The template ring shortcut (default ⌥⇧Z): its own Carbon hot key (id 4), handled by the same handler.
+    private func registerRingHotKey(_ spec: String = "alt+shift+KeyZ") {
+        registerHotKey(nil)
+        if let old = ringHotKeyRef {
+            UnregisterEventHotKey(old)
+            ringHotKeyRef = nil
+        }
+        guard let (keyCode, carbonModifiers, _, _) = AppDelegate.parseHotkey(spec) else { return }
+        let id = EventHotKeyID(signature: OSType(0x5150_524D), id: 4)
+        if RegisterEventHotKey(keyCode, carbonModifiers, id, GetApplicationEventTarget(), 0, &ringHotKeyRef) != noErr {
+            NSLog("Quick Prompt: could not register the template ring shortcut \(spec); another app may be using it.")
+        }
+    }
+
+    /// The template ring: Pip casts the templates out round itself (where Pip is, else where it was last left,
+    /// else the bottom middle of the screen); pressed again, pulls them back.
+    func castRing() {
+        if RingOverlay.shared.isOpen {
+            RingOverlay.shared.close()
+            return
+        }
+        let shown = popups.last?.iconPoint
+        guard let request = request("presets", method: "GET") else { return }
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            guard let data = data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                var anchor = shown ?? PopupController.savedPipPoint()
+                if anchor == nil, let screen = NSScreen.main {
+                    anchor = NSPoint(x: screen.visibleFrame.midX, y: screen.visibleFrame.minY + 60)
+                }
+                guard let point = anchor else { return }
+                RingOverlay.shared.onRun = { [weak self] id in self?.runRingTemplate(id) }
+                RingOverlay.shared.open(at: point, ghost: shown == nil, templates: list)
+            }
+        }.resume()
+    }
+
+    /// The chosen template runs on the selection; its answer is pasted in its place (⌘C / ⌘V need Accessibility).
+    private func runRingTemplate(_ id: String) {
+        if !AXIsProcessTrusted() && !askedForAccessibility {
+            askedForAccessibility = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.explainAccessibility() }
+        }
+        send("run", ["presetId": id, "flow": "replace"])
     }
 
     /// Conversation mode: starts it (Pip listens), or moves it on (sends what was said, or stops the reading).
@@ -352,8 +402,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                   let spec = json["hotkey"] as? String else { return }
             let dictation = json["dictationHotkey"] as? String ?? "alt+shift+KeyM"
             let conversation = json["conversationHotkey"] as? String ?? "alt+shift+KeyK"
+            let ring = json["ringHotkey"] as? String ?? "alt+shift+KeyZ"
             DispatchQueue.main.async {
                 self?.registerHotKey(spec); self?.registerDictationHotKey(dictation); self?.registerConversationHotKey(conversation)
+                self?.registerRingHotKey(ring)
             }
         }.resume()
     }
@@ -562,6 +614,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case "conversationHotkey":
             if let spec = event["value"] as? String {
                 registerConversationHotKey(spec)
+            }
+        case "ringHotkey":
+            if let spec = event["value"] as? String {
+                registerRingHotKey(spec)
             }
         default:
             break

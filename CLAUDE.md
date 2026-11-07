@@ -63,7 +63,7 @@ Popup page: one HTML/JS page (src/QuickPrompt.Core/ChatPage.cs) in a WKWebView; 
 - Engine log: `~/Library/Logs/Quick Prompt/agent.log` (the agent's stderr, written by the app; over 1 MB it
   moves to `agent.old.log`). Look here first when the owner reports something odd.
 - Swift can be type-checked on the owner's Mac (Xcode is installed):
-  `cd native/macos && swiftc -typecheck -swift-version 5 -target arm64-apple-macos12.0 App/main.swift App/Updater.swift App/Speech.swift Shared/PopupController.swift`.
+  `cd native/macos && swiftc -typecheck -swift-version 5 -target arm64-apple-macos12.0 App/main.swift App/Updater.swift App/Speech.swift App/Ring.swift Shared/PopupController.swift`.
 
 Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 
@@ -319,6 +319,15 @@ loads in the background (the mic no longer waits for it). speech.log lines carry
 start", "Microphone gave sound X s after the start", "Voice processing takes over …". A conversation answer (web search) was
 not read: agent.log showed the page no longer in a conversation; it now logs "Conversation started" / "Conversation ended:
 <why>". Helper compiled locally (no mic permission for the shell, so timings only).
+On `dev` after v0.3.64 (8 Nov 2026), not built: **template ring** (owner's idea; look C "Constellation" at ×1.2 picked in
+`tools/pip-ring-lab.html`). A shortcut (Settings → General, default ⌥⇧Z, Carbon hot key id 4, `ringHotkey`) makes Pip cast the
+enabled templates out round itself as stars with pills, towards the side of the screen with more room (where Pip is, else where it
+was last left, else the bottom middle, with a drawn Pip); ↑↓ / Tab / 1–9 choose, Return runs the template on the selection and
+pastes the answer in its place (`POST /api/run` with `flow=replace` → FlowModes.Replace; fields or no selection open the popup),
+Esc / the shortcut again / a click elsewhere pull it back. `native/macos/App/Ring.swift`: a borderless non-activating panel over the
+whole screen at popUpMenu level (takes the keys without activating Quick Prompt, so the other app keeps its selection; hidden before
+⌘C), the page is a string in that file (`ringPageHTML`, posts ready/run/closed to the `ring` handler). Checked: the page with a mocked
+app in Chromium (messages and timing), Swift type-check, tests. Not checked: the real window and keys on the owner's Mac.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

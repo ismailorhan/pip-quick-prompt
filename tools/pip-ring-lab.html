@@ -172,7 +172,7 @@ $("stage").appendChild(hintbar);
 let look = "neural", speed = 1, pip = { x: 880, y: 500 };
 let open = false, dir = 0, e = 0, sel = 4, prevSel = 4, selAt = -1e9, fireAt = -1, now = 0;
 let nodes = [], side = -1, widths = [];
-const OPEN_MS = { neural: 600, web: 600, stars: 700 };
+const OPEN_MS = { neural: 600, web: 600, stars: 760 };
 const PIP_R = 25;
 
 function placePip(x, y) { pip.x = clamp(x, 30, W - 30); pip.y = clamp(y, 40, H - 30); pipEl.style.left = pip.x + "px"; pipEl.style.top = pip.y + "px"; layout(); }

@@ -140,6 +140,12 @@ namespace QuickPrompt.Core
 
         public const String DefaultConversationHotkey = "alt+shift+KeyK";
 
+        /// <summary>The global shortcut for the template ring: Pip casts the templates out round itself; the chosen
+        /// one runs on the selection and its answer is pasted.</summary>
+        public String RingHotkey { get; set; } = DefaultRingHotkey;
+
+        public const String DefaultRingHotkey = "alt+shift+KeyZ";
+
         /// <summary>When a spoken turn in conversation mode goes: "silence" (after a pause) or "manual" (only when
         /// you say so: the shortcut, Enter, a click on Pip), so a pause to think never sends it.</summary>
         public String ConversationEnd { get; set; } = "silence";

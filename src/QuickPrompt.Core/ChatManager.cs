@@ -348,8 +348,9 @@ namespace QuickPrompt.Core
         /// <summary>Local voices for reading answers aloud; null where the host has none (the Logi plugin).</summary>
         public IReadAloud ReadAloud { get; set; }
 
-        /// <summary>Runs a saved preset ("Prompt templates") on the current selection.</summary>
-        public async Task<Boolean> RunSavedPresetAsync(String presetId)
+        /// <summary>Runs a saved preset ("Prompt templates") on the current selection. paste: the template ring's
+        /// way, the answer replaces the selection (a template with fields, or no selection, opens the popup).</summary>
+        public async Task<Boolean> RunSavedPresetAsync(String presetId, Boolean paste = false)
         {
             var saved = this._presets.Find(presetId);
             if (saved == null)
@@ -369,7 +370,7 @@ namespace QuickPrompt.Core
                 AutoCopy = saved.AutoCopy,
                 // Custom templates read what their system parameters ask for; older ones keep their setting.
                 Input = saved.Custom ? PromptBuilder.InputFor(saved.Instruction) : InputModes.Normalize(saved.Input),
-                Flow = FlowModes.Send,
+                Flow = paste ? FlowModes.Replace : FlowModes.Send,
             }).ConfigureAwait(false);
             return true;
         }
@@ -855,6 +856,7 @@ namespace QuickPrompt.Core
                 readRate = Math.Clamp(s.ReadRate, 50, 200),
                 conversationEnd = s.ConversationEnd == "manual" ? "manual" : "silence",
                 conversationHotkey = QuickPromptSettings.IsValidHotkey(s.ConversationHotkey) ? s.ConversationHotkey : QuickPromptSettings.DefaultConversationHotkey,
+                ringHotkey = QuickPromptSettings.IsValidHotkey(s.RingHotkey) ? s.RingHotkey : QuickPromptSettings.DefaultRingHotkey,
                 hotkey = QuickPromptSettings.IsValidHotkey(s.Hotkey) ? s.Hotkey : QuickPromptSettings.DefaultHotkey,
                 dictationHotkey = QuickPromptSettings.IsValidHotkey(s.DictationHotkey) ? s.DictationHotkey : QuickPromptSettings.DefaultDictationHotkey,
                 claude = new
@@ -989,6 +991,13 @@ namespace QuickPrompt.Core
             {
                 s.ConversationHotkey = conversationHotkey;
                 this.Control?.Publish(new { type = "conversationHotkey", value = conversationHotkey });
+            }
+
+            var ringHotkey = Get("ringHotkey");
+            if (QuickPromptSettings.IsValidHotkey(ringHotkey) && ringHotkey != s.RingHotkey)
+            {
+                s.RingHotkey = ringHotkey;
+                this.Control?.Publish(new { type = "ringHotkey", value = ringHotkey });
             }
 
             if (Get("conversationEnd") is "silence" or "manual")

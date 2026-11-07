@@ -583,6 +583,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div><div class="sl-t">Conversation shortcut</div><div class="sl-d">Talk with Pip: it listens, sends what you said, reads the answer aloud and listens again. Press it again to send (or, while Pip speaks, to cut in); with nothing said, it ends the conversation.</div></div>
             <button type="button" class="hotkey" id="convHotkeyBtn" title="Click, then press the keys">⌥⇧K</button>
           </div>
+          <div class="sline">
+            <div><div class="sl-t">Template ring shortcut</div><div class="sl-d">Pip casts your templates out round itself, in any app: ↑ ↓ or a number choose, Return runs the template on the selected text and pastes the answer in its place, Esc pulls them back.</div></div>
+            <button type="button" class="hotkey" id="ringHotkeyBtn" title="Click, then press the keys">⌥⇧Z</button>
+          </div>
         </section>
         <section class="spane" data-pane="shortcuts">
           <h2>Shortcuts</h2>
@@ -590,6 +594,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="kbrow"><span class="keys"><kbd id="kbGlobal">⌥⇧Space</kbd></span><span>Ask about the selected text (change it in General)</span></div>
           <div class="kbrow"><span class="keys"><kbd id="kbDictate">⌥⇧M</kbd></span><span>Open the chat and dictate; again: stop (change it in General)</span></div>
           <div class="kbrow"><span class="keys"><kbd id="kbConverse">⌥⇧K</kbd></span><span>Conversation: start; again: send, or cut in while Pip speaks; with nothing said: end</span></div>
+          <div class="kbrow"><span class="keys"><kbd id="kbRing">⌥⇧Z</kbd></span><span>Template ring: ↑ ↓ or 1–9 choose, Return runs it on the selection and pastes the answer, Esc closes</span></div>
           <div class="kbrow"><span class="keys"><kbd>⌘,</kbd></span><span>Settings, from the menu bar menu</span></div>
           <div class="kbrow"><span class="keys"><kbd>⌘Q</kbd></span><span>Quit Quick Prompt, from the menu bar menu</span></div>
           <div class="kbgroup">In a conversation</div>
@@ -1230,6 +1235,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const setDictHotkey = shortcutPicker($("dictHotkeyBtn"), spec => { dictHotkeyValue = spec; $("kbDictate").textContent = hotkeyText(spec); });
   let convHotkeyValue = "alt+shift+KeyK";
   const setConvHotkey = shortcutPicker($("convHotkeyBtn"), spec => { convHotkeyValue = spec; $("kbConverse").textContent = hotkeyText(spec); });
+  let ringHotkeyValue = "alt+shift+KeyZ";
+  const setRingHotkey = shortcutPicker($("ringHotkeyBtn"), spec => { ringHotkeyValue = spec; $("kbRing").textContent = hotkeyText(spec); });
 
   // ---------- Settings size: drag the grip; remembered on this computer ----------
   var settingsSize = { w: 760, h: 500 };
@@ -1326,6 +1333,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setHotkey(s.hotkey || "alt+shift+Space");
       setDictHotkey(s.dictationHotkey || "alt+shift+KeyM");
       setConvHotkey(s.conversationHotkey || "alt+shift+KeyK");
+      setRingHotkey(s.ringHotkey || "alt+shift+KeyZ");
       setSeg("conversationEnd", s.conversationEnd === "manual" ? "manual" : "silence");
       setSlider(s.popupScale);
       setIconSlider(s.iconScale);
@@ -1658,6 +1666,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       hotkey: hotkeyValue,
       dictationHotkey: dictHotkeyValue,
       conversationHotkey: convHotkeyValue,
+      ringHotkey: ringHotkeyValue,
       conversationEnd: segValues.conversationEnd || "silence",
       popupScale: String(sizeSlider.value),
       iconScale: String(iconSlider.value),
