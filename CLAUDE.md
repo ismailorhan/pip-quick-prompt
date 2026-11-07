@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.57, 7 Nov 2026)
+## Status (v0.3.58, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -273,6 +273,9 @@ Agents, Claude + API: "Web search" Off/On; exported with templates). The Anthrop
 streams "Searching the web: <query>" / "Reading what it found…" as the status (the live label), and lists the sources as links
 under the answer. Pip wears a turning globe badge while it searches (`.mascot.searching`). The Claude CLI already had it
 ("Web search and fetch" in the plugins/skills choice). OpenAI API: not yet. Not tried against the live API (compiled against SDK 13.3.0).
+v0.3.58 (7 Nov 2026), built, not yet confirmed: has the web search above. Scrolling no longer changes the bubbles' colour: while
+the user scrolls, one still pane of glass sits behind the visible conversation (the per-bubble glass moves a frame late) and the
+bubbles keep their own tint; each bubble's glass returns when it stops. Side effect: the gaps between bubbles look frosted while scrolling.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
