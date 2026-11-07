@@ -1484,7 +1484,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const row = e.target.closest("[data-agent]");
     if (row && e.key === "Enter" && e.target === row && ag.data) editAgent(ag.data.agents.find(a => a.id === row.dataset.agent));
   });
-  $("agSave").addEventListener("click", async () => {
+  // Saves the agent open in the editor. The Settings footer's Save does this too, so an agent edited and then
+  // saved with the footer button is not lost (it used to save only the other settings).
+  async function saveAgent() {
     const provider = segValues.agProvider || "claude", conn = segValues.agConnection || "cli";
     const body = {
       id: ag.editing ? ag.editing.id : "",
@@ -1496,13 +1498,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setup: choiceFrom($("agSetupBox"), segValues.agSetupOn === "on"),
       makeDefault: segValues.agDefault === "true" ? "true" : "false",
     };
-    if (!body.name) { $("agName").focus(); toast("Give it a name"); return; }
+    if (!body.name) { $("agName").focus(); toast("Give it a name"); return false; }
     const res = await post("saveagent", body);
     const data = res.ok ? await res.json() : { error: "Could not save" };
-    if (data.error) { toast(data.error); return; }
+    if (data.error) { toast(data.error); return false; }
     ag.data = data;
     renderAgents(); showAgentList(); toast("Saved");
-  });
+    return true;
+  }
+  $("agSave").addEventListener("click", saveAgent);
   $("agDelete").addEventListener("click", async () => {
     if (!ag.editing) return;
     const res = await post("deleteagent", { id: ag.editing.id });
@@ -1525,6 +1529,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   async function saveSettings() {
+    if (!ag.form.hidden && !(await saveAgent())) return;
     const keyValue = input => keyRemoval[input.id] ? "-" : input.value.trim();
     const body = {
       claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
