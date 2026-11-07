@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.63, 7 Nov 2026)
+## Status (v0.3.64, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -310,7 +310,7 @@ change's thaw or 0.8 s fallback removed a later picture; a late snapshot showed 
 pending was dropped. Now freezes/thaws carry ids, changes under one picture share it and it goes with the last thaw, the
 tuck timer is cancelled by opening, and collapse ends a pending slide. Run pip-rapid-test (and pip-motion-test) after changes
 to open/close or freeze.
-On `dev` after v0.3.63: **the conversation microphone comes on at once** (owner: the mic icon showed ~2 s late). Measured with
+v0.3.64 (7 Nov 2026), built, not yet confirmed: **the conversation microphone comes on at once** (owner: the mic icon showed ~2 s late). Measured with
 the helper: `setVoiceProcessingEnabled` alone takes ~2.2 s (plain mic 0.1 s; starting a stopped voice-processing engine again
 0.25 s), and setting it up while another engine records stops that one's buffers. Now a conversation starts on the plain mic,
 voice processing is set up after the first turn (while the answer is written) and swapped in (not while an answer plays); at
