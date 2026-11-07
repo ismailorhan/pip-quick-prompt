@@ -2093,7 +2093,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       if (res.ok) runTemplateView(); else if (res.status !== 404) toast("Still answering");
       return;
     }
-    if (id === "converse") { convo.on ? endConversation() : startConversation(); return; }
+    if (id === "converse") { convo.on ? endConversation("menu") : startConversation(); return; }
     if (id === "open") expand();
     else if (id === "new") { const res = await post("reset"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
     else if (id === "recent") { expand(); openHistory(false); }
@@ -2145,7 +2145,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   };
   if (bridge && !settingsWin) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
   $("miniNew").addEventListener("click", async () => {
-    if (convo.on) { endConversation(); return; }
+    if (convo.on) { endConversation("toolbar stop button"); return; }
     const res = await post("reset");
     if (res.ok) { stick = true; expand(); } else { toast("Still answering"); }
   });
@@ -3352,7 +3352,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         break;
       case "ended":
         // Ten minutes with no turn and no answer: the helper turned the microphone off.
-        if (convo.on) endConversation();
+        if (convo.on) endConversation("ten idle minutes");
         break;
       case "played":
         { const done = pendingPlays.get(e.id); pendingPlays.delete(e.id); if (done) done(); }
@@ -3986,6 +3986,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (speech.model !== "ready") { if (collapsed) expand(); speech.model === "downloading" ? renderSpeechBoxProgress() : showModelOffer(); return; }
     if (voice.state !== "ready") { if (collapsed) expand(); offerVoices(); return; }
     convo.on = true; convo.waiting = false;
+    engineLog("Conversation started");
     els.root.classList.add("conversing");
     updateRoom();
     globe.setTalking(true);   // the face stays for the whole conversation; the mouth moves only while Pip speaks
@@ -4018,8 +4019,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (state && state.busy) { convo.queued = true; post("cancel"); return; }
     send();
   }
-  function endConversation() {
+  function endConversation(why) {
     if (!convo.on) return;
+    // In the engine log: an answer that came after this is not read aloud.
+    engineLog("Conversation ended: " + (why || "?") + (state && state.busy ? " (an answer was still being written)" : ""));
     convo.on = false; convo.waiting = false; convo.queued = false;
     els.root.classList.remove("conversing");
     updateRoom();
@@ -4032,13 +4035,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   // Esc ends the conversation (before the dictation's own Esc, which only cancels the recording).
   window.addEventListener("keydown", e => {
-    if (e.key === "Escape" && convo.on) { e.preventDefault(); e.stopImmediatePropagation(); endConversation(); }
+    if (e.key === "Escape" && convo.on) { e.preventDefault(); e.stopImmediatePropagation(); endConversation("Esc"); }
   }, true);
   // The conversation shortcut (from the app). Returns "quiet" when the panel must not take the keys (Pip alone).
   window.__quickPromptConverse = () => {
     if (!speech.known) { speech.startWhenKnown = "converse"; return collapsed ? "quiet" : "open"; }
     if (!convo.on) startConversation();
-    else if (speech.state === "listening" || speech.state === "starting") { if (els.prompt.value.trim()) sendTurn(); else endConversation(); }
+    else if (speech.state === "listening" || speech.state === "starting") { if (els.prompt.value.trim()) sendTurn(); else endConversation("shortcut with nothing said"); }
     else if (reader.index >= 0) bargeIn();
     return collapsed ? "quiet" : "open";
   };

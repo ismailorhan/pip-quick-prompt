@@ -27,7 +27,8 @@ func send(_ object: [String: Any]) {
     guard let data = try? JSONSerialization.data(withJSONObject: object), let line = String(data: data, encoding: .utf8) else { return }
     output.sync { print(line); fflush(stdout) }
 }
-func log(_ text: String) { FileHandle.standardError.write((text + "\n").data(using: .utf8)!) }
+let logClock: DateFormatter = { let f = DateFormatter(); f.dateFormat = "HH:mm:ss.SSS"; return f }()
+func log(_ text: String) { FileHandle.standardError.write(("[\(logClock.string(from: Date()))] " + text + "\n").data(using: .utf8)!) }
 
 let args = CommandLine.arguments
 guard args.count >= 3 else { send(["type": "error", "message": "usage: QuickPromptSpeech <model> <vad>"]); exit(2) }
@@ -40,9 +41,22 @@ whisper_log_set({ level, text, _ in
 var contextParams = whisper_context_default_params()
 contextParams.use_gpu = true
 contextParams.flash_attn = true
-guard let ctx = whisper_init_from_file_with_params(args[1], contextParams) else {
-    send(["type": "error", "message": "Could not load the speech model"]); exit(3)
+// The speech model (~574 MB) loads in the background: the microphone starts at once, and the first words wait in
+// `samples` until the model is there (it used to wait for the model, ~2 s before the microphone came on).
+var loadedModel: OpaquePointer?
+let modelLoad = DispatchGroup()
+modelLoad.enter()
+DispatchQueue.global(qos: .userInitiated).async {
+    let started = Date()
+    guard let loaded = whisper_init_from_file_with_params(args[1], contextParams) else {
+        send(["type": "error", "message": "Could not load the speech model"]); exit(3)
+    }
+    loadedModel = loaded
+    log(String(format: "Speech model loaded in %.1f s", Date().timeIntervalSince(started)))
+    modelLoad.leave()
 }
+/// The speech model, waiting for it while it loads.
+var ctx: OpaquePointer { modelLoad.wait(); return loadedModel! }
 var vadParams = whisper_vad_default_context_params()
 vadParams.n_threads = 2
 vadParams.use_gpu = false
@@ -71,6 +85,7 @@ var playing = 0                       // buffers scheduled and not yet played
 var playStarted = Date.distantPast
 var watchLoop = false                 // one watchStep chain at a time
 var heardAudio = false                // the microphone gave more than a dead floor (a peak above 0.003)
+var micAskedAt = Date()               // when the page asked to listen (the log says how long the microphone took)
 var echoCancelling = false            // voice processing started; without it, speech over Pip would be Pip's own voice
 var channelLock = NSLock()           // per-channel levels of the voice-processing microphone, for the log
 var channelEnergy: [Double] = []
@@ -115,44 +130,114 @@ func startFile(_ path: String) throws {
 func startAudio() throws {
     if engine != nil || fileTimer != nil { return }   // conversation: already running (watching an answer)
     if let path = ProcessInfo.processInfo.environment["QP_SPEECH_FILE"] { try startFile(path); return }
-    if conversation {
+    if conversation { try startConversationAudio(); return }
+    echoCancelling = false
+    try startEngine(voiceProcessing: false)
+}
+
+/// Setting voice processing up takes ~2.5 s (measured on the owner's Mac: setVoiceProcessingEnabled alone ~2.2 s; the
+/// plain microphone 0.1 s; starting a stopped voice-processing engine again 0.25 s), and the microphone used to come on
+/// only after it. Setting it up while another engine records stops that one's buffers (measured: 1.1 s of 4.7 s heard).
+/// So a conversation starts on the plain microphone at once (Pip does not speak before its first answer), voice
+/// processing is set up while the first turn's answer is being written, then takes over; at the end the engine is
+/// stopped and kept, and the next conversation starts it again in a quarter second.
+var voiceSetup = 0                    // the latest set-up; an older one that finishes late is dropped
+var voiceSettingUp = false
+var voiceRetry = true                 // a voice-processing engine that gives no sound is set up once more
+var engineHasVoiceProcessing = false
+var keptVoice: (AVAudioEngine, AVAudioPlayerNode?)?   // the last conversation's engine, stopped
+let setupQueue = DispatchQueue(label: "voice-setup")
+
+func startConversationAudio() throws {
+    voiceRetry = true
+    if let kept = keptVoice {
+        keptVoice = nil
         do {
-            try startVoiceProcessing(retry: true)
+            try run(kept.0, kept.1, voiceProcessing: true)
+            echoCancelling = true
+            checkVoiceSound()
             return
         } catch {
-            // e.g. -10875 when the microphone and the speakers are different devices (AirPods mic, Mac speakers):
-            // the conversation goes on without echo cancellation; cutting in is then by hand only.
-            log("Voice processing would not start (\(error.localizedDescription)); conversation goes on without echo cancellation")
+            kept.0.inputNode.removeTap(onBus: 0)
+            log("The kept voice processing would not start again (\(error.localizedDescription))")
         }
     }
     echoCancelling = false
     try startEngine(voiceProcessing: false)
 }
 
-/// Voice processing can start and still give nothing: no buffers, zeros, or (the first time after the helper starts,
-/// on the owner's Mac) a whole turn at -80 dBFS while they spoke. After 1.5 s with no sound above that dead floor
-/// (a quiet room peaks at ~0.01), start it once more, then without it rather than listen to silence.
-func startVoiceProcessing(retry: Bool) throws {
-    try startEngine(voiceProcessing: true)
-    echoCancelling = true
-    let started = engine
-    work.asyncAfter(deadline: .now() + 1.5) {
-        guard let e = started, e === engine, echoCancelling, !heardAudio else { return }
-        stopAudio()
-        if retry {
-            log("Voice processing gave no sound from the microphone; starting it again")
-            lock.lock(); samples = []; lock.unlock()
-            speechProbs = []; vadDone = 0; committed = []; commitAt = 0
-            whisper_vad_reset_state(vad)
-            if (try? startVoiceProcessing(retry: false)) != nil { return }
+/// Sets voice processing up in the background (after a turn, while the answer is written) and swaps it in.
+func setUpVoiceProcessing() {
+    guard conversation, engine != nil, !engineHasVoiceProcessing, !voiceSettingUp else { return }
+    voiceSettingUp = true
+    voiceSetup += 1
+    let mine = voiceSetup
+    setupQueue.async {
+        var made: (AVAudioEngine, AVAudioPlayerNode?)?
+        do { made = try makeEngine(voiceProcessing: true, withPlayer: true) } catch {
+            // e.g. -10875 when the microphone and the speakers are different devices (AirPods mic, Mac speakers):
+            // the conversation goes on without echo cancellation; cutting in is then by hand only.
+            log("Voice processing would not start (\(error.localizedDescription)); conversation goes on without echo cancellation")
         }
-        log("Voice processing gave no sound from the microphone; going on without echo cancellation")
-        echoCancelling = false
-        do { try startEngine(voiceProcessing: false) } catch { send(["type": "error", "message": "Could not use the microphone: \(error.localizedDescription)"]) }
+        work.async { voiceSettingUp = false; swapIn(made, mine) }
+    }
+}
+
+/// Voice processing, set up, replaces the plain microphone (not while an answer plays on it: then a little later).
+func swapIn(_ made: (AVAudioEngine, AVAudioPlayerNode?)?, _ mine: Int) {
+    guard let made = made else { return }
+    guard mine == voiceSetup, conversation, engine != nil, !engineHasVoiceProcessing else {
+        made.0.inputNode.removeTap(onBus: 0); return
+    }
+    if playing > 0 { work.asyncAfter(deadline: .now() + 0.3) { swapIn(made, mine) }; return }
+    log(String(format: "Voice processing takes over %.1f s after the conversation's start", Date().timeIntervalSince(micAskedAt)))
+    replaceEngine {
+        do { try run(made.0, made.1, voiceProcessing: true) } catch {
+            made.0.inputNode.removeTap(onBus: 0)
+            log("Voice processing would not start (\(error.localizedDescription)); conversation goes on without echo cancellation")
+            echoCancelling = false
+            try? startEngine(voiceProcessing: false)
+            return
+        }
+        echoCancelling = true
+    }
+    if engineHasVoiceProcessing { checkVoiceSound() }
+}
+
+/// Stops the engine and starts another in its place; between turns the voice detector goes on watching.
+func replaceEngine(_ startNew: () -> Void) {
+    let wasWatching = watching
+    stopAudio()
+    startNew()
+    if engine == nil { send(["type": "error", "message": "Could not use the microphone"]); return }
+    if wasWatching { watching = true; if !watchLoop { watchLoop = true; work.asyncAfter(deadline: .now() + 0.1) { watchStep() } } }
+}
+
+/// Voice processing can start and still give nothing: no buffers, zeros, or (the first time after the helper starts,
+/// on the owner's Mac) a whole turn at -80 dBFS while they spoke. After 0.8 s with no sound above that dead floor
+/// (a quiet room peaks at ~0.01), the plain microphone takes over, and voice processing is set up once more.
+func checkVoiceSound() {
+    let started = engine
+    work.asyncAfter(deadline: .now() + 0.8) {
+        guard let e = started, e === engine, engineHasVoiceProcessing, !heardAudio else { return }
+        replaceEngine { echoCancelling = false; try? startEngine(voiceProcessing: false) }
+        if voiceRetry {
+            voiceRetry = false
+            log("Voice processing gave no sound from the microphone; setting it up again")
+            setUpVoiceProcessing()
+        } else {
+            log("Voice processing gave no sound from the microphone; going on without echo cancellation")
+        }
     }
 }
 
 func startEngine(voiceProcessing: Bool) throws {
+    let made = try makeEngine(voiceProcessing: voiceProcessing, withPlayer: conversation)
+    try run(made.0, made.1, voiceProcessing: voiceProcessing)
+}
+
+/// An engine with its microphone tap, not started yet (with voice processing this is the slow part).
+func makeEngine(voiceProcessing: Bool, withPlayer: Bool) throws -> (AVAudioEngine, AVAudioPlayerNode?) {
     let engine0 = AVAudioEngine()
     let input = engine0.inputNode
     if voiceProcessing {
@@ -167,7 +252,7 @@ func startEngine(voiceProcessing: Bool) throws {
         throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone"])
     }
     var node: AVAudioPlayerNode?
-    if conversation {
+    if withPlayer {
         let n = AVAudioPlayerNode()
         engine0.attach(n)
         engine0.connect(n, to: engine0.mainMixerNode, format: playFormat)
@@ -182,10 +267,9 @@ func startEngine(voiceProcessing: Bool) throws {
     // converter follows the buffers' own format: one built for an older format failed on every buffer, silently.
     let inFormat = input.outputFormat(forBus: 0)
     guard inFormat.sampleRate > 0 else { throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone"]) }
-    log("Audio: voice processing \(voiceProcessing ? "on" : "off"), microphone \(inFormat), output \(engine0.outputNode.inputFormat(forBus: 0))")
+    log("Audio: voice processing \(voiceProcessing ? "on" : "off"), microphone \(inFormat), output \(engine0.outputNode.inputFormat(forBus: 0)), set up " + String(format: "%.2f s after the start", Date().timeIntervalSince(micAskedAt)))
     var converter: AVAudioConverter?
     var lastLevel = 0.0
-    heardAudio = false
     input.installTap(onBus: 0, bufferSize: 2048, format: nil) { tapped, _ in
         // Voice processing gives 9 channels on the owner's Mac. Only the first is echo-cancelled; summing all of them
         // brought Pip's own voice back (the voice detector took it for the user and cut the answer off), and the
@@ -226,7 +310,10 @@ func startEngine(voiceProcessing: Bool) throws {
         }
         guard error == nil, let data = out.floatChannelData?[0], out.frameLength > 0 else { return }
         let chunk = Array(UnsafeBufferPointer(start: data, count: Int(out.frameLength)))
-        if !heardAudio, chunk.contains(where: { abs($0) > 0.003 }) { heardAudio = true }
+        if !heardAudio, chunk.contains(where: { abs($0) > 0.003 }) {
+            heardAudio = true
+            log(String(format: "Microphone gave sound %.2f s after the start (voice processing %@)", Date().timeIntervalSince(micAskedAt), voiceProcessing ? "on" : "off"))
+        }
         lock.lock(); samples.append(contentsOf: chunk); lock.unlock()
         // The level for the mic button (about 12 a second).
         let now = Date().timeIntervalSince1970
@@ -235,15 +322,23 @@ func startEngine(voiceProcessing: Bool) throws {
             send(["type": "level", "value": loudness(chunk)])
         }
     }
+    return (engine0, node)
+}
+
+/// Starts an engine from makeEngine; it becomes the one the helper listens with.
+func run(_ engine0: AVAudioEngine, _ node: AVAudioPlayerNode?, voiceProcessing: Bool) throws {
+    heardAudio = false
     engine0.prepare()
     do {
         try engine0.start()
     } catch {
-        input.removeTap(onBus: 0)
+        engine0.inputNode.removeTap(onBus: 0)
         throw error
     }
+    log(String(format: "Audio engine (voice processing %@) running %.2f s after the start", voiceProcessing ? "on" : "off", Date().timeIntervalSince(micAskedAt)))
     player = node
     engine = engine0
+    engineHasVoiceProcessing = voiceProcessing
 }
 
 func stopAudio() {
@@ -256,6 +351,7 @@ func stopAudio() {
     engine?.inputNode.removeTap(onBus: 0)
     engine?.stop()
     engine = nil
+    engineHasVoiceProcessing = false
 }
 
 // MARK: conversation: playing answers, hearing the user speak over them
@@ -585,12 +681,14 @@ func start(_ body: [String: Any]) {
         // A conversation keeps its microphone between turns: voice processing started again soon after stopping
         // came back silent (-80 dBFS) on the owner's Mac, so the turn after an answer heard nothing.
         if wanted != conversation { stopAudio() }
+        if !wanted, let kept = keptVoice { kept.0.inputNode.removeTap(onBus: 0); keptVoice = nil }   // dictation: plain microphone only
         else if watching { player?.stop(); playing = 0; watching = false }
         conversation = wanted
         lock.lock(); samples = []; lock.unlock()
         speechProbs = []; vadDone = 0; committed = []; commitAt = 0
         stopRequested = false; aborting = false
         whisper_vad_reset_state(vad)
+        micAskedAt = Date()
         do {
             try startAudio()
         } catch {
@@ -620,7 +718,7 @@ func stop() {
         // The whole recording once more, with voice detection: better words and no invented ones over silence.
         let segs = audio.count > Int(rate * 0.3) ? transcribe(audio, prompt: hints, useVoiceDetection: true) : []
         send(["type": "final", "text": join((segs ?? []).map(\.text)), "conversation": conversation])
-        if conversation { lastActivity = Date(); watch() }
+        if conversation { lastActivity = Date(); watch(); setUpVoiceProcessing() }
     }
 }
 
@@ -649,7 +747,16 @@ func logChannels() {
 func release() {
     work.async {
         if listening { listening = false; stopRequested = true }
-        stopAudio()
+        voiceSetup += 1   // a set-up still running is dropped
+        if engineHasVoiceProcessing, let e = engine {
+            // Kept, stopped (the microphone goes off): the next conversation starts it again in a quarter second.
+            player?.stop()
+            e.stop()
+            keptVoice = (e, player)
+            engine = nil; player = nil; playing = 0; watching = false; engineHasVoiceProcessing = false
+        } else {
+            stopAudio()
+        }
         conversation = false
     }
 }

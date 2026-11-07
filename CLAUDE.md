@@ -310,6 +310,15 @@ change's thaw or 0.8 s fallback removed a later picture; a late snapshot showed 
 pending was dropped. Now freezes/thaws carry ids, changes under one picture share it and it goes with the last thaw, the
 tuck timer is cancelled by opening, and collapse ends a pending slide. Run pip-rapid-test (and pip-motion-test) after changes
 to open/close or freeze.
+On `dev` after v0.3.63: **the conversation microphone comes on at once** (owner: the mic icon showed ~2 s late). Measured with
+the helper: `setVoiceProcessingEnabled` alone takes ~2.2 s (plain mic 0.1 s; starting a stopped voice-processing engine again
+0.25 s), and setting it up while another engine records stops that one's buffers. Now a conversation starts on the plain mic,
+voice processing is set up after the first turn (while the answer is written) and swapped in (not while an answer plays); at
+the end the engine is stopped and kept for the next conversation; dictation drops it. The dead-start check is 0.8 s. The model
+loads in the background (the mic no longer waits for it). speech.log lines carry times, "Audio engine … running X s after the
+start", "Microphone gave sound X s after the start", "Voice processing takes over …". A conversation answer (web search) was
+not read: agent.log showed the page no longer in a conversation; it now logs "Conversation started" / "Conversation ended:
+<why>". Helper compiled locally (no mic permission for the shell, so timings only).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
