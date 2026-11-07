@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.60, 7 Nov 2026)
+## Status (v0.3.61, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -287,6 +287,10 @@ of Pip (`updateThreadMax`). A chat opened but left empty tucks back into Pip whe
 (`windowDidResignKey` → `__quickPromptBlur`).
 v0.3.60 (7 Nov 2026), built, not yet confirmed: in v0.3.59 the Settings window never appeared (kept hidden until centred, but a
 hidden web view runs no requestAnimationFrame, so the page never sent its layout); now it is on screen with alpha 0 until centred.
+v0.3.61 (7 Nov 2026), built, not yet confirmed: slimmer question bar (46 px, 32 px buttons, 14 px text; Pip's middle on the bar's
+middle via a negative margin on .mini); the agent pill hides with the bar (none under the Settings window); Edit Templates (Pip's menu,
+its template list, the menu bar's Prompt Templates) opens the Settings window on Prompt templates, and Run there opens the template
+at Pip (`runtemplate` → RunSavedPresetAsync).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas
