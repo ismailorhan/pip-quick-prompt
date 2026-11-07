@@ -122,11 +122,6 @@ html.native.vibrancy .glass { border-color: var(--edge); }
 .msg.bot.top { position: relative; }
 .mq { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html:not(.native) .stackcard { background: var(--glass); }
-/* While the conversation scrolls, the bubbles draw their own background (the native glass cannot
-   follow a scroll smoothly); the glass comes back as soon as it stops. */
-html.native .thread.scrolling .msg { background: rgba(var(--tint-rgb), max(.62, var(--glass-tint, .3))); border-color: var(--edge); transition: none; }
-/* When it stops, that background fades out over the glass coming back (removing it at once left a frame with neither). */
-html.native .thread .msg { transition: background-color .25s ease, border-color .25s ease; }
 .a.scroll { overflow-y: auto; scrollbar-width: thin; padding-right: 4px; }
 .pager { align-self: center; font-size: 11.5px; padding: 3px 12px; border-radius: 999px; color: var(--muted); }
 .thread:empty { display: none; }
@@ -929,6 +924,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           return rect;
         })
         .filter(r => r.h > 1);
+      // While the user scrolls, the bubbles' own glass cannot follow them (the native views move a frame
+      // late), so one still pane of glass sits behind the whole visible conversation until it stops. The
+      // bubbles keep their own tint over it, so their colour does not change.
+      if (scrolling && view.height > 1) rects.unshift({ x: view.left, y: view.top, w: view.width, h: view.height, r: 20, m: true });
       const box = els.root.getBoundingClientRect();
       const height = Math.ceil(box.height);
       const side = mini.hidden ? 0 : Math.ceil(mini.getBoundingClientRect().width) + 10;
@@ -2760,7 +2759,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if ((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest(".stackhead")) { e.preventDefault(); e.target.click(); }
   });
 
-  // Scrolling: the bubbles switch to their own background until it stops, then the glass returns.
+  // Scrolling: the glass behind the bubbles becomes one still pane behind the conversation until it stops.
   // Only the user's own scrolling: following the answer to the bottom (on open, while it streams) keeps the
   // glass, or every open would flash the bubbles' flat background for a moment.
   let scrollIdle = 0, autoScrollAt = -1e9;
