@@ -2408,7 +2408,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     $("miniOpen").classList.toggle("busy", !!s.busy);
     if (lastBusy && !s.busy) {
       const last = s.messages[s.messages.length - 1];
-      if (last && last.role === "assistant") {
+      // In a conversation the answer is heard, not shown: no bubble beside Pip (unless it failed).
+      if (last && last.role === "assistant" && !(convo.on && last.state !== "error")) {
         const failed = last.state === "error";
         $("bubbleIcon").textContent = failed ? "!" : "✓";
         $("bubbleIcon").classList.toggle("err", failed);
@@ -3659,6 +3660,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (en > 0) return "en";
     return /[a-z]/.test(t) && !/[äßàâéèêëîïôûùÿœñ¿¡ąćęłńóśźżåøæ]/.test(t) ? "en" : "";
   }
+  // What of an answer is read aloud: everything before the web search's "Sources" list (titles and links).
+  function heardPart(text) {
+    const cut = text.search(/\n\s*\*\*Sources\*\*\s*\n/);
+    return cut >= 0 ? text.slice(0, cut) : text;
+  }
   // Markdown -> what is worth hearing.
   function speakable(src) {
     return src
@@ -3795,7 +3801,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (convo.on && convo.queued && !s.busy) { convo.queued = false; send(); }
     if (reader.index < 0) return;
     if (convo.on) convo.waiting = false;
-    const m = msgs[reader.index], text = (m && m.text) || "";
+    const m = msgs[reader.index], text = heardPart((m && m.text) || "");
     if (!m || m.role === "user" || m.state === "error" || !text.startsWith(reader.prefix)) { reader.stop(); return; }
     reader.complete = m.state !== "streaming";
     const n = readyPart(text, reader.done, reader.complete);
