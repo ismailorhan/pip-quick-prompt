@@ -303,6 +303,8 @@ html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outli
 .barfoot { position: absolute; left: 0; right: 0; top: 100%; margin-top: 5px; display: flex; justify-content: flex-end; padding-right: 14px; }
 #root.has-foot:not(.is-mini) { padding-bottom: 39px; }
 .barfoot[hidden] { display: none; }
+/* The agent pill belongs to the question bar: none while the bar is hidden (Settings, history, templates). */
+.bar[hidden] + .barfoot { display: none; }
 .agentpick { display: inline-flex; align-items: center; gap: 6px; height: 24px; max-width: 70%; padding: 0 9px 0 10px; border-radius: 12px; color: var(--muted); font-size: 12px; font-weight: 500; }
 .agentpick:hover, .agentpick.hov { color: var(--text); }
 .agentpick .aname, .agentpick .amodel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -3404,7 +3406,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // ---------- the chat's agent chip ----------
   function renderAgentChip(s) {
     const foot = $("barFoot"), chip = $("barAgent");
-    if (!s.agent) { if (!foot.hidden) { foot.hidden = true; $("root").classList.remove("has-foot"); queueLayout(); } return; }
+    if (!s.agent || settingsWin) { if (!foot.hidden) { foot.hidden = true; $("root").classList.remove("has-foot"); queueLayout(); } return; }
     chip.style.setProperty("--agent", s.agent.color || "");
     chip.querySelector(".aname").textContent = s.agent.name;
     // The model, unless the agent's name already says it (or it uses the CLI's own default).
