@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.62, 7 Nov 2026)
+## Status (v0.3.63, 7 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -295,12 +295,14 @@ v0.3.62 (7 Nov 2026), built, not yet confirmed: web search actually searches (th
 answer only from the text" made Haiku refuse; `WithWebSearch` adds a note allowing it). A conversation answer was not read aloud in
 v0.3.61 (cause unknown): agent.log now gets "Page: Read aloud: …" lines (answer read, no audio, voices not ready) and speech.log
 "Playing an answer…" / "Play: skipped…". Look there first when reading aloud fails.
-On `dev` after v0.3.62: **Settings save as you change them** (owner, like Claude's settings): no Save/Cancel in the footer
+v0.3.63 (7 Nov 2026), built, not yet confirmed (with the notes up to the CI note): **Settings save as you change them** (owner, like Claude's settings): no Save/Cancel in the footer
 ("Changes are saved as you make them." / "Saved"); `persistSettings` after a debounced change (only once loaded; unchanged bodies
 are not sent); API keys on blur/Enter, Remove at once. The agent and template editors save themselves too (debounced) with
 "‹ Agents" / "‹ Templates" back links and a red Delete; new ones get an id made by the page (agents `g`+10 hex, accepted by SaveAgent;
 templates `a`+12 hex; editing a built-in makes your copy at the first change); a template needs a title and a prompt before it saves.
-Also on `dev`: **quick open / close no longer throws Pip to the panel's far edge** (owner's video: ~0.15 s jumps of ~390 pt).
+Also in v0.3.63: no answer bubble beside Pip in a conversation; read aloud skips the Sources list and decides the language
+from what the answer has said (waits while unclear; ç/ö/ü count as Turkish; the question decides at the end); editors have a
+breadcrumb ("← Agents / name"). **Quick open / close no longer throws Pip to the panel's far edge** (owner's video: ~0.15 s jumps of ~390 pt).
 Causes, each measured with `tools/pip-rapid-test/run.sh` (real PopupController, 24 random open/close; about half the runs
 failed): Esc's slide-out timer collapsed the chat even after it was opened again; a slide-in that waited for the panel's size
 started after the chat was tucked again (thawed Pip's picture, held the tucked layout back); freezes had no ids (an earlier
