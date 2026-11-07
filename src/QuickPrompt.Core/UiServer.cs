@@ -247,6 +247,11 @@ namespace QuickPrompt.Core
             {
                 // navigator.sendBeacon cannot set custom headers; cancelling is harmless.
                 session.Cancel();
+                if (session.IsSettingsWindow)
+                {
+                    this._manager.PreviewLook(new Dictionary<String, String> { ["clear"] = "true" });   // closed without Save
+                }
+
                 return new HttpResponse { Status = 204 };
             }
 
@@ -276,6 +281,14 @@ namespace QuickPrompt.Core
 
                 case "deleteagent":
                     return HttpResponse.Json(this._manager.DeleteAgent(GetString(body, "id")));
+
+                case "opensettings":
+                    this._manager.OpenSettings(GetString(body, "pane"));
+                    return HttpResponse.Json("{\"ok\":true}");
+
+                case "preview":
+                    this._manager.PreviewLook(body);
+                    return HttpResponse.Json("{\"ok\":true}");
 
                 case "defaultagent":
                     return HttpResponse.Json(this._manager.SetDefaultAgent(GetString(body, "id")));

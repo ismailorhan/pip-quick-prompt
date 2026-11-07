@@ -329,6 +329,7 @@ namespace QuickPrompt.Core
             var session = new ChatSession(this.GetProvider(agent), () => this.Settings)
             {
                 Title = title ?? "",
+                Preview = () => this._lookPreview,
             };
             session.UseAgent(this.GetProvider(agent), agent);
             session.TurnFinished += this.OnTurnFinished;
@@ -785,12 +786,49 @@ namespace QuickPrompt.Core
             return oneLine.Length <= max ? oneLine : oneLine.Substring(0, max - 1) + "…";
         }
 
-        /// <summary>Opens the popup on the Settings view (keys, connections, models).</summary>
-        public void OpenSettings()
+        /// <summary>
+        /// Opens Settings in a window of its own, beside Pip (not in Pip's popup), optionally on one pane.
+        /// An earlier Settings window is replaced by the app.
+        /// </summary>
+        public void OpenSettings(String pane = null)
         {
             var session = this.CreateSession(null, "Settings");
             session.ShowSettings = true;
-            this.OpenWindow(session);
+            session.IsSettingsWindow = true;
+            var query = "window=settings" + (IsPaneName(pane) ? "&pane=" + pane : "");
+            this.Launcher.Open(appWindow => this.GetSessionUrl(session, appWindow) + (appWindow ? "?" : "&") + query);
+        }
+
+        private static Boolean IsPaneName(String pane) =>
+            !String.IsNullOrEmpty(pane) && pane.Length <= 20 && pane.All(c => c is >= 'a' and <= 'z');
+
+        private volatile LookPreview _lookPreview;
+
+        /// <summary>
+        /// Sizes and glass moved in the Settings window: every open popup (Pip, the conversation) shows them at
+        /// once, before Save. clear=true (Cancel, the window closed) puts the saved values back.
+        /// </summary>
+        public void PreviewLook(IReadOnlyDictionary<String, String> body)
+        {
+            String Get(String key) => body.TryGetValue(key, out var v) ? v ?? "" : "";
+            Int32? Value(String key) => Int32.TryParse(Get(key), out var v) ? Math.Clamp(v, 0, 100) : null;
+            var next = Get("clear") == "true" ? null : new LookPreview { PopupScale = Value("popupScale"), IconScale = Value("iconScale"), GlassTint = Value("glassTint") };
+            if (next == null && this._lookPreview == null)
+            {
+                return;
+            }
+
+            this._lookPreview = next;
+            this.RefreshSessions();
+        }
+
+        /// <summary>Every open page fetches its state again (settings changed).</summary>
+        private void RefreshSessions()
+        {
+            foreach (var session in this._sessions.Values)
+            {
+                session.Refresh();
+            }
         }
 
         /// <summary>Settings as shown in the popup. API keys are never returned, only whether one is set.</summary>
@@ -1004,6 +1042,8 @@ namespace QuickPrompt.Core
 
             s.Save(this._settingsPath);
             this._settingsReadUtc = SafeLastWrite(this._settingsPath);
+            this._lookPreview = null;
+            this.RefreshSessions();   // Pip and the conversation take the saved sizes now, not at their next change
 
             SaveKey(AnthropicApiProvider.SecretName, Get("claudeKey"));
             SaveKey(OpenAiApiProvider.SecretName, Get("chatgptKey"));

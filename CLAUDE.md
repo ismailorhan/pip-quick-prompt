@@ -276,6 +276,15 @@ under the answer. Pip wears a turning globe badge while it searches (`.mascot.se
 v0.3.58 (7 Nov 2026), built, not yet confirmed: has the web search above. Scrolling no longer changes the bubbles' colour: while
 the user scrolls, one still pane of glass sits behind the visible conversation (the per-bubble glass moves a frame late) and the
 bubbles keep their own tint; each bubble's glass returns when it stops. Side effect: the gaps between bubbles look frosted while scrolling.
+On `dev` after v0.3.58: the Settings footer's Save also saves the agent open in the editor. **Settings in a window of their own**
+(owner): from Pip (gear, menu, Edit Agents…) the page posts `opensettings`; the engine opens `?window=settings[&pane=…]`, which
+the app opens as a standalone PopupController (no Pip, no glass, opaque page with a shadow, centred, beside Pip's popup; a second
+one replaces the first). Its Chat width / Pip size / Glass sliders post `preview` (not saved): every session's state carries the
+tried values (`lookPreview`), Pip's popup opens its chat while the width is tried and tucks it back after; Cancel/✕/closing the
+window clears it, Save makes it permanent. Chat size is now **Chat width** (380 + v·7 px, up to 1080) and the chat's outer edge
+can be dragged (saved at once); the conversation's height is no longer fixed: it grows as tall as the screen allows on its side
+of Pip (`updateThreadMax`). A chat opened but left empty tucks back into Pip when another app or window takes the keyboard
+(`windowDidResignKey` → `__quickPromptBlur`).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

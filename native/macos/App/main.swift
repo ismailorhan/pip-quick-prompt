@@ -19,6 +19,7 @@ let appName = "Quick Prompt"
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var popups: [PopupController] = []
+    private var settingsWindow: PopupController?
 
     // Engine
     private var agent: Process?
@@ -570,6 +571,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: popups
 
     private func openPopup(_ url: URL) {
+        // Settings open in a window of their own, beside Pip; a second Settings replaces the first.
+        if URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "window" && $0.value == "settings" }) == true {
+            settingsWindow?.close()
+            let window = PopupController(url: url, standalone: true)
+            window.onClosed = { [weak self] closed in
+                if self?.settingsWindow === closed { self?.settingsWindow = nil }
+            }
+            window.onSessionEnded = { [weak window] in window?.close() }
+            settingsWindow = window
+            window.open(at: nil)
+            return
+        }
         // One popup (and so one Pip) at a time: the new one takes the place of the old, right where Pip is;
         // with no Pip on screen, where Pip was last left, else at the bottom middle of the screen.
         let anchor = popups.last?.iconPoint ?? PopupController.savedPipPoint()

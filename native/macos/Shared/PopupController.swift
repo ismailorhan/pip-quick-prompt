@@ -122,8 +122,14 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     /// Which side of the conversation the icon sits on: away from the nearer screen edge.
     private var side = "left"
 
-    init(url: URL) {
+    /// A window of its own (Settings): no Pip, no glass, an opaque page with a shadow, centred on the screen
+    /// at its first layout; it lives beside Pip's popup instead of replacing it.
+    let standalone: Bool
+    private var centred = false
+
+    init(url: URL, standalone: Bool = false) {
         self.url = url
+        self.standalone = standalone
         super.init()
     }
 
@@ -172,7 +178,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         panel.backgroundColor = .clear
         // No window shadow: macOS traces it around the transparent panel's shapes, which shows up as a dark
         // ring over light backgrounds (e.g. remote desktop windows). The glass and the page draw their own.
-        panel.hasShadow = false
+        panel.hasShadow = standalone   // the standalone page is opaque, so its traced shadow looks right
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
         panel.onClose = { [weak self] in self?.close() }
@@ -208,7 +214,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
     }
 
     private func show() {
-        guard !shown, !closing else { return }
+        guard !shown, !closing, !standalone || centred else { return }   // a window of its own shows once centred
         shown = true
         panel.makeKeyAndOrderFront(nil)   // becomes key without activating: the previous app stays frontmost
         panel.makeFirstResponder(webView)
@@ -281,7 +287,13 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         // pushing the panel would only move Pip away from the edge while the toolbar opens or turns.
         // Rounded here, not by macOS: it cuts 2424.9997 down to 2424, a point away from where Pip belongs.
         let requested = NSRect(x: topLeft.x.rounded(), y: topLeft.y.rounded() - height, width: popupWidth, height: height)
-        let frame = isMini ? requested : fit(requested, edge: 8)
+        var frame = isMini ? requested : fit(requested, edge: 8)
+        if standalone && !centred && height > 200 {
+            // First layout of a window of its own: in the middle of the screen (a third from the top).
+            centred = true
+            frame.origin = NSPoint(x: (visibleArea.midX - frame.width / 2).rounded(),
+                                   y: (visibleArea.maxY - (visibleArea.height - frame.height) / 3 - frame.height).rounded())
+        }
         topLeft = NSPoint(x: frame.minX, y: frame.maxY)
         panel.setFrame(frame, display: true, animate: false)
         container.layoutSubtreeIfNeeded()
@@ -759,7 +771,7 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                     iconScreenY = panel.frame.maxY - anchorY
                 }
             }
-            if let rects = body["rects"] as? [[String: Any]] {
+            if let rects = body["rects"] as? [[String: Any]], !standalone {
                 layoutGlass(rects, pending: (body["pending"] as? Bool) ?? false)
             }
             show()
@@ -904,6 +916,12 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
 
     func webViewDidClose(_ webView: WKWebView) {
         close()
+    }
+
+    /// Another app or window took the keyboard (a click elsewhere): an empty conversation tucks back into Pip.
+    func windowDidResignKey(_ notification: Notification) {
+        guard !standalone, !closing else { return }
+        webView?.evaluateJavaScript("window.__quickPromptBlur && window.__quickPromptBlur()", completionHandler: nil)
     }
 
     func windowDidMove(_ notification: Notification) {

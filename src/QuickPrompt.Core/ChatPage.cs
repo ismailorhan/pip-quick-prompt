@@ -41,7 +41,13 @@ html.native { overflow: hidden; overflow: clip; }
 #root { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px; }
 /* The icon sits beside the conversation, on the side away from the nearer screen edge (set natively). */
 #root.side-right { flex-direction: row-reverse; }
-#main { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+#main { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; position: relative; }
+/* The conversation's far edge (away from Pip): drag it to make the chat wider or narrower. */
+.cgrip { position: absolute; top: 0; bottom: 0; right: -5px; width: 10px; cursor: ew-resize; z-index: 5; }
+#root.side-right .cgrip { right: auto; left: -5px; }
+#root.is-mini .cgrip, #chatGrip.off { display: none; }
+/* Settings in a window of their own: a plain, opaque window (no glass). */
+html.settingswin .settings.glass { background: rgb(var(--tint-rgb)); border: 1px solid var(--edge); }
 #root.is-mini #main { display: none; }
 #root:not(.is-mini) .minibar { display: none; }
 #root:not(.is-mini) .plist, #root:not(.is-mini) .bubble { display: none; }
@@ -493,6 +499,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
   </div>
   <div id="main">
+  <div class="cgrip" id="chatGrip" title="Drag to change the chat's width"></div>
   <div class="card" id="card" hidden>
     <div class="meta head glass" data-drag hidden>
       <span class="dot"></span>
@@ -632,8 +639,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
         <section class="spane" data-pane="appearance">
           <h2>Appearance</h2>
           <div class="sline">
-            <div><div class="sl-t">Chat size</div><div class="sl-d">The width and height of the conversation.</div></div>
-            <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat size"><span class="sz big">A</span></div>
+            <div><div class="sl-t">Chat width</div><div class="sl-d">How wide the conversation is (you can also drag its outer edge). It grows as tall as the screen allows.</div></div>
+            <div class="slider"><span class="sz small">A</span><input type="range" id="sizeSlider" min="0" max="100" step="1" aria-label="Chat width"><span class="sz big">A</span></div>
           </div>
           <div class="sline">
             <div><div class="sl-t">Pip size</div><div class="sl-d">Pip, the little floating icon, and its toolbar.</div></div>
@@ -784,6 +791,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   "use strict";
   const base = location.pathname.endsWith("/") ? location.pathname : location.pathname + "/";
   const isTab = new URLSearchParams(location.search).get("tab") === "1";
+  // Settings in a window of their own (opened from Pip or the menu bar): no Pip, no conversation, no glass.
+  const settingsWin = new URLSearchParams(location.search).get("window") === "settings";
+  const settingsWinPane = new URLSearchParams(location.search).get("pane") || "";
+  if (settingsWin) document.documentElement.classList.add("settingswin");
   const bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.quickPrompt;
   const nativeInfo = window.__quickPromptNative || {};
   const isMac = /Mac/.test(navigator.platform);
@@ -865,13 +876,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // ---------- native layout: panel height + glass shapes ----------
   // Popup size (Settings slider, 0 = smallest … 100 = largest): panel width and answer height.
   let lastStateScale = null, lastStateIcon = null;
+  let threadMax = -1, pipEdges = null;
   let scale = -1, size = { w: 520, h: 380 }, sizeKnown = false, collapsed = false, pinned = false, startedAsPip = false;
   function applySize(value) {
     const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 30));
     scale = v;
-    size = { w: Math.round(400 + v * 4.2), h: Math.round(220 + v * 4) };
+    size = { w: Math.round(380 + v * 7), h: Math.round(220 + v * 4) };
     sizeKnown = true;
-    document.documentElement.style.setProperty("--thread-max", size.h + "px");
+    threadMax = -1;
+    updateThreadMax();
     queueLayout();
   }
 
@@ -884,6 +897,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   applyGlass(35);
   let lastStateGlass = null, savedGlass = 35;
   let lastAutoCopied = null;
+  let previewOpened = false;   // the chat was opened to show a width being tried in Settings
 
   function applyIconScale(value) {
     const v = Math.max(0, Math.min(100, Number.isFinite(+value) ? +value : 38));
@@ -904,6 +918,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       layoutQueued = false;
       if (revealing) { layoutAfterReveal = true; return; }   // the slide started meanwhile
       updateGrowDirection();
+      updateThreadMax();
       const view = els.thread.getBoundingClientRect();
       const scrolling = els.thread.classList.contains("scrolling");
       const main = $("main");
@@ -968,6 +983,19 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   // Beside Pip the conversation ends at Pip's bottom and grows upward; when the room above Pip runs out,
   // it lines up with Pip's top and grows downward instead (Pip itself never moves for it).
+  // How tall the conversation may grow: as much as the screen allows on the side it grows to (above Pip, or
+  // below it with grow-down), less the question bar and a margin; never less than the old fixed height.
+  function updateThreadMax() {
+    let max = size.h;
+    if (bridge && !collapsed && !$("mini").hidden && pipEdges && pipEdges.top != null) {
+      const icon = $("miniOpen").getBoundingClientRect();
+      const other = $("main").getBoundingClientRect().height - els.thread.getBoundingClientRect().height;
+      const room = (els.root.classList.contains("grow-down") ? pipEdges.bottom : pipEdges.top) + icon.height / 2 - other - 60;
+      max = Math.max(size.h, Math.floor(room));
+    }
+    if (max !== threadMax) { threadMax = max; document.documentElement.style.setProperty("--thread-max", max + "px"); }
+  }
+
   function updateGrowDirection() {
     if (collapsed || mini.hidden || !pipEdges || pipEdges.top == null) { els.root.classList.remove("grow-down"); return; }
     const icon = $("miniOpen").getBoundingClientRect();
@@ -1131,6 +1159,15 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     glassSlider.style.setProperty("--fill", glassSlider.value + "%");
   }
   glassSlider.addEventListener("input", () => applyGlass(glassSlider.value));   // live preview
+  // In the Settings window: Pip and the conversation show the sizes and glass at once (not saved until Save).
+  let previewing = false, previewTimer = 0;
+  function sendPreview() {
+    if (!settingsWin) return;
+    previewing = true;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => post("preview", { popupScale: String(sizeSlider.value), iconScale: String(iconSlider.value), glassTint: String(glassSlider.value) }).catch(() => {}), 40);
+  }
+  [sizeSlider, iconSlider, glassSlider].forEach(sl => sl.addEventListener("input", sendPreview));
   [sizeSlider, iconSlider, glassSlider].forEach(sl => sl.addEventListener("input", () => sl.style.setProperty("--fill", sl.value + "%")));
 
   // ---------- Shortcut recorder: click, then press the keys ----------
@@ -1198,6 +1235,29 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       window.removeEventListener("mousemove", move, true);
       window.removeEventListener("mouseup", up, true);
       try { localStorage.setItem("qp.settingsSize", JSON.stringify(settingsSize)); } catch (e) {}
+    };
+    window.addEventListener("mousemove", move, true);
+    window.addEventListener("mouseup", up, true);
+  });
+
+  // The chat's outer edge: drag to make it wider or narrower; saved as the Chat width setting.
+  $("chatGrip").addEventListener("mousedown", e => {
+    if (e.button !== 0 || !bridge) return;
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.screenX, startW = size.w;
+    const dir = els.root.classList.contains("side-right") ? -1 : 1;
+    let value = scale;
+    const move = ev => {
+      const w = Math.max(380, Math.min(1080, startW + dir * (ev.screenX - startX)));
+      value = Math.round((w - 380) / 7);
+      if (value !== scale) applySize(value);
+    };
+    const up = async () => {
+      window.removeEventListener("mousemove", move, true);
+      window.removeEventListener("mouseup", up, true);
+      if (value === savedScale) return;
+      savedScale = value;
+      try { await post("settings", { popupScale: String(value) }); } catch (e) {}
     };
     window.addEventListener("mousemove", move, true);
     window.addEventListener("mouseup", up, true);
@@ -1517,6 +1577,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   function closeSettings() {
+    if (previewing) { previewing = false; clearTimeout(previewTimer); post("preview", { clear: "true" }).catch(() => {}); }
     if (scale !== savedScale) applySize(savedScale);
     applyGlass(savedGlass);   // undo a preview that was not saved
     if (settingsOnly) { closeWindow(); return; }
@@ -1556,11 +1617,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     closeSettings();
   }
 
-  $("gear").addEventListener("click", () => openSettings(false));
-  $("errSettings").addEventListener("click", () => openSettings(false, state && state.connection === "api" ? "keys" : "agents"));
+  // In the app, Settings open in a window of their own beside Pip (Pip and the chat show size changes live);
+  // in a browser tab they open in place.
+  function showSettings(pane) {
+    if (bridge && !settingsWin && !isTab) { post("opensettings", { pane: pane || "" }); return; }
+    openSettings(false, pane);
+  }
+  $("gear").addEventListener("click", () => showSettings());
+  $("errSettings").addEventListener("click", () => showSettings(state && state.connection === "api" ? "keys" : "agents"));
   $("setSave").addEventListener("click", saveSettings);
   $("setBack").addEventListener("click", closeSettings);
-  $("setClose").addEventListener("click", () => settingsOnly ? closeWindow() : dismiss());
+  $("setClose").addEventListener("click", () => settingsOnly ? closeSettings() : dismiss());
 
   // ---------- pin, collapse to an icon, drag (native popup only) ----------
   const mini = $("mini");
@@ -1650,7 +1717,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   function expand() {
     if (collapsed && bridge && !expand.now) { freezePip(() => { expand.now = true; try { expand(); } finally { expand.now = false; } }); return; }
     collapsed = false;
-    mini.hidden = !bridge;   // in the native popup the icon stays beside the conversation
+    mini.hidden = !bridge || settingsWin;   // in the native popup the icon stays beside the conversation
     setTimeout(() => globe.start(), 0);
     bubble.hidden = true;
     $("presetList").hidden = true;
@@ -1728,6 +1795,18 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   function dismiss() {
     if (bridge && pinned) collapseAnimated(); else closeWindow();
   }
+
+  // The panel lost the keyboard (a click in another app or window): a chat opened but left empty goes away.
+  // Anything in it (messages, typed text, pictures, a selection, a template's fields, a view) keeps it open.
+  window.__quickPromptBlur = () => {
+    if (collapsed || settingsWin || !state || previewOpened) return;
+    if (settingsOpen || historyOpen || actionsOpen || previewOpen || convo.on) return;
+    if (window.__quickPromptSpeech && speech.state !== "idle") return;
+    const d = state.draft || {};
+    if (state.busy || (state.messages && state.messages.length) || els.prompt.value.trim() || pending.length) return;
+    if ((d.images && d.images.length) || (d.context || "").trim() || (state.fields && state.fields.length) || state.presetPrompt) return;
+    dismiss();
+  };
 
 
   bubble.addEventListener("click", expand);
@@ -1877,7 +1956,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   window.__quickPromptMenu = async id => {
     if (id.startsWith("add-")) { runAddItem(id); return; }
     if (id.startsWith("agent-")) { switchAgent(id.slice(6)); return; }
-    if (id === "agents-edit") { openSettings(false, "agents"); return; }
+    if (id === "agents-edit") { showSettings("agents"); return; }
     if (id.startsWith("newagent-")) {
       const res = await post("reset", { agent: id.slice(9) });
       if (res.ok) { stick = true; expand(); } else if (res.status !== 404) toast("Still answering");
@@ -1894,7 +1973,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     if (id === "open") expand();
     else if (id === "new") { const res = await post("reset"); if (res.ok) { stick = true; expand(); } else toast("Still answering"); }
     else if (id === "recent") { expand(); openHistory(false); }
-    else if (id === "settings") { expand(); openSettings(false); }
+    else if (id === "settings") showSettings();
     else if (id === "actions") { expand(); openActions(false); }
     else if (id === "hide") closeWindow();
     else if (id === "never") {
@@ -1922,7 +2001,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     hovered = target;
     if (hovered) hovered.classList.add("hov");
   };
-  let toolbarSize = null, pipEdges = null;
+  let toolbarSize = null;
   window.__quickPromptEdges = edges => {
     pipEdges = edges;
     const bar = $("minibar"), icon = $("miniOpen").getBoundingClientRect();
@@ -1940,7 +2019,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.root.classList.toggle("pip-bottom", above);
     if (changed) { lastLayout = ""; queueLayout(); }
   };
-  if (bridge) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
+  if (bridge && !settingsWin) { mini.hidden = false; setTimeout(() => globe.start(), 0); }
   $("miniNew").addEventListener("click", async () => {
     if (convo.on) { endConversation(); return; }
     const res = await post("reset");
@@ -2551,6 +2630,10 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     // A template with "Copy the first answer" put it on the clipboard.
     if (lastAutoCopied != null && (s.autoCopied || 0) > lastAutoCopied) toast("Answer copied");
     lastAutoCopied = s.autoCopied || 0;
+    if (bridge && !settingsWin) {
+      if (s.lookPreview && lastStateScale !== undefined && s.popupScale !== lastStateScale && collapsed) { previewOpened = true; expand(); }
+      else if (!s.lookPreview && previewOpened) { previewOpened = false; if (!collapsed && pinned) collapseAnimated(); }
+    }
     lastStateScale = s.popupScale; lastStateIcon = s.iconScale;
     if (!!s.keepPip !== pinned) setPinned(!!s.keepPip);
     if (s.startCollapsed && !startedAsPip && bridge) {
@@ -2566,7 +2649,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     }
     if (collapsed) { updateMini(s); return; }
     lastBusy = !!s.busy;
-    if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true); return; }
+    if (s.showSettings && !settingsOpen && !draftApplied) { draftApplied = true; openSettings(true, settingsWinPane || undefined); return; }
     if (s.showHistory && !historyOpen && !draftApplied) { draftApplied = true; openHistory(true); return; }
     if (s.showActions && !actionsOpen && !draftApplied) { draftApplied = true; openActions(true); return; }
     if (settingsOpen || historyOpen || actionsOpen) return;

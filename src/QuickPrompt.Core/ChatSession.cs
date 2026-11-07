@@ -96,6 +96,12 @@ namespace QuickPrompt.Core
         /// <summary>Open the popup on the Settings view.</summary>
         public Boolean ShowSettings { get; set; }
 
+        /// <summary>Settings shown in a window of their own (no Pip, no conversation).</summary>
+        public Boolean IsSettingsWindow { get; set; }
+
+        /// <summary>Sizes and glass being tried in the Settings window, not saved yet (null when none).</summary>
+        public Func<LookPreview> Preview { get; set; }
+
         /// <summary>Open the popup on the History view.</summary>
         public Boolean ShowHistory { get; set; }
 
@@ -527,6 +533,7 @@ namespace QuickPrompt.Core
 
         public String ToJson(Boolean isAppWindow)
         {
+            var preview = this.Preview?.Invoke();
             lock (this._lock)
             {
                 var snapshot = new
@@ -549,9 +556,10 @@ namespace QuickPrompt.Core
                     showActions = this.ShowActions,
                     fields = PromptBuilder.GetParameters(this.PresetInstruction).Select(p => new { name = p.Name, options = p.Options }).ToArray(),
                     presetPrompt = this.PresetInstruction,
-                    popupScale = this._settings().PopupScale ?? QuickPromptSettings.DefaultPopupScale,
-                    iconScale = this._settings().IconScale,
-                    glassTint = this._settings().GlassTint,
+                    popupScale = preview?.PopupScale ?? this._settings().PopupScale ?? QuickPromptSettings.DefaultPopupScale,
+                    iconScale = preview?.IconScale ?? this._settings().IconScale,
+                    glassTint = preview?.GlassTint ?? this._settings().GlassTint,
+                    lookPreview = preview != null,
                     keepPip = this._settings().KeepPip,
                     autoCopied = this.AutoCopied,
                     startDictation = this.StartDictation,
@@ -728,6 +736,18 @@ namespace QuickPrompt.Core
             return result;
         }
 
+        /// <summary>Makes a waiting page fetch the state again (settings changed elsewhere), without counting as activity.</summary>
+        public void Refresh()
+        {
+            lock (this._lock)
+            {
+                this._version++;
+                var old = this._changed;
+                this._changed = NewTcs();
+                old.TrySetResult(true);
+            }
+        }
+
         private void TouchLocked()
         {
             this._version++;
@@ -745,6 +765,16 @@ namespace QuickPrompt.Core
             var bytes = RandomNumberGenerator.GetBytes(18);
             return Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
         }
+    }
+
+    /// <summary>Sizes and glass tried in the Settings window before Save; null fields keep the saved value.</summary>
+    public sealed class LookPreview
+    {
+        public Int32? PopupScale { get; init; }
+
+        public Int32? IconScale { get; init; }
+
+        public Int32? GlassTint { get; init; }
     }
 
     public sealed class AiTurnException : Exception
