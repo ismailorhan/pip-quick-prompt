@@ -3651,13 +3651,16 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     return map;
   }
   // The answer's language: Turkish letters or words, else English words. Other languages have no voice yet.
-  function guessLang(text) {
-    const t = " " + text.toLowerCase().slice(0, 600) + " ";
+  // sure: only answer when the text says so (Turkish letters or words, English words); otherwise "" (wait for more).
+  function guessLang(text, sure) {
+    const t = " " + text.toLocaleLowerCase("tr").slice(0, 600) + " ";
     const count = rx => (t.match(rx) || []).length;
-    const tr = count(/[ğış]/g) * 2 + count(/[\s,]+(ve|bir|bu|için|ile|ama|çok|olarak|var|yok|daha|gibi|değil|sonra|şimdi)[\s,.]/g);
-    const en = count(/[\s,]+(the|and|is|are|of|to|for|with|that|this|you|it|can|will)[\s,.]/g);
+    // ç, ö and ü count too: "Fenerbahçe, 2026-27 Süper Lig puan durumunda 6." has none of ğ, ı, ş and was read as English.
+    const tr = count(/[ğışçöü]/g) * 2 + count(/[\s,]+(ve|bir|bu|için|ile|ama|çok|olarak|var|yok|daha|gibi|değil|sonra|şimdi|sırada|puan|maç)[\s,.]/g);
+    const en = count(/[\s,]+(the|and|is|are|of|to|for|with|that|this|you|it|can|will|on|in)[\s,.]/g) * 2;
     if (tr > en) return "tr";
-    if (en > 0) return "en";
+    if (en > tr) return "en";
+    if (sure) return "";
     return /[a-z]/.test(t) && !/[äßàâéèêëîïôûùÿœñ¿¡ąćęłńóśźżåøæ]/.test(t) ? "en" : "";
   }
   // What of an answer is read aloud: everything before the web search's "Sources" list (titles and links).
@@ -3806,7 +3809,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     reader.complete = m.state !== "streaming";
     const n = readyPart(text, reader.done, reader.complete);
     if (n > 0) {
-      if (!reader.lang) reader.lang = guessLang(text);
+      // The language is decided on what the answer has said so far; while that is not clear yet (a first sentence of
+      // names and numbers), wait for more. At the end, the question's language decides, then the old guess.
+      if (!reader.lang) {
+        const q = msgs[reader.index - 1], asked = q && q.role === "user" ? q.text || "" : "";
+        reader.lang = guessLang(text, true) || (reader.complete ? (guessLang(asked, true) || guessLang(text)) : "");
+        if (!reader.lang && !reader.complete) { pump(); return; }
+      }
       if (reader.lang) sentences(speakable(text.slice(reader.done, reader.done + n))).forEach(t => reader.queue.push({ text: t, lang: reader.lang }));
       reader.done += n;
       reader.prefix = text.slice(0, reader.done);
