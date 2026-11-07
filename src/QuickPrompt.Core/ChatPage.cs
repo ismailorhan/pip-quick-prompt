@@ -253,6 +253,12 @@ textarea::placeholder { color: var(--muted); }
 .kbrow kbd { font: 500 12px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--text); padding: 2px 7px; border-radius: 6px; background: var(--faint); }
 .sfoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px 12px 18px; border-top: 1px solid var(--faint); }
 .sfoot .status { font-size: 11.5px; color: var(--muted); }
+/* Editors save as you type: a link back to the list instead of Save / Cancel; Delete is red. */
+.backlink { align-self: flex-start; background: transparent; color: var(--muted); padding: 2px 0; margin: 0 0 6px; font-size: 13px; border-radius: 6px; }
+.backlink:hover { color: var(--text); background: transparent; }
+button.danger { color: #e5484d; }
+button.danger:hover { background: rgba(229, 72, 77, .14); }
+.sfoot-hint.saved { color: var(--text); }
 .sfoot-hint { flex: 1; font-size: 11.5px; color: var(--muted); text-align: right; padding-right: 4px; }
 #actionsView { max-height: var(--view-max, 760px); overflow-y: auto; scrollbar-width: thin; }
 .sgroup { padding: 10px 0 4px; border-top: 1px solid var(--faint); margin-top: 8px; }
@@ -664,6 +670,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
           <div class="hlist aglist" id="agList"></div>
           <div class="actions" id="agButtons"><button type="button" class="primary" id="agNew">New agent</button></div>
           <div class="aform agform" id="agForm" hidden>
+            <button type="button" class="backlink" id="agBack">‹ Agents</button>
             <label class="sfield">Name<input type="text" id="agName" spellcheck="false" maxlength="40" placeholder="e.g. Claude Fast"></label>
             <div class="srow sub"><span class="sname">Colour</span><div class="swatches" id="agColors"></div></div>
             <div class="srow sub"><span class="sname">AI</span>
@@ -698,7 +705,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
             <div class="srow sub"><span class="sname">Default agent</span>
               <div class="seg" data-name="agDefault"><button type="button" data-v="true">Yes</button><button type="button" data-v="false">No</button></div></div>
             <div class="shint">New chats, Pip and the shortcuts use the default agent.</div>
-            <div class="actions"><button type="button" class="primary" id="agSave">Save</button><button type="button" id="agCancel">Cancel</button><span style="flex:1"></span><button type="button" id="agDelete">Delete</button></div>
+            <div class="actions"><span style="flex:1"></span><button type="button" class="danger" id="agDelete">Delete agent</button></div>
           </div>
         </section>
         <section class="spane" data-pane="keys">
@@ -723,9 +730,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     </div>
     <div class="sfoot">
       <span class="status" id="setVersion"></span>
-      <span class="sfoot-hint">Changes apply to the next request.</span>
-      <button type="button" id="setBack">Cancel</button>
-      <button type="button" class="primary" id="setSave">Save</button>
+      <span class="sfoot-hint" id="setSaved">Changes are saved as you make them.</span>
     </div>
   </div>
   <div class="history glass" id="historyView" hidden>
@@ -755,6 +760,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <button type="button" class="primary" id="exportGo">Export</button>
     </div>
     <div class="aform" id="actForm" hidden>
+      <button type="button" class="backlink" id="afBack">‹ Templates</button>
       <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
       <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{$selected}"></textarea></label>
       <div class="params">
@@ -770,7 +776,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       <div class="srow sub"><span class="sname">Copy the first answer</span>
         <div class="seg" data-name="afAutoCopy"><button type="button" data-v="true">On</button><button type="button" data-v="false">Off</button></div></div>
       <div class="shint">On: the first answer goes onto the clipboard as soon as it is complete, ready to paste.</div>
-      <div class="actions"><button type="button" class="primary" id="afSave">Save</button><button type="button" id="afCancel">Cancel</button><span style="flex:1"></span><button type="button" id="afDelete">Delete</button></div>
+      <div class="actions"><span style="flex:1"></span><button type="button" class="danger" id="afDelete">Delete template</button></div>
     </div>
   </div>
   <div class="fields glass" id="fieldsBox" hidden><div class="ftitle" id="fieldsTitle"></div><div class="flist" id="fieldList"></div></div>
@@ -1146,8 +1152,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     const input = $(b.dataset.clear);
     keyRemoval[input.id] = true;
     input.value = "";
-    input.placeholder = "Will be removed when you save";
     b.hidden = true;
+    persistSettings({ [input.id]: "-" });
   }));
 
   // The slider resizes the popup live; Cancel goes back to the saved size.
@@ -1298,6 +1304,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     historyOpen = false; actionsOpen = false;
     set.view.hidden = false;
     set.status.textContent = "";
+    settingsLoaded = false;
     showPane(pane || currentPane);
     try {
       const s = await (await fetch(base + "settings", { cache: "no-store" })).json();
@@ -1321,6 +1328,8 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       showKeyHint(set.claudeKey, s.claude.keyHint);
       showKeyHint(set.chatgptKey, s.chatgpt.keyHint);
       setupData = null;
+      settingsLoaded = true;
+      lastSettingsBody = JSON.stringify(settingsBody());
     } catch (e) {
       set.status.textContent = "Could not load settings";
     }
@@ -1493,6 +1502,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   function editAgent(a) {
     ag.editing = a || null;
+    ag.newId = ""; agentError = "";
     const palette = (ag.data && ag.data.palette) || ["#D97757", "#10A37F", "#4C8DF6", "#A56BF2"];
     $("agColors").innerHTML = palette.map(c => '<button type="button" data-c="' + esc(c) + '" style="--c:' + esc(c) + '" aria-label="Colour ' + esc(c) + '"></button>').join("");
     $("agName").value = a ? a.name : "";
@@ -1538,7 +1548,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   $("agColors").addEventListener("click", e => { const b = e.target.closest("button[data-c]"); if (b) setAgentColor(b.dataset.c); });
   $("agNew").addEventListener("click", () => editAgent(null));
-  $("agCancel").addEventListener("click", showAgentList);
   ag.list.addEventListener("click", async e => {
     const mk = e.target.closest("[data-mkdef]");
     if (mk) {
@@ -1556,10 +1565,14 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
   // Saves the agent open in the editor. The Settings footer's Save does this too, so an agent edited and then
   // saved with the footer button is not lost (it used to save only the other settings).
-  async function saveAgent() {
+  // The agent being edited is saved as you change it (no Save button); "‹ Agents" goes back to the list.
+  let agentTimer = 0, agentError = "";
+  function newClientId(prefix, n) { return prefix + Array.from(crypto.getRandomValues(new Uint8Array(n)), b => (b & 15).toString(16)).join(""); }
+  async function saveAgent(quiet) {
+    clearTimeout(agentTimer); agentTimer = 0;
     const provider = segValues.agProvider || "claude", conn = segValues.agConnection || "cli";
     const body = {
-      id: ag.editing ? ag.editing.id : "",
+      id: ag.editing ? ag.editing.id : (ag.newId = ag.newId || newClientId("g", 10)),
       name: $("agName").value.trim(), color: ag.color, provider, connection: conn,
       model: provider === "claude" ? $("agModelClaude").value : $("agModelGpt").value.trim(),
       effort: provider === "claude" && conn === "api" ? $("agEffort").value : (ag.editing ? ag.editing.effort : ""),
@@ -1568,15 +1581,29 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       setup: choiceFrom($("agSetupBox"), segValues.agSetupOn === "on"),
       makeDefault: segValues.agDefault === "true" ? "true" : "false",
     };
-    if (!body.name) { $("agName").focus(); toast("Give it a name"); return false; }
-    const res = await post("saveagent", body);
-    const data = res.ok ? await res.json() : { error: "Could not save" };
-    if (data.error) { toast(data.error); return false; }
+    if (!body.name) { if (!quiet) { $("agName").focus(); toast("Give it a name"); } return false; }
+    const res = await post("saveagent", body).catch(() => null);
+    const data = res && res.ok ? await res.json() : { error: "Could not save" };
+    if (data.error) { if (data.error !== agentError) toast(data.error); agentError = data.error; return false; }
+    agentError = "";
     ag.data = data;
-    renderAgents(); showAgentList(); toast("Saved");
+    ag.editing = data.agents.find(a => a.id === body.id) || ag.editing;
+    $("agDelete").hidden = !ag.editing || ag.editing.isDefault;
+    renderAgents();
+    if (settingsWin || settingsOpen) showSaved();
     return true;
   }
-  $("agSave").addEventListener("click", saveAgent);
+  function scheduleAgentSave(delay) { clearTimeout(agentTimer); agentTimer = setTimeout(() => saveAgent(true), delay); }
+  ["click", "input", "change"].forEach(type => ag.form.addEventListener(type, e => {
+    if (e.target.closest && e.target.closest("#agBack, #agDelete")) return;
+    scheduleAgentSave(e.type === "input" ? 600 : 150);
+  }, true));
+  $("agBack").addEventListener("click", async () => {
+    if (agentTimer) await saveAgent(true);
+    if (!ag.editing && $("agName").value.trim() === "" ) { /* nothing was made */ }
+    else if (!ag.editing) toast("Not saved: give it a name");
+    showAgentList();
+  });
   $("agDelete").addEventListener("click", async () => {
     if (!ag.editing) return;
     const res = await post("deleteagent", { id: ag.editing.id });
@@ -1587,6 +1614,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   });
 
   function closeSettings() {
+    // A change still waiting to be saved (or an agent / template being edited) is saved first.
+    if (settingsTimer || agentTimer || templateTimer) {
+      Promise.all([settingsTimer ? persistSettings() : null, agentTimer ? saveAgent(true) : null, templateTimer ? saveTemplate(true) : null])
+        .catch(() => {}).finally(closeSettings);
+      settingsTimer = agentTimer = templateTimer = 0;
+      return;
+    }
     if (previewing) { previewing = false; clearTimeout(previewTimer); post("preview", { clear: "true" }).catch(() => {}); }
     if (scale !== savedScale) applySize(savedScale);
     applyGlass(savedGlass);   // undo a preview that was not saved
@@ -1599,11 +1633,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     els.prompt.focus();
   }
 
-  async function saveSettings() {
-    if (!ag.form.hidden && !(await saveAgent())) return;
-    const keyValue = input => keyRemoval[input.id] ? "-" : input.value.trim();
-    const body = {
-      claudeKey: keyValue(set.claudeKey), chatgptKey: keyValue(set.chatgptKey),
+  // Settings are saved as they change (no Save button), like the macOS and Claude apps. API keys are saved
+  // when you leave the field or press Enter, never half typed.
+  let settingsLoaded = false, settingsTimer = 0, lastSettingsBody = "", savedFlash = 0;
+  function settingsBody() {
+    return {
       saveHistory: segValues.saveHistory,
       keepPip: segValues.keepPip,
       speechLanguages: speechLangs.join(","),
@@ -1619,13 +1653,52 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       iconScale: String(iconSlider.value),
       glassTint: String(glassSlider.value),
     };
-    const res = await post("settings", body);
-    if (!res.ok) { set.status.textContent = "Could not save"; return; }
-    try { const saved = await res.json(); savedScale = saved.popupScale; applySize(savedScale); applyIconScale(saved.iconScale); savedGlass = saved.glassTint; applyGlass(savedGlass); } catch (e) {}
-    setPinned(segValues.keepPip !== "false");
-    toast("Saved");
-    closeSettings();
   }
+  function showSaved() {
+    const hint = $("setSaved");
+    hint.textContent = "Saved"; hint.classList.add("saved");
+    clearTimeout(savedFlash);
+    savedFlash = setTimeout(() => { hint.textContent = "Changes are saved as you make them."; hint.classList.remove("saved"); }, 1400);
+  }
+  async function persistSettings(extra) {
+    clearTimeout(settingsTimer); settingsTimer = 0;
+    if (!settingsLoaded) return;
+    const body = Object.assign(settingsBody(), extra || {});
+    const json = JSON.stringify(body);
+    if (!extra && json === lastSettingsBody) return;
+    const res = await post("settings", body).catch(() => null);
+    if (!res || !res.ok) { set.status.textContent = "Could not save"; return; }
+    lastSettingsBody = JSON.stringify(settingsBody());
+    try {
+      const saved = await res.json();
+      savedScale = saved.popupScale; savedGlass = saved.glassTint;
+      if (!settingsWin) { applySize(savedScale); applyIconScale(saved.iconScale); applyGlass(savedGlass); }
+      if (extra) { showKeyHint(set.claudeKey, saved.claude.keyHint); showKeyHint(set.chatgptKey, saved.chatgpt.keyHint); }
+    } catch (e) {}
+    previewing = false;
+    setPinned(segValues.keepPip !== "false");
+    set.status.textContent = "";
+    showSaved();
+  }
+  function scheduleSettingsSave(delay) {
+    if (!settingsLoaded) return;
+    clearTimeout(settingsTimer);
+    settingsTimer = setTimeout(persistSettings, delay == null ? 450 : delay);
+  }
+  // Any change in the panes, except the agent and template editors (they save themselves) and the key fields.
+  function settingsChange(e) {
+    const t = e.target;
+    if (!(t instanceof Element) || !t.closest(".spanes") || t.closest("#agForm, #actForm, #actionsView, .aglist, #actList, #setTemplates")) return;
+    if (t === set.claudeKey || t === set.chatgptKey) return;
+    scheduleSettingsSave(e.type === "input" ? 600 : 200);
+  }
+  ["click", "input", "change", "keyup"].forEach(type => set.view.addEventListener(type, settingsChange, true));
+  // API keys: saved when you leave the field or press Enter; Remove saves at once.
+  [set.claudeKey, set.chatgptKey].forEach(input => {
+    const commit = () => { const v = input.value.trim(); if (v) persistSettings({ [input.id]: v }); };
+    input.addEventListener("change", commit);
+    input.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); input.blur(); } });
+  });
 
   // In the app, Settings open in a window of their own beside Pip (Pip and the chat show size changes live);
   // in a browser tab they open in place.
@@ -1640,8 +1713,6 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   $("gear").addEventListener("click", () => showSettings());
   $("errSettings").addEventListener("click", () => showSettings(state && state.connection === "api" ? "keys" : "agents"));
-  $("setSave").addEventListener("click", saveSettings);
-  $("setBack").addEventListener("click", closeSettings);
   $("setClose").addEventListener("click", () => settingsOnly ? closeSettings() : dismiss());
 
   // ---------- pin, collapse to an icon, drag (native popup only) ----------
@@ -2480,6 +2551,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
   function editAction(a) {
     act.editing = a || null;
+    act.newId = "";
     $("actTitle").textContent = a ? (a.builtIn ? "Edit " + a.title + " (saved as your copy)" : "Edit template") : "New template";
     $("afTitle").value = a ? a.title : "";
     $("afPrompt").value = a ? a.instruction : "";
@@ -2577,23 +2649,43 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   $("actNew").addEventListener("click", () => editAction(null));
   $("actBack").addEventListener("click", closeActions);
   $("actClose").addEventListener("click", () => actionsOnly ? closeWindow() : dismiss());
-  $("afCancel").addEventListener("click", showActionList);
-  $("afSave").addEventListener("click", async () => {
+  // The template being edited is saved as you change it; a new one (or your copy of a built-in) is made at the
+  // first change that has both a title and a prompt. "‹ Templates" goes back to the list.
+  let templateTimer = 0;
+  async function saveTemplate(quiet) {
+    clearTimeout(templateTimer); templateTimer = 0;
+    const own = act.editing && !act.editing.builtIn;
     const body = {
-      id: act.editing ? act.editing.id : "",
+      id: own ? act.editing.id : (act.newId = act.newId || newClientId("a", 12)),
       enabled: act.editing && act.editing.enabled === false ? "false" : "true",
       title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
       agent: $("afAgent").value,
       autoCopy: segValues.afAutoCopy === "true" ? "true" : "false",
     };
-    if (!body.title) { $("afTitle").focus(); toast("Give it a title"); return; }
-    if (!body.instruction.trim()) { $("afPrompt").focus(); toast("Write the prompt"); return; }
-    const res = await post("saveaction", body);
-    if (!res.ok) { toast("Could not save"); return; }
+    if (!body.title || !body.instruction.trim()) {
+      if (!quiet) { (body.title ? $("afPrompt") : $("afTitle")).focus(); toast(body.title ? "Write the prompt" : "Give it a title"); }
+      return false;
+    }
+    const res = await post("saveaction", body).catch(() => null);
+    if (!res || !res.ok) { toast("Could not save"); return false; }
     act.items = await res.json();
+    act.editing = act.items.find(a => a.id === body.id) || act.editing;
+    $("afDelete").hidden = !act.editing || act.editing.builtIn;
     renderActions();
+    if (settingsWin || settingsOpen) showSaved();
+    return true;
+  }
+  function scheduleTemplateSave(delay) { clearTimeout(templateTimer); templateTimer = setTimeout(() => saveTemplate(true), delay); }
+  ["click", "input", "change"].forEach(type => act.form.addEventListener(type, e => {
+    if (e.target.closest && e.target.closest("#afBack, #afDelete")) return;
+    scheduleTemplateSave(e.type === "input" ? 600 : 150);
+  }, true));
+  $("afBack").addEventListener("click", async () => {
+    const pending = templateTimer;
+    const ok = pending ? await saveTemplate(true) : true;
+    const typed = $("afTitle").value.trim() || $("afPrompt").value.trim();
+    if (pending && !ok && typed) toast("Not saved: a template needs a title and a prompt");
     showActionList();
-    toast("Saved");
   });
   $("afDelete").addEventListener("click", async () => {
     if (!act.editing) return;
@@ -3507,7 +3599,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       return;
     }
     if (historyOpen || actionsOpen) return;
-    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT" && !e.target.closest("#setTemplates, #agForm")) { e.preventDefault(); saveSettings(); } return; }
+    if (settingsOpen) { if (e.key === "Enter" && e.target.tagName === "INPUT" && !e.target.closest("#setTemplates, #agForm")) { e.preventDefault(); persistSettings(); } return; }
     if (e.key !== "Enter" || e.isComposing) return;
     if (e.metaKey || e.ctrlKey) {
       e.preventDefault();

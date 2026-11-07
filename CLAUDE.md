@@ -295,6 +295,11 @@ v0.3.62 (7 Nov 2026), built, not yet confirmed: web search actually searches (th
 answer only from the text" made Haiku refuse; `WithWebSearch` adds a note allowing it). A conversation answer was not read aloud in
 v0.3.61 (cause unknown): agent.log now gets "Page: Read aloud: …" lines (answer read, no audio, voices not ready) and speech.log
 "Playing an answer…" / "Play: skipped…". Look there first when reading aloud fails.
+On `dev` after v0.3.62: **Settings save as you change them** (owner, like Claude's settings): no Save/Cancel in the footer
+("Changes are saved as you make them." / "Saved"); `persistSettings` after a debounced change (only once loaded; unchanged bodies
+are not sent); API keys on blur/Enter, Remove at once. The agent and template editors save themselves too (debounced) with
+"‹ Agents" / "‹ Templates" back links and a red Delete; new ones get an id made by the page (agents `g`+10 hex, accepted by SaveAgent;
+templates `a`+12 hex; editing a built-in makes your copy at the first change); a template needs a title and a prompt before it saves.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

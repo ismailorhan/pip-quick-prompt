@@ -252,7 +252,9 @@ namespace QuickPrompt.Core
                 return System.Text.Json.JsonSerializer.Serialize(new { error = "There is already an agent with that name." });
             }
 
-            var agent = existing ?? new Agent { Id = Agent.NewId() };
+            // A new agent may bring the id the page made for it (it saves as you type and must find it again).
+            var wanted = Get("id");
+            var agent = existing ?? new Agent { Id = System.Text.RegularExpressions.Regex.IsMatch(wanted, "^g[0-9a-f]{10}$") ? wanted : Agent.NewId() };
             agent.Name = name;
             agent.Color = Get("color");
             agent.ProviderId = Get("provider");
