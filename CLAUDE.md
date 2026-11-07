@@ -300,6 +300,14 @@ On `dev` after v0.3.62: **Settings save as you change them** (owner, like Claude
 are not sent); API keys on blur/Enter, Remove at once. The agent and template editors save themselves too (debounced) with
 "‹ Agents" / "‹ Templates" back links and a red Delete; new ones get an id made by the page (agents `g`+10 hex, accepted by SaveAgent;
 templates `a`+12 hex; editing a built-in makes your copy at the first change); a template needs a title and a prompt before it saves.
+Also on `dev`: **quick open / close no longer throws Pip to the panel's far edge** (owner's video: ~0.15 s jumps of ~390 pt).
+Causes, each measured with `tools/pip-rapid-test/run.sh` (real PopupController, 24 random open/close; about half the runs
+failed): Esc's slide-out timer collapsed the chat even after it was opened again; a slide-in that waited for the panel's size
+started after the chat was tucked again (thawed Pip's picture, held the tucked layout back); freezes had no ids (an earlier
+change's thaw or 0.8 s fallback removed a later picture; a late snapshot showed a stale Pip); a freeze asked for while one was
+pending was dropped. Now freezes/thaws carry ids, changes under one picture share it and it goes with the last thaw, the
+tuck timer is cancelled by opening, and collapse ends a pending slide. Run pip-rapid-test (and pip-motion-test) after changes
+to open/close or freeze.
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

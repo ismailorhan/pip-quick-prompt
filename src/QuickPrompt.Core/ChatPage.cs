@@ -928,7 +928,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   let layoutQueued = false, lastLayout = "", layoutAfterReveal = false;
   const pipNudge = { x: 0, y: 0 };
-  let thawNext = false;   // after this layout: show the web view again once it is drawn at the new size
+  let thawNext = 0;   // after this layout: show the web view again once it is drawn at the new size (the freeze's id)
   let barOpening = false;   // the toolbar is opening: the next layout lets its glass grow from the line
   let revealing = false, revealNext = null;
   function queueLayout() {
@@ -999,7 +999,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       bridge.postMessage({ type: "layout", width, height, rects, anchorX, anchorY, pending, iconR: icon ? icon.width / 2 : null, hits });
       barOpening = false;
       if (revealNext) startRevealWhenSized(revealNext, width);
-      if (thawNext) { thawNext = false; whenSized(width, thawPip); }
+      if (thawNext) { const id = thawNext; thawNext = 0; whenSized(width, () => thawPip(id)); }
     });
   }
   // Beside Pip the conversation ends at Pip's bottom and grows upward; when the room above Pip runs out,
@@ -1737,10 +1737,17 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   let lastBusy = false;
 
   function collapse() {
+    // A slide still running (or waiting for its size) ends now: the tucked layout must not wait for it.
+    revealNext = null;
+    if (revealing && (collapse.now || !bridge)) {
+      clearTimeout(startReveal.t); revealing = false;
+      $("main").classList.remove("reveal-in", "reveal-out", "reveal-pending");
+      if (layoutAfterReveal) { layoutAfterReveal = false; lastLayout = ""; }
+    }
     // A dictation goes on with only Pip on screen (Pip shows it is listening); opening the chat shows the text.
     const dictating = !!window.__quickPromptSpeech && speech.state !== "idle";
     if (!collapsed && bridge && !collapse.now) {
-      freezePip(() => { collapse.now = true; try { thawNext = true; collapse(); } finally { collapse.now = false; } });
+      freezePip(() => { collapse.now = true; try { thawNext = freezeId; collapse(); } finally { collapse.now = false; } });
       return;
     }
     collapsed = true;
@@ -1771,25 +1778,36 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // old frames would make Pip jump sideways) and calls back; only then does the page change (next), and
   // once it is drawn at the new size the picture goes (thawPip). The picture is taken while the page is
   // still unchanged, so the change waits for it.
-  let freezePending = false;
+  // Each freeze has an id, and so has each thaw: with quick open / close, a thaw (or the native side's fallback) of
+  // an earlier change used to take away the picture of a later one mid-way, and Pip showed at the panel's far edge
+  // for a few frames. A change asked for while one waits for its picture runs with it (it used to be dropped).
+  // Changes that ran under one picture each thaw it once; the picture goes with the last of them.
+  let freezeId = 0, freezeWaiters = null, freezeHolds = 0;
   function freezePip(next) {
     if (!bridge || mini.hidden) { next(); return; }
-    if (freezePending) return;   // a change is already on its way
-    freezePending = true;
+    if (freezeWaiters) { freezeWaiters.push(next); freezeHolds++; return; }
+    freezeWaiters = [next];
+    freezeHolds = 1;
+    const id = ++freezeId;
     let done = false;
-    const go = () => {
-      if (done) return;
+    const go = answered => {
+      if (done || (answered != null && answered !== id)) return;   // a late answer to an earlier freeze
       done = true;
-      freezePending = false;
+      const list = freezeWaiters || [];
+      freezeWaiters = null;
       window.__quickPromptFrozen = null;
-      next();
+      list.forEach(f => f());
     };
     window.__quickPromptFrozen = go;
-    setTimeout(go, 150);   // never wait longer than this
+    setTimeout(() => go(), 250);   // never wait longer than this (the native side gives up on its picture by then)
     const r = $("miniOpen").getBoundingClientRect();
-    bridge.postMessage({ type: "freeze", icon: { x: r.left, y: r.top, w: r.width, h: r.height } });
+    bridge.postMessage({ type: "freeze", id, icon: { x: r.left, y: r.top, w: r.width, h: r.height } });
   }
-  function thawPip() { if (bridge) bridge.postMessage({ type: "thaw" }); }
+  function thawPip(id) {
+    id = id || freezeId;
+    if (id === freezeId && --freezeHolds > 0) return;   // another change under this picture is still on its way
+    if (bridge) bridge.postMessage({ type: "thaw", id });
+  }
 
   // Room around Pip for the voice rays (dictating, or for a whole conversation, so Pip does not move at each turn).
   // The panel grows on every side and moves so that Pip stays; with Pip alone a picture of it covers the moment
@@ -1811,6 +1829,11 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   function expand() {
+    if (collapseAnimated.t) {   // still sliding out: slide back in, nothing else changes
+      clearTimeout(collapseAnimated.t); collapseAnimated.t = 0;
+      startReveal("in");
+      return;
+    }
     if (collapsed && bridge && !expand.now) { freezePip(() => { expand.now = true; try { expand(); } finally { expand.now = false; } }); return; }
     collapsed = false;
     mini.hidden = !bridge || settingsWin;   // in the native popup the icon stays beside the conversation
@@ -1863,6 +1886,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   const REVEAL_DX = 26, REVEAL_IN = 0.3, REVEAL_OUT = 0.22;
   function startReveal(dir) {
     revealNext = null;
+    // A slide-in that waited for the panel's size, arriving after the chat was tucked away again (quick open / close):
+    // it would take Pip's picture away and hold the tucked layout back for its 0.3 s, Pip at the far edge meanwhile.
+    if (dir === "in" && collapsed) return;
     const main = $("main");
     const dx = els.root.classList.contains("side-right") ? REVEAL_DX : -REVEAL_DX;
     main.classList.remove("reveal-in", "reveal-out", "reveal-pending");
@@ -1880,11 +1906,13 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   }
 
   /// Tucks the conversation back into the icon with the slide.
+  // Opening again while it slides out (quick close / open) cancels the tuck: the stray collapse used to run after the
+  // chat had opened again, leaving Pip drawn at the far edge of the still-wide panel until the next click.
   function collapseAnimated() {
-    if (collapsed) return;
+    if (collapsed || collapseAnimated.t) return;
     if (!bridge) { collapse(); return; }
     startReveal("out");
-    setTimeout(() => { $("main").classList.remove("reveal-out"); collapse(); }, REVEAL_OUT * 1000 - 10);
+    collapseAnimated.t = setTimeout(() => { collapseAnimated.t = 0; $("main").classList.remove("reveal-out"); collapse(); }, REVEAL_OUT * 1000 - 10);
   }
 
   /// Esc / ✕: with "Keep Pip on screen" the conversation tucks into Pip, otherwise the popup closes.
@@ -1971,7 +1999,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
 
   async function togglePresets() {
     // The list resizes the panel: Pip's picture covers the web view meanwhile (see freezePip).
-    if (!presetList.hidden) { freezePip(() => { thawNext = true; presetList.hidden = true; lastLayout = ""; queueLayout(); scheduleTuck(); }); return; }
+    if (!presetList.hidden) { freezePip(() => { thawNext = freezeId; presetList.hidden = true; lastLayout = ""; queueLayout(); scheduleTuck(); }); return; }
     bubble.hidden = true;
     let items = [];
     try {
@@ -1985,7 +2013,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       + '<span class="pmeta">' + esc(p.providerName) + '</span></button>').join("")
       : '<div class="hempty">No templates yet.</div>';
     freezePip(() => {
-      thawNext = true;
+      thawNext = freezeId;
       presetList.hidden = false;
       clearTimeout(tuckTimer);
       lastLayout = ""; queueLayout();

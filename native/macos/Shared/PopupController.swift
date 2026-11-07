@@ -679,12 +679,23 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
 
     private var frozenWindow: NSWindow?
 
-    private func freeze(_ rect: [String: Any]) {
+    /// The id of the latest freeze the page asked for: a thaw (or the fallback) of an earlier one leaves its picture alone.
+    private var freezeID = 0
+
+    private func freeze(_ rect: [String: Any], id: Int) {
+        freezeID = id
         let goOn: () -> Void = { [weak self] in
-            self?.webView?.evaluateJavaScript("window.__quickPromptFrozen && window.__quickPromptFrozen()", completionHandler: nil)
+            self?.webView?.evaluateJavaScript("window.__quickPromptFrozen && window.__quickPromptFrozen(\(id))", completionHandler: nil)
         }
         let r = NSRect(x: rect["x"] as? Double ?? 0, y: rect["y"] as? Double ?? 0, width: rect["w"] as? Double ?? 0, height: rect["h"] as? Double ?? 0)
-        guard frozenWindow == nil, let webView = webView, r.width > 0, r.height > 0 else { goOn(); return }
+        // Still frozen from a change just before (quick open / close): the picture stays and now covers this one too.
+        if frozenWindow != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.thaw(id: id) }
+            goOn()
+            return
+        }
+        guard let webView = webView, r.width > 0, r.height > 0 else { goOn(); return }
+        let asked = Date()
         // With Pip's shadow, and on whole points so the picture sits exactly where Pip is.
         let screenRect = NSRect(x: panel.frame.minX + r.minX, y: panel.frame.maxY - r.maxY, width: r.width, height: r.height)
             .insetBy(dx: -12, dy: -12).integral
@@ -693,7 +704,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
                              width: screenRect.width, height: screenRect.height)   // the web view's top-left coordinates
         webView.takeSnapshot(with: config) { [weak self] image, _ in
             guard let self = self else { return }
-            guard let image = image, !self.closing else { goOn(); return }
+            // Too late (the page went on without it after 0.25 s) or no longer the latest: a picture now would show an
+            // old Pip over the new page (two Pips for a moment).
+            guard let image = image, !self.closing, self.freezeID == id, self.frozenWindow == nil,
+                  Date().timeIntervalSince(asked) < 0.2 else { goOn(); return }
             let window = NSWindow(contentRect: screenRect, styleMask: .borderless, backing: .buffered, defer: false)
             window.isOpaque = false
             window.backgroundColor = .clear
@@ -712,13 +726,13 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
             CATransaction.flush()
             // The page changes (and the panel resizes) once the hidden web view is on screen.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { goOn() }
-            // Never stay frozen if "thaw" does not come.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.thaw() }
+            // Never stay frozen if "thaw" does not come (only this freeze's fallback: not a later one's picture).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.thaw(id: id) }
         }
     }
 
-    private func thaw() {
-        guard let window = frozenWindow else { return }
+    private func thaw(id: Int = 0) {
+        guard id == 0 || id >= freezeID, let window = frozenWindow else { return }
         frozenWindow = nil
         webView?.alphaValue = 1
         CATransaction.flush()
@@ -731,10 +745,10 @@ final class PopupController: NSObject, NSWindowDelegate, WKNavigationDelegate, W
         switch type {
         case "freeze":
             if let rect = body["icon"] as? [String: Any] {
-                freeze(rect)
+                freeze(rect, id: (body["id"] as? Int) ?? 0)
             }
         case "thaw":
-            thaw()
+            thaw(id: (body["id"] as? Int) ?? 0)
         case "layout":
             // A glide or a drag is moving the panel: this layout waits for its end (the latest one wins).
             if moving || dragTimer != nil {
