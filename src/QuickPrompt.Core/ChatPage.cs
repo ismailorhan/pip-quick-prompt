@@ -55,6 +55,9 @@ html.settingswin .settings.glass { background: rgb(var(--tint-rgb)); border: 1px
 #root:not(.is-mini) { align-items: flex-end; }
 /* No room above Pip for the conversation: it lines up with Pip's top and grows downward. */
 #root:not(.is-mini).grow-down { align-items: flex-start; }
+/* Pip (64 px × its zoom) is taller than the 46 px bar: its middle lines up with the bar's middle. */
+#root:not(.is-mini) .mini { margin-bottom: calc(23px / var(--mini-zoom, 1) - 32px); }
+#root:not(.is-mini).grow-down .mini { margin-bottom: 0; margin-top: calc(23px / var(--mini-zoom, 1) - 32px); }
 /* The conversation slides out of the icon and back into it. */
 #root { --reveal-dx: -26px; } #root.side-right { --reveal-dx: 26px; }
 #main.reveal-pending { opacity: 0; }
@@ -191,14 +194,16 @@ button.x:hover { color: var(--text); }
 .ctx textarea { min-height: 60px; max-height: 150px; font-size: 13px; resize: vertical; }
 
 /* Input capsule */
-.bar { display: flex; align-items: flex-end; gap: 8px; border-radius: 28px; padding: 7px; min-height: 56px; }
-.round { flex: none; width: 40px; height: 40px; border-radius: 50%; padding: 0; display: grid; place-items: center; font-size: 22px; font-weight: 300; line-height: 1; }
-.send { flex: none; width: 40px; height: 40px; border-radius: 50%; padding: 0; display: grid; place-items: center; background: var(--accent); color: var(--accent-text); transition: opacity .15s; }
-.send svg { width: 18px; height: 18px; }
+/* Slim, like the ChatGPT app's bar: 44 px tall with 32 px buttons. */
+.bar { display: flex; align-items: flex-end; gap: 6px; border-radius: 22px; padding: 6px; min-height: 44px; }
+.round { flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0; display: grid; place-items: center; font-size: 19px; font-weight: 300; line-height: 1; }
+.send { flex: none; width: 32px; height: 32px; border-radius: 50%; padding: 0; display: grid; place-items: center; background: var(--accent); color: var(--accent-text); transition: opacity .15s; }
+.send svg { width: 15px; height: 15px; }
 .round.gear { background: transparent; color: var(--muted); font-size: 17px; }
 .round.gear:hover { color: var(--text); background: var(--faint); }
 .send.idle { opacity: .45; }
 textarea { flex: 1; width: 100%; resize: none; font: inherit; font-size: 15px; color: var(--text); background: transparent; border: 0; outline: none; padding: 9px 2px; max-height: 140px; min-height: 40px; }
+.bar textarea { font-size: 14px; padding: 6px 2px; min-height: 32px; line-height: 20px; }
 .bar textarea { max-height: var(--prompt-max, 140px); }
 .bar textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 textarea::placeholder { color: var(--muted); }
