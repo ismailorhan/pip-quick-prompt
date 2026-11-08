@@ -22,10 +22,6 @@ html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
 .pill .chev { font-size: 15px; line-height: 1; color: rgba(255,255,255,.6); margin-left: -2px; }
 .pill.group { font-weight: 600; }
 .pill.sel .chev { color: #fff; }
-.crumb { position: fixed; left: 0; top: 0; height: 22px; display: flex; align-items: center; gap: 6px; padding: 0 9px 0 4px; border-radius: 8px;
-  background: rgba(30,28,42,.9); border: 1px solid rgba(255,255,255,.16); color: #f3f2f8; font-size: 12px; font-weight: 600; white-space: nowrap;
-  opacity: 0; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
-.crumb .n { font: 10.5px ui-monospace, Menlo, monospace; min-width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; color: #fff; }
 /* Lab only: a fake desktop behind the transparent page. */
 html.lab body { background: radial-gradient(1200px 700px at 30% 20%, #3a4a6b, #1b2233 60%, #12151f); }
 .labwin { position: fixed; border-radius: 10px; background: rgba(240,240,245,.92); box-shadow: 0 20px 50px rgba(0,0,0,.45); }
@@ -42,7 +38,6 @@ html.lab body { background: radial-gradient(1200px 700px at 30% 20%, #3a4a6b, #1
 <body>
 <canvas id="fx"></canvas>
 <div id="ghost"></div>
-<div class="crumb" id="crumb"></div>
 <div class="hintbar" id="hint"></div>
 <script>
 "use strict";
@@ -85,11 +80,12 @@ let T = [], N = 0, MID = 0, pills = [], nodes = [], widths = [], side = 1;
 let pip = { x: 0, y: 0 }, area = { x: 0, y: 0, w: 0, h: 0 }, ghost = false;
 let open = false, dir = 0, e = 0, sel = 0, prevSel = 0, selAt = -1e9, fireAt = -1, flashAt = -1e9, now = 0, finish = null, gap = GAP;
 /* Groups: the first ring shows the groups (each a star with its templates circling it as satellites) and the templates
-   that have no group. A group's number opens it: its star moves to a hub beside Pip and its templates fly out of the hub.
-   So every template has a fixed two-key code (group, then template) that the hand learns. */
-let TOP = [], level = null, org = { x: 0, y: 0 }, hub = null, trans = null, skipFly = -1, fastUntil = 0;
-const TRANS_MS = 300, FAST_MS = 450;
-const crumbEl = $("crumb");
+   that have no group. A group's number opens it in place: nothing flies. The other entries fade where they are, the
+   group's star and pill stay put (the pill becomes the header), and its templates unfold out of the pill's end, each drawn
+   by a thread in the group's colour (about 0.25 s in all). So every template has a fixed two-key code (group, then
+   template) that the hand learns. After the first step into a group the ring stays "calm": no more flights. */
+let TOP = [], level = null, org = { x: 0, y: 0 }, hub = null, trans = null, skipFly = -1, fastUntil = 0, calm = false, header = null;
+const TRANS_MS = 140, FAST_MS = 450, STEP = 22, DRAW_MS = 150;
 
 function build(list, keepOld) {
   if (!keepOld) pills.forEach(p => p.remove());
@@ -135,36 +131,32 @@ function hubPoint() {
   return { x: clamp(pip.x + side * 84, area.x + 30, area.x + area.w - 30), y: pip.y };
 }
 function snapshot() { return nodes.map((n, j) => ({ x: starX(j), y: n.y, c: T[j].items ? hexA(T[j].color, 1) : "#fff" })); }
+function settle() { if (trans) { trans.pills.forEach(p => p.remove()); trans = null; } }
 function enterGroup(i) {
-  const g = T[i]; if (!g || !g.items || trans || fireAt >= 0) return;
-  const from = snapshot(), hubFrom = { x: starX(i), y: nodes[i].y };
-  trans = { at: now, back: false, from, keep: i, into: { ...pip }, pills, hubFrom, color: g.color };
-  level = g; hub = hubPoint(); org = hub; trans.hubTo = hub;
+  const g = T[i]; if (!g || !g.items || fireAt >= 0) return;
+  settle();
+  const from = snapshot();
+  header = pills[i]; header.classList.add("sel"); header.style.pointerEvents = "auto";
+  header.querySelector(".chev").textContent = side > 0 ? "‹" : "›";
+  trans = { at: now, back: false, from, keep: i, pills: pills.filter(p => p !== header), color: g.color };
+  hub = { x: starX(i), y: nodes[i].y };
+  const end = side > 0 ? nodes[i].x + 6 + widths[i] : nodes[i].x - 6 - widths[i];
+  org = { x: end + side * 8, y: nodes[i].y };
+  level = g; calm = true;
   build(g.items, true); layout();
   sel = prevSel = Math.min(Math.round(MID - 0.01), N - 1); selAt = -1e9; skipFly = -1;
-  e = -180; dir = 1; fastUntil = now + FAST_MS;
-  setCrumb(g, TOP.indexOf(g));
+  e = 0; dir = 1; fastUntil = now + FAST_MS;
 }
 function goBack() {
-  if (!level || trans || fireAt >= 0) return;
+  if (!level || fireAt >= 0) return;
+  settle();
   const g = level, from = snapshot();
-  trans = { at: now, back: true, from, keep: -1, into: { ...hub }, pills, hubFrom: { ...hub }, color: g.color };
-  level = null; org = { ...pip };
+  trans = { at: now, back: true, from, keep: -1, pills: pills.slice(), color: g.color };
+  if (header) { header.remove(); header = null; }
+  level = null; org = { ...pip }; hub = null;
   build(TOP, true); layout();
   const idx = TOP.indexOf(g);
-  trans.hubTo = { x: starX(idx), y: nodes[idx].y };
-  sel = prevSel = idx; selAt = -1e9; skipFly = idx; e = -120; dir = 1;
-}
-function setCrumb(g, idx) {
-  crumbEl.innerHTML = "";
-  const n = document.createElement("span"); n.className = "n"; n.style.background = hexA(g.color, 1); n.textContent = String(idx + 1);
-  const t = document.createElement("span"); t.textContent = g.title;
-  crumbEl.append(n, t);
-}
-function hubPos() {
-  if (!trans) return hub;
-  const tt = clamp((now - trans.at) / TRANS_MS), k = trans.back ? outCubic(clamp((tt - 0.35) / 0.65)) : outCubic(tt);
-  return { x: lerp(trans.hubFrom.x, trans.hubTo.x, k), y: lerp(trans.hubFrom.y, trans.hubTo.y, k) };
+  sel = prevSel = idx; selAt = -1e9; skipFly = idx; e = 0; dir = 1;
 }
 function choose() { if (T[sel] && T[sel].items) enterGroup(sel); else fire(); }
 
@@ -211,40 +203,29 @@ function draw() {
   const ms = e, firing = fireAt >= 0 ? now - fireAt : -1, fadeAll = firing >= 0 ? 1 - clamp(firing / 240) : 1;
   ghostEl.style.opacity = ghost ? clamp(ms / 150).toFixed(2) : "0";
 
-  // Casting: a ring leaves Pip (or the group's hub).
-  if (ms >= 0 && ms < 360 && dir > 0) {
-    const t = ms / 360, r0 = level ? 8 : PIP_R; ctx.save(); ctx.globalAlpha = (1 - t) * 0.8; ctx.strokeStyle = level ? hexA(level.color, 1) : "#fff"; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(org.x, org.y, r0 + t * 40, 0, 7); ctx.stroke(); ctx.restore();
+  // Casting: a ring leaves Pip (the first time only).
+  if (!calm && ms < 360 && dir > 0) {
+    const t = ms / 360; ctx.save(); ctx.globalAlpha = (1 - t) * 0.8; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(pip.x, pip.y, PIP_R + t * 40, 0, 7); ctx.stroke(); ctx.restore();
   }
-  // Going into a group or back out: the old stars fly home, their pills fade.
+  // Stepping in or out: what was there fades where it is.
   if (trans) {
-    const tt = clamp((now - trans.at) / TRANS_MS), k = outCubic(tt);
-    trans.from.forEach((p, j) => {
-      if (j === trans.keep) return;
-      ctx.globalAlpha = 1 - tt; glowDot(lerp(p.x, trans.into.x, k), lerp(p.y, trans.into.y, k), 2.6, p.c, 8);
-    });
+    const tt = clamp((now - trans.at) / TRANS_MS);
+    trans.from.forEach((p, j) => { if (j !== trans.keep) { ctx.globalAlpha = 1 - tt; glowDot(p.x, p.y, 2.4, p.c, 6); } });
     ctx.globalAlpha = 1;
-    trans.pills.forEach(p => { p.style.opacity = Math.max(0, 1 - tt * 1.8).toFixed(3); p.style.pointerEvents = "none"; });
-    if (tt >= 1) { trans.pills.forEach(p => p.remove()); if (trans.back) hub = null; trans = null; }
+    trans.pills.forEach(p => { p.style.opacity = (1 - tt).toFixed(3); p.style.pointerEvents = "none"; });
+    if (tt >= 1) { trans.pills.forEach(p => p.remove()); trans = null; }
   }
-  // The group's hub: a thread from Pip, the group's star turning, its name above.
-  const hp0 = hubPos();
-  if (hp0 && (level || trans)) {
-    const col = level ? level.color : trans.color, ha = dir < 0 ? clamp(e / 300) : 1;
-    ctx.save(); ctx.globalAlpha = ha * (trans && trans.back ? 1 - clamp((now - trans.at) / TRANS_MS) : 1);   // the thread fades on the way back
-    ctx.setLineDash([2, 4]); ctx.lineDashOffset = -now * 0.02; ctx.strokeStyle = hexA(col, 0.8); ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(pip.x + side * PIP_R, pip.y); ctx.lineTo(hp0.x, hp0.y); ctx.stroke(); ctx.restore();
-    sparkle(hp0.x, hp0.y, 9, now * 0.0012, hexA(col, 1), ha);
-    sparkle(hp0.x, hp0.y, 3.2, -now * 0.002, "#fff", ha);
+  // Inside a group: Pip's thread to the group's star, which stays where it was; its pill is the header.
+  if (level) {
+    const col = level.color, ha = dir < 0 ? clamp(e / 200) : 1;
+    ctx.save(); ctx.globalAlpha = ha * 0.8; ctx.setLineDash([2, 5]); ctx.lineDashOffset = -now * 0.015;
+    ctx.strokeStyle = hexA(col, 1); ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(pip.x + side * PIP_R, pip.y); ctx.quadraticCurveTo(lerp(pip.x, hub.x, 0.5), lerp(pip.y, hub.y, 0.15), hub.x, hub.y); ctx.stroke(); ctx.restore();
+    sparkle(hub.x, hub.y, 8, now * 0.0008, hexA(col, 1), ha);
+    sparkle(hub.x, hub.y, 2.8, -now * 0.0015, "#fff", ha);
+    if (header) header.style.opacity = ha.toFixed(2);
   }
-  if (level && !trans) {
-    crumbEl.style.opacity = (dir < 0 ? clamp(e / 300) : clamp((ms + 180) / 200)).toFixed(2);
-    crumbEl.style.transform = `translate(${(hub.x - crumbEl.offsetWidth / 2).toFixed(1)}px, ${(hub.y - 40).toFixed(1)}px)`;
-    crumbEl.style.pointerEvents = dir > 0 ? "auto" : "none";
-  } else if (level && trans) {
-    const hp = hubPos(); crumbEl.style.opacity = clamp((now - trans.at) / TRANS_MS).toFixed(2);
-    crumbEl.style.transform = `translate(${(hp.x - crumbEl.offsetWidth / 2).toFixed(1)}px, ${(hp.y - 40).toFixed(1)}px)`;
-  } else { crumbEl.style.opacity = trans ? (1 - clamp((now - trans.at) / 150)).toFixed(2) : "0"; crumbEl.style.pointerEvents = "none"; }
   // Dust round the list.
   const top = nodes[0].y, bot = nodes[N - 1].y, cxm = nodes.reduce((s, n) => s + n.x, 0) / N;
   ctx.save(); ctx.globalAlpha = clamp(ms / 500) * 0.6 * fadeAll; ctx.fillStyle = "rgba(255,255,255,.7)";
@@ -254,7 +235,19 @@ function draw() {
   }
   ctx.restore();
   // Constellation lines, once all have landed; a dotted line from Pip to the chosen star.
-  const landed = delay(0) + 380, lp = clamp((ms - landed + 60) / 260);
+  if (level) {       // the threads from the header to each template; the chosen one bright
+    ctx.save(); ctx.globalAlpha = fadeAll;
+    for (let i = 0; i < N; i++) {
+      const raw = clamp((ms - i * STEP) / DRAW_MS); if (raw <= 0) continue;
+      const k = outCubic(raw), sx = starX(i), sy = nodes[i].y, x = lerp(org.x, sx, k), y = lerp(org.y, sy, k);
+      const on = i === sel && firing < 0;
+      ctx.strokeStyle = hexA(level.color, on ? 0.9 : 0.32); ctx.lineWidth = on ? 1.4 : 1;
+      ctx.beginPath(); ctx.moveTo(org.x, org.y); ctx.quadraticCurveTo(lerp(org.x, x, 0.55), org.y, x, y); ctx.stroke();
+      if (raw < 1) glowDot(x, y, 2, hexA(level.color, 1), 8);
+    }
+    ctx.restore();
+  }
+  const landed = calm ? -260 : delay(0) + 380, lp = level ? 0 : clamp((ms - landed + 60) / 260);
   if (lp > 0) {
     ctx.save(); ctx.strokeStyle = "rgba(200,210,255,.4)"; ctx.lineWidth = 0.9; ctx.globalAlpha = fadeAll;
     const segs = N - 1, shown = lp * segs;
@@ -273,7 +266,8 @@ function draw() {
   }
   // The stars: flying out with tails, a burst as each lands; the chosen one big and turning.
   for (let i = 0; i < N; i++) {
-    const d = delay(i), raw = i === skipFly ? (ms >= 0 && !trans ? 1 : 0) : clamp((ms - d) / 380); if (raw <= 0) continue;
+    const d = calm ? (level ? i * STEP + DRAW_MS - 380 : -380) : delay(i), raw = calm ? (ms >= d + 380 ? 1 : 0) : clamp((ms - d) / 380);
+    if (raw <= 0) continue;
     const t = outCubic(raw), isSel = i === sel, fade = firing < 0 ? 1 : isSel ? 1 - clamp(firing / 300) : fadeAll;
     if (raw < 1) {
       for (let k = 7; k >= 0; k--) {
@@ -284,14 +278,15 @@ function draw() {
       continue;
     }
     const burst = clamp((ms - d - 380) / 220), x = starX(i), y = nodes[i].y;
-    if (burst < 1 && dir > 0) { ctx.save(); ctx.globalAlpha = (1 - burst) * 0.7; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 3 + burst * 16, 0, 7); ctx.stroke(); ctx.restore(); }
-    const grp = !!T[i].items, r = isSel ? (grp ? 9.5 : 8) : (grp ? 6.5 : 4.2) + (1 - burst) * 5;
+    if (burst < 1 && dir > 0 && !calm) { ctx.save(); ctx.globalAlpha = (1 - burst) * 0.7; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 3 + burst * 16, 0, 7); ctx.stroke(); ctx.restore(); }
+    const grp = !!T[i].items, grow = calm ? 0.55 + 0.45 * outCubic(clamp((ms - d - 380) / 120)) : 1;
+    const r = (isSel ? (grp ? 9.5 : 8) : (grp ? 6.5 : 4.2) + (calm ? 0 : (1 - burst) * 5)) * grow;
     sparkle(x, y, r, isSel ? now * 0.0015 : Math.PI / 4 * (i % 2), isSel || grp ? hexA(T[i].color, 1) : "#fff", fade * (isSel ? 1 : 0.85 + 0.15 * Math.sin(now * 0.004 + i * 2)));
     if (isSel) sparkle(x, y, 3, -now * 0.002, "#fff", fade);
     if (grp) {       // a group's templates circle its star as satellites
       const k = Math.min(6, T[i].items.length);
       for (let s = 0; s < k; s++) {
-        const a = now * 0.0011 * (isSel ? 1.8 : 1) + s * Math.PI * 2 / k, rr = (isSel ? 17 : 13) * outCubic(burst);
+        const a = now * 0.0011 * (isSel ? 1.8 : 1) + s * Math.PI * 2 / k, rr = (isSel ? 17 : 13) * (calm ? 1 : outCubic(burst));
         ctx.globalAlpha = fade * 0.9; glowDot(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.75, 1.4, "#fff", 5);
       }
       ctx.globalAlpha = 1;
@@ -299,7 +294,7 @@ function draw() {
   }
   // A comet from the old choice to the new one.
   const ct = (now - selAt) / 200;
-  if (ct < 1 && firing < 0 && prevSel !== sel && ms >= OPEN_MS) {
+  if (ct < 1 && firing < 0 && prevSel !== sel && ms >= (calm ? 200 : OPEN_MS) && !level) {
     const ax = starX(prevSel), bx = starX(sel), ay = nodes[prevSel].y, by = nodes[sel].y;
     for (let k = 6; k >= 0; k--) { const t = outCubic(clamp(ct - k * 0.06)); ctx.globalAlpha = 1 - k / 7; glowDot(lerp(ax, bx, t), lerp(ay, by, t), 2.4 * (1 - k / 8), "#fff", 10); }
     ctx.globalAlpha = 1;
@@ -326,8 +321,9 @@ function draw() {
   }
   // Pills and the hint.
   for (let i = 0; i < N; i++) {
-    const d = delay(i), pop = clamp((ms - d - 330) / 170), el = pills[i], n = nodes[i];
-    let a = pop, s = 0.85 + 0.15 * outBack(pop, 2.2), ox = -side * (1 - pop) * 14;
+    const d = delay(i), el = pills[i], n = nodes[i];
+    const pop = !calm ? clamp((ms - d - 330) / 170) : level ? clamp((ms - i * STEP - 90) / 130) : (i === skipFly ? 1 : clamp(ms / TRANS_MS));
+    let a = pop, s = calm ? 1 : 0.85 + 0.15 * outBack(pop, 2.2), ox = -side * (1 - pop) * (calm ? 5 : 14);
     if (firing >= 0) {
       if (i === sel) { const g = clamp(firing / 300); a = 1 - g; s = 1 - 0.35 * g; ox = (pip.x - n.x) * outCubic(g) * 0.55; }
       else a *= 1 - clamp(firing / 240);
@@ -339,7 +335,7 @@ function draw() {
     el.style.pointerEvents = pop > 0.6 && firing < 0 && dir > 0 && !trans ? "auto" : "none";
     el.classList.toggle("sel", i === sel);
   }
-  const last = nodes[N - 1], hp = clamp((ms - OPEN_MS + 120) / 200) * (firing >= 0 || dir < 0 ? 0 : 1);
+  const last = nodes[N - 1], hp = clamp(calm ? (ms - 200) / 150 : (ms - OPEN_MS + 120) / 200) * (firing >= 0 || dir < 0 ? 0 : 1);
   const below = last.y + 40 < area.y + area.h, anchor = below ? last : nodes[0];
   hint.style.opacity = (hp * 0.95).toFixed(2);
   hint.style.transform = `translate(${side > 0 ? anchor.x + 10 : anchor.x - 10 - hint.offsetWidth}px, ${below ? anchor.y + 22 : anchor.y - 44}px)`;
@@ -347,7 +343,7 @@ function draw() {
 
 function select(i) { if (!N) return; i = (i + N) % N; if (i === sel) return; prevSel = sel; sel = i; selAt = now; }
 function fire() {
-  if (fireAt >= 0 || dir <= 0 || (e < OPEN_MS * 0.6 && now > fastUntil)) return;   // a quick second key runs at once
+  if (fireAt >= 0 || dir <= 0 || (e < (calm ? 120 : OPEN_MS * 0.6) && now > fastUntil)) return;   // a quick second key runs at once
   fireAt = now;
   setTimeout(() => { flashAt = now; }, 280);
   setTimeout(() => { finish = { type: "run", id: T[sel].id }; reset(); }, 520);
@@ -355,9 +351,10 @@ function fire() {
 function reset() {
   open = false; dir = 0; e = 0; fireAt = -1;
   pills.forEach(p => { p.style.opacity = 0; p.style.pointerEvents = "none"; });
-  hint.style.opacity = 0; ghostEl.style.opacity = 0; crumbEl.style.opacity = 0; crumbEl.style.pointerEvents = "none";
+  hint.style.opacity = 0; ghostEl.style.opacity = 0;
   if (trans) trans.pills.forEach(p => p.remove());
-  trans = null; level = null; hub = null; skipFly = -1;
+  if (header) { header.remove(); header = null; }
+  trans = null; level = null; hub = null; skipFly = -1; calm = false;
 }
 
 /* Called by the app. */
@@ -381,7 +378,6 @@ window.ringClose = () => { if (!open) { post({ type: "closed" }); return; } if (
 document.addEventListener("keydown", ev => {
   if (!open || dir <= 0 || fireAt >= 0) { if (ev.key === "Escape") ringClose(); return; }
   const fwd = side > 0 ? "ArrowRight" : "ArrowLeft", back = side > 0 ? "ArrowLeft" : "ArrowRight";
-  if (trans && ev.key !== "Escape" && !/^[1-9]$/.test(ev.key)) return;
   if (ev.key === "ArrowDown" || (ev.key === "Tab" && !ev.shiftKey)) { ev.preventDefault(); select(sel + 1); }
   else if (ev.key === "ArrowUp" || (ev.key === "Tab" && ev.shiftKey)) { ev.preventDefault(); select(sel - 1); }
   else if (ev.key === fwd) { ev.preventDefault(); if (T[sel].items) enterGroup(sel); }
@@ -391,10 +387,10 @@ document.addEventListener("keydown", ev => {
   else if (ev.key === "Enter") { ev.preventDefault(); choose(); }
   else if (ev.key === "Escape") { ev.preventDefault(); if (level) goBack(); else ringClose(); }
   else if (/^[1-9]$/.test(ev.key) && +ev.key <= N && !trans) { select(+ev.key - 1); choose(); }
-  else if (/^[1-9]$/.test(ev.key) && trans && level && +ev.key <= N) { sel = +ev.key - 1; fire(); }
+  else if (/^[1-9]$/.test(ev.key) && trans && +ev.key <= N) { select(+ev.key - 1); choose(); }
 });
 document.addEventListener("mousedown", ev => {
-  if (ev.target.closest(".crumb")) { ev.preventDefault(); goBack(); return; }
+  if (header && ev.target.closest(".pill") === header) { ev.preventDefault(); goBack(); return; }
   if (!ev.target.closest(".pill")) ringClose();
 });
 
