@@ -328,6 +328,16 @@ Esc / the shortcut again / a click elsewhere pull it back. `native/macos/App/Rin
 whole screen at popUpMenu level (takes the keys without activating Quick Prompt, so the other app keeps its selection; hidden before
 ⌘C), the page is a string in that file (`ringPageHTML`, posts ready/run/closed to the `ring` handler). Checked: the page with a mocked
 app in Chromium (messages and timing), Swift type-check, tests. Not checked: the real window and keys on the owner's Mac.
+On `dev` after v0.3.65: **template groups** (owner's design, 8 Nov 2026). A template may have a Group (a name; optional,
+`SavedPreset.Group`, in /presets, /actions, saveaction, export/import). The ring's first level keeps the template order with each
+group standing where its first template is (groups and plain templates mixed); a group is a star in Pip's next colour with its
+templates circling it, a count and a chevron. Its number opens it in place (owner: little motion, not slow): the others fade where
+they are, its pill stays as the header, its templates unfold from the pill's end along threads in the group's colour (~0.3 s);
+back with Esc / ⌫ / the arrow away from the list or a click on the header. Codes are fixed (group, then template: ⇧⌥Z 3 2); a
+quick second key runs at once. The page is edited in `tools/pip-ring-groups-lab.html` and copied into Ring.swift with
+`python3 -I tools/ring-page-sync.py`. Settings: a Group field (suggests existing groups) and the list under group headers.
+Checked: tests, Swift type-check, the app's page in Chromium (messages), Settings with the real engine (DevHost). Not built.
+Next idea (owner): Action Templates (command / key-press steps, e.g. Snagit captures).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
 ## Open items / ideas

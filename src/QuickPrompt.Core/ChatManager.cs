@@ -533,6 +533,7 @@ namespace QuickPrompt.Core
                     color = agent.Color,
                     connection = agent.Connection,
                     builtIn = p.BuiltIn,
+                    group = p.Group ?? "",
                 };
             }).ToArray());
 
@@ -555,6 +556,7 @@ namespace QuickPrompt.Core
                 setup = SetupModes.Normalize(p.Setup),
                 enabled = p.Enabled,
                 autoCopy = p.AutoCopy,
+                group = p.Group ?? "",
                 setupChoice = p.SetupChoice == null ? null : new
                 {
                     skills = p.SetupChoice.Skills,
@@ -578,6 +580,7 @@ namespace QuickPrompt.Core
                 Input = PromptBuilder.InputFor(Get("instruction")),
                 Enabled = Get("enabled") != "false",
                 AutoCopy = Get("autoCopy") == "true",
+                Group = Get("group"),
             });
             return this.GetActionsJson();
         }
@@ -603,6 +606,7 @@ namespace QuickPrompt.Core
                     instruction = p.Instruction,
                     enabled = p.Enabled,
                     autoCopy = p.AutoCopy,
+                    group = String.IsNullOrEmpty(p.Group) ? null : p.Group,
                     agent = own == null ? null : new
                     {
                         name = own.Name,
@@ -683,6 +687,7 @@ namespace QuickPrompt.Core
                         Input = PromptBuilder.InputFor(Str(item, "instruction")),
                         Enabled = !item.TryGetProperty("enabled", out var en) || en.ValueKind != System.Text.Json.JsonValueKind.False,
                         AutoCopy = item.TryGetProperty("autoCopy", out var ac) && ac.ValueKind == System.Text.Json.JsonValueKind.True,
+                        Group = Str(item, "group"),
                     });
                 }
 

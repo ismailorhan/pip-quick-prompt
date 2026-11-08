@@ -60,6 +60,26 @@ namespace QuickPrompt.Tests
         }
 
         [Fact]
+        public void A_templates_group_is_saved_offered_to_the_ring_and_travels_in_an_export()
+        {
+            this._manager.SaveAction(new Dictionary<string, string> { ["title"] = "Full screen", ["instruction"] = "Describe {$clipboard}", ["group"] = " Capture " });
+            this._manager.SaveAction(new Dictionary<string, string> { ["title"] = "Plain", ["instruction"] = "Plain {$selected}" });
+
+            var editor = JsonDocument.Parse(this._manager.GetActionsJson()).RootElement.EnumerateArray().ToList();
+            var shot = editor.First(a => a.GetProperty("title").GetString() == "Full screen");
+            Assert.Equal("Capture", shot.GetProperty("group").GetString());
+            Assert.Equal("", editor.First(a => a.GetProperty("title").GetString() == "Plain").GetProperty("group").GetString());
+            Assert.Equal("Capture", Presets().First(p => p.GetProperty("title").GetString() == "Full screen").GetProperty("group").GetString());
+            Assert.Equal("", Presets().First(p => p.GetProperty("title").GetString() == "Summarize").GetProperty("group").GetString());
+
+            var file = this._manager.ExportActions(new[] { shot.GetProperty("id").GetString() });
+            using var other = new ChatManager(TempDir.Create(), new FakeHost(), new IAiProvider[] { new FakeProvider(ProviderIds.Claude), new FakeProvider(ProviderIds.Codex) }, new IAiProvider[0]);
+            other.ImportActions(file);
+            var imported = JsonDocument.Parse(other.GetActionsJson()).RootElement.EnumerateArray().First(a => a.GetProperty("title").GetString() == "Full screen");
+            Assert.Equal("Capture", imported.GetProperty("group").GetString());
+        }
+
+        [Fact]
         public void Built_ins_are_offered_before_anything_is_used()
         {
             var titles = Presets().Select(p => p.GetProperty("title").GetString()).ToList();

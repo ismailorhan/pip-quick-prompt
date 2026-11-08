@@ -115,20 +115,18 @@ function build(list, keepOld) {
     : `<kbd>1</kbd>–<kbd>9</kbd> · <kbd>↑</kbd><kbd>↓</kbd> choose · <kbd>${fwd}</kbd> open · <kbd>↵</kbd> run · <kbd>esc</kbd>`;
 }
 
-/* Groups in the order they first appear, then the templates without one. */
-function topList(templates, groups) {
-  const byName = new Map(), out = [];
-  for (const g of groups || []) if (g && g.name && !byName.has(g.name)) byName.set(g.name, { title: g.name, color: g.color, items: [] });
-  for (const t of templates) if (t.group) {
-    if (!byName.has(t.group)) byName.set(t.group, { title: t.group, color: t.color, items: [] });
-    byName.get(t.group).items.push(t);
+/* The first ring: templates in their order, a group standing where its first template is (its templates together in it).
+   A group takes the next of Pip's colours. */
+function topList(templates) {
+  const out = [], byName = new Map();
+  for (const t of templates) {
+    const name = (t.group || "").trim();
+    if (!name) { out.push(t); continue; }
+    const key = name.toLowerCase();
+    if (!byName.has(key)) { const g = { title: name, color: BRAND[byName.size % BRAND.length], items: [] }; byName.set(key, g); out.push(g); }
+    byName.get(key).items.push(t);
   }
-  for (const g of byName.values()) if (g.items.length) out.push(g);
-  for (const t of templates) if (!t.group) out.push(t);
   return out;
-}
-function hubPoint() {
-  return { x: clamp(pip.x + side * 84, area.x + 30, area.x + area.w - 30), y: pip.y };
 }
 function snapshot() { return nodes.map((n, j) => ({ x: starX(j), y: n.y, c: T[j].items ? hexA(T[j].color, 1) : "#fff" })); }
 function settle() { if (trans) { trans.pills.forEach(p => p.remove()); trans = null; } }
@@ -365,7 +363,7 @@ window.ringOpen = data => {
   const list = (data.templates || []).filter(t => t && t.id);
   const fit = Math.max(1, Math.floor((area.h - 80) / 26) + 1);
   reset(); side = pip.x > area.x + area.w / 2 ? -1 : 1; org = { ...pip };
-  TOP = topList(list, data.groups).slice(0, fit);
+  TOP = topList(list).slice(0, fit);
   build(TOP);
   if (!N) { post({ type: "closed" }); return; }
   layout();
@@ -421,16 +419,17 @@ if (!(window.webkit && window.webkit.messageHandlers)) {
   const log = document.createElement("div"); log.className = "lablog"; document.body.appendChild(log);
   const C = { write: "#A56BF2", capture: "#F08A5D", dev: "#1FB890", misc: "#4C8DF6" };
   const SAMPLE = [
+    ["Explain", null, C.misc],
     ["Fix grammar", "Write", C.write], ["Translate to English", "Write", C.write], ["Make it shorter", "Write", C.write], ["Draft a reply", "Write", C.write],
     ["Snagit: full screen", "Capture", C.capture], ["Snagit: step capture", "Capture", C.capture], ["Snagit: window", "Capture", C.capture],
     ["Snagit: scrolling", "Capture", C.capture], ["Region to clipboard", "Capture", C.capture],
     ["Commit from diff", "Dev", C.dev], ["git status", "Dev", C.dev], ["Open ticket", "Dev", C.dev],
-    ["Explain", null, C.misc], ["Summarize", null, C.misc]
+    ["Summarize", null, C.misc]
   ].map(([title, group, color], i) => ({ id: "a" + i, title, group, color }));
   const q = new URLSearchParams(location.search).get("pip");
   let labPip = q ? { x: +q.split(",")[0], y: +q.split(",")[1] } : { x: 90, y: innerHeight / 2 };
   const codeOf = id => {
-    const top = topList(SAMPLE, []), t = SAMPLE.find(s => s.id === id);
+    const top = topList(SAMPLE), t = SAMPLE.find(s => s.id === id);
     const gi = top.findIndex(x => x.items ? x.items.includes(t) : x === t);
     return top[gi].items ? `${gi + 1} ${top[gi].items.indexOf(t) + 1}` : `${gi + 1}`;
   };

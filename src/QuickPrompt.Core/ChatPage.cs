@@ -360,6 +360,10 @@ html.dropping #root.is-mini #miniOpen { outline: 2px dashed var(--accent); outli
 .aitem .run { flex: none; align-self: center; font-size: 11.5px; padding: 3px 10px; }
 .aitem.disabled .hbody, .aitem.disabled .dot { opacity: .45; }
 .aitem .pick { flex: none; align-self: center; margin: 0 2px 0 0; accent-color: var(--accent); }
+.agroup { display: flex; align-items: center; gap: 7px; padding: 10px 10px 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.agroup .gdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.agroup .gcount { font-weight: 400; opacity: .8; }
+.aitem.ingroup { padding-left: 22px; }
 /* On / off switch */
 .tgl { flex: none; align-self: center; width: 34px; height: 20px; padding: 0; border-radius: 999px; background: var(--faint); position: relative; margin-right: 6px; }
 .tgl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
@@ -772,6 +776,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     <div class="aform" id="actForm" hidden>
       <div class="crumb"><button type="button" class="crumbback" id="afBack"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Prompt templates</button><span class="sep">/</span><span class="cur" id="afCrumb"></span></div>
       <label class="sfield">Title<input type="text" id="afTitle" spellcheck="false" placeholder="e.g. Reply to email"></label>
+      <label class="sfield">Group<input type="text" id="afGroup" spellcheck="false" list="afGroups" placeholder="None (optional), e.g. Capture"></label>
+      <datalist id="afGroups"></datalist>
+      <div class="shint">Templates with the same group are one entry in the template ring; its number opens them.</div>
       <label class="sfield">Prompt<textarea id="afPrompt" rows="5" spellcheck="false" placeholder="Write a {tone:friendly|formal|short} reply to this email:&#10;&#10;{$selected}"></textarea></label>
       <div class="params">
         <div class="ptitle2">Parameters</div>
@@ -2539,19 +2546,27 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
   // ---------- Prompt templates editor ----------
   const act = { view: $("actionsView"), list: $("actList"), form: $("actForm"), buttons: $("actButtons"), items: [], editing: null };
   const INPUT_NAMES = { selection: "Uses the selection", clipboard: "Uses the clipboard", popup: "Typed in the popup", none: "No text" };
+  // Groups as in the template ring: each where its first template is, its templates together under it.
+  const GROUP_COLORS = ["#F08A5D", "#1FB890", "#4C8DF6", "#A56BF2"];
+  function groupedActions(items) {
+    const out = [], done = new Set();
+    let n = 0;
+    for (const a of items) {
+      const g = (a.group || "").trim();
+      if (!g) { out.push({ item: a }); continue; }
+      if (done.has(g.toLowerCase())) continue;
+      done.add(g.toLowerCase());
+      const members = items.filter(x => (x.group || "").trim().toLowerCase() === g.toLowerCase());
+      out.push({ group: g, count: members.length, color: GROUP_COLORS[n++ % GROUP_COLORS.length] });
+      members.forEach(m => out.push({ item: m, inGroup: true }));
+    }
+    return out;
+  }
   function renderActions() {
     const exporting = !!act.exporting;
-    act.list.innerHTML = act.items.length ? act.items.map(a =>
-      '<div class="hitem aitem' + (a.enabled === false ? ' disabled' : '') + '" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
-      + (exporting ? '<input type="checkbox" class="pick" data-pick="' + esc(a.id) + '"' + (act.picked.has(a.id) ? ' checked' : '') + ' aria-label="Export ' + esc(a.title) + '">' : '')
-      + '<span class="dot" style="background:' + esc(a.agentColor || "") + '"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
-      + '<div class="ha">' + esc(a.instruction.replace(/\s+/g, " ")) + '</div>'
-      + '<div class="hmeta">' + esc(a.agentName || "") + (a.agent ? '' : ' (default)') + ' · ' + INPUT_NAMES[a.input]
-      + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '')
-      + (a.builtIn ? ' · built-in' : '') + '</div></div>'
-      + (exporting ? '' : '<button type="button" class="tgl' + (a.enabled === false ? '' : ' on') + '" data-toggle="' + esc(a.id) + '" role="switch" aria-checked="' + (a.enabled !== false) + '" title="' + (a.enabled === false ? 'Off: not offered in Pip or the menu bar' : 'On') + '"></button>'
-        + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button>')
-      + '</div>').join("")
+    act.list.innerHTML = act.items.length ? groupedActions(act.items).map(row => row.group
+      ? '<div class="agroup"><span class="gdot" style="background:' + row.color + '"></span>' + esc(row.group) + '<span class="gcount">' + row.count + '</span></div>'
+      : actionRow(row.item, row.inGroup, exporting)).join("")
       : '<div class="hempty">No templates yet.</div>';
     $("exportBar").hidden = !exporting;
     act.buttons.hidden = exporting || !act.form.hidden;
@@ -2563,6 +2578,19 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       $("exportGo").disabled = act.picked.size === 0;
     }
     queueLayout();
+  }
+  function actionRow(a, inGroup, exporting) {
+    return (
+      '<div class="hitem aitem' + (inGroup ? ' ingroup' : '') + (a.enabled === false ? ' disabled' : '') + '" data-id="' + esc(a.id) + '" data-provider="' + esc(a.provider) + '" role="button" tabindex="0">'
+      + (exporting ? '<input type="checkbox" class="pick" data-pick="' + esc(a.id) + '"' + (act.picked.has(a.id) ? ' checked' : '') + ' aria-label="Export ' + esc(a.title) + '">' : '')
+      + '<span class="dot" style="background:' + esc(a.agentColor || "") + '"></span><div class="hbody"><div class="hq">' + esc(a.title) + '</div>'
+      + '<div class="ha">' + esc(a.instruction.replace(/\s+/g, " ")) + '</div>'
+      + '<div class="hmeta">' + esc(a.agentName || "") + (a.agent ? '' : ' (default)') + ' · ' + INPUT_NAMES[a.input]
+      + (a.fields ? ' · ' + a.fields + (a.fields === 1 ? ' field' : ' fields') : '')
+      + (a.builtIn ? ' · built-in' : '') + '</div></div>'
+      + (exporting ? '' : '<button type="button" class="tgl' + (a.enabled === false ? '' : ' on') + '" data-toggle="' + esc(a.id) + '" role="switch" aria-checked="' + (a.enabled !== false) + '" title="' + (a.enabled === false ? 'Off: not offered in Pip or the menu bar' : 'On') + '"></button>'
+        + '<button type="button" class="run" data-run="' + esc(a.id) + '">Run</button>')
+      + '</div>');
   }
   async function openActions(only) {
     actionsOnly = !!only;
@@ -2603,6 +2631,9 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
     act.newId = "";
     $("actTitle").textContent = a ? (a.builtIn ? "Edit " + a.title + " (saved as your copy)" : "Edit template") : "New template";
     $("afTitle").value = a ? a.title : "";
+    $("afGroup").value = a ? a.group || "" : "";
+    const groups = [...new Set(act.items.map(x => (x.group || "").trim()).filter(Boolean))];
+    $("afGroups").innerHTML = groups.map(g => '<option value="' + esc(g) + '"></option>').join("");
     $("afPrompt").value = a ? a.instruction : "";
     fillAgentPicker(a ? a.agent || "" : "");
     setSeg("afAutoCopy", a && a.autoCopy ? "true" : "false");
@@ -2710,6 +2741,7 @@ html.native [data-drag] button, html.native [data-drag] textarea, html.native [d
       id: own ? act.editing.id : (act.newId = act.newId || newClientId("a", 12)),
       enabled: act.editing && act.editing.enabled === false ? "false" : "true",
       title: $("afTitle").value.trim(), instruction: $("afPrompt").value,
+      group: $("afGroup").value.trim(),
       agent: $("afAgent").value,
       autoCopy: segValues.afAutoCopy === "true" ? "true" : "false",
     };

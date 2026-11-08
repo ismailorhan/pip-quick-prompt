@@ -36,6 +36,9 @@ namespace QuickPrompt.Core
         /// <summary>Put the first answer on the clipboard as soon as it is complete.</summary>
         public Boolean AutoCopy { get; set; }
 
+        /// <summary>An optional group (a name): the template ring shows a group as one entry that opens to its templates.</summary>
+        public String Group { get; set; } = "";
+
         /// <summary>The agent this template uses ("" = the default agent). Null in templates from before agents
         /// (and presets remembered from the ring): ProviderId, Connection, Model and Setup say how it runs.</summary>
         public String AgentId { get; set; }
@@ -230,6 +233,7 @@ namespace QuickPrompt.Core
                     Custom = true,
                     Enabled = action.Enabled,
                     AutoCopy = action.AutoCopy,
+                    Group = (action.Group ?? "").Trim(),
                     AgentId = action.AgentId,
                     LastUsedUtc = DateTime.UtcNow,
                 };
