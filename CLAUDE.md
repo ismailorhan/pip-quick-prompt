@@ -94,7 +94,7 @@ Details: `docs/architecture.md`, `docs/development.md`, `README.md`.
 - Latest build assets: `QuickPrompt.dmg` (first install), `QuickPrompt-mac.zip` + `QuickPrompt-mac.json`
   (in-app updates: SHA-256 and same-team signature are checked), `QuickPrompt.lplug4`.
 
-## Status (v0.3.66, 8 Nov 2026)
+## Status (v0.3.67, 9 Nov 2026)
 
 Done and released: menu bar app; Pip (snow-globe/neural animation, toolbar, keep on screen, hide / never
 show, middle click snaps to the nearest edge, opens popups beside it, remembers its place); conversation as
@@ -337,6 +337,9 @@ back with Esc / ⌫ / the arrow away from the list or a click on the header. Cod
 quick second key runs at once. The page is edited in `tools/pip-ring-groups-lab.html` and copied into Ring.swift with
 `python3 -I tools/ring-page-sync.py`. Settings: a Group field (suggests existing groups) and the list under group headers.
 Checked: tests, Swift type-check, the app's page in Chromium (messages), Settings with the real engine (DevHost).
+v0.3.67 (9 Nov 2026), built, not yet confirmed: the ring no longer beeps on its keys (the page left the number keys
+unhandled, WKWebView handed them back to macOS; now every non-⌘ key is preventDefault-ed and RingPanel's `noResponder(for:)`
+stays quiet for keyDown).
 Next idea (owner): Action Templates (command / key-press steps, e.g. Snagit captures).
 CI note: the macOS job can sit queued and get cancelled ("not acquired by Runner … capacity"); re-run the whole run (`gh run rerun <id>`; `--failed` is refused after a cancel). On 4 Nov 2026 it took three attempts.
 
