@@ -7,6 +7,11 @@ import WebKit
 final class RingPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+    /// A key nobody handled ends here, and NSWindow beeps for it; the ring's keys are all its own, so stay quiet.
+    override func noResponder(for eventSelector: Selector) {
+        if eventSelector == #selector(NSResponder.keyDown(with:)) { return }
+        super.noResponder(for: eventSelector)
+    }
 }
 
 /// The template ring (the shortcut, default ⌥⇧Z): Pip casts the prompt templates out round itself as a
@@ -492,6 +497,8 @@ window.ringOpen = data => {
 window.ringClose = () => { if (!open) { post({ type: "closed" }); return; } if (fireAt < 0) dir = -1; };
 
 document.addEventListener("keydown", ev => {
+  // Every key is the ring's: one the page leaves unhandled goes back to macOS, which beeps.
+  if (!ev.metaKey) ev.preventDefault();
   if (!open || dir <= 0 || fireAt >= 0) { if (ev.key === "Escape") ringClose(); return; }
   const fwd = side > 0 ? "ArrowRight" : "ArrowLeft", back = side > 0 ? "ArrowLeft" : "ArrowRight";
   if (ev.key === "ArrowDown" || (ev.key === "Tab" && !ev.shiftKey)) { ev.preventDefault(); select(sel + 1); }

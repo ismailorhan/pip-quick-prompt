@@ -374,6 +374,8 @@ window.ringOpen = data => {
 window.ringClose = () => { if (!open) { post({ type: "closed" }); return; } if (fireAt < 0) dir = -1; };
 
 document.addEventListener("keydown", ev => {
+  // Every key is the ring's: one the page leaves unhandled goes back to macOS, which beeps.
+  if (!ev.metaKey) ev.preventDefault();
   if (!open || dir <= 0 || fireAt >= 0) { if (ev.key === "Escape") ringClose(); return; }
   const fwd = side > 0 ? "ArrowRight" : "ArrowLeft", back = side > 0 ? "ArrowLeft" : "ArrowRight";
   if (ev.key === "ArrowDown" || (ev.key === "Tab" && !ev.shiftKey)) { ev.preventDefault(); select(sel + 1); }
